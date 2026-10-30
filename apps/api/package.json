@@ -1,0 +1,20 @@
+{
+  "name": "@absensi/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "db:migrate:local": "wrangler d1 migrations apply absensi-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply absensi-db --remote",
+    "db:reset:local": "node ./scripts/reset-local-db.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.4.11",
+    "@cloudflare/workers-types": "^5.20261030.1",
+    "@types/node": "^26.6.6",
+    "wrangler": "^4.156.0"
+  }
+}
