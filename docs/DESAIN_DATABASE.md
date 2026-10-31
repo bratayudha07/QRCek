@@ -53,7 +53,15 @@ Catatan: `superadmin` bersifat global (`users.role`), sedangkan `event_admin` da
 
 ## 3. DDL
 
-File: `migrations/0001_init.sql`
+> ⚠️ **Ini desain TARGET, bukan keadaan database sekarang.** Per 31 Oktober 2026,
+> `migrations/0001_init.sql` hanya membuat satu tabel: `app_meta`. Semua tabel di
+> bawah dibuat pada fase yang membutuhkannya (Fase 1: `users`, `events`,
+> `event_memberships`; Fase 2: `participants`; Fase 3: `attendance`; Fase 4:
+> `audit_log`; Fase 5: `sync_state`, `sheet_rows`, `outbox`). Alasan pemangkasan:
+> `docs/OPERASIONAL.md` §4.3. Pecah DDL ini menjadi migrasi per fase — **jangan**
+> menyalin seluruh blok ini ke satu file.
+
+File migrasi: satu file per perubahan skema, diberi nomor berurutan di `migrations/`.
 
 > Catatan: D1 menegakkan foreign key secara default, sehingga migrasi **tidak**
 > mengirim `PRAGMA foreign_keys = ON` (D1 dapat menolaknya di dalam migrasi).
@@ -472,10 +480,10 @@ Kesimpulan: **satu database 500 MB cukup untuk puluhan ribu peserta**, tetapi `a
 | # | Yang perlu dibuktikan | Cara | Status Fase 0 |
 |---|---|---|---|
 | 1 | `db.batch()` benar-benar atomik (rollback semua bila satu statement gagal) | Tes: batch dengan statement kedua melanggar constraint, pastikan statement pertama tidak tersimpan | ✅ Terverifikasi — `spike.batch.test.ts` (statement ke-2 gagal → statement ke-1 hilang) |
-| 2 | `meta.changes` akurat untuk `INSERT ... ON CONFLICT DO NOTHING` | Tes unit + integrasi | ✅ Terverifikasi — `db.integration.test.ts` (scan pertama `1`, scan kedua `0`) |
-| 3 | Partial unique index didukung D1 | Migrasi lokal + tes insert duplikat | ✅ Terverifikasi — `spike.index.test.ts`. **Catatan**: `ON CONFLICT` wajib mengulang predikat indeks (§6) |
-| 4 | Trigger `RAISE(ABORT)` berjalan normal di D1 | Tes `audit.immutable.test.ts` | ✅ Terverifikasi — `db.integration.test.ts` (UPDATE & DELETE ditolak) |
-| 5 | `EXPLAIN QUERY PLAN` menampilkan `SEARCH` untuk semua query utama | Skrip pemeriksaan indeks | ✅ Terverifikasi — `spike.explain.test.ts`, 10/10 query memakai `SEARCH ... USING INDEX` |
+| 2 | `meta.changes` akurat untuk `INSERT ... ON CONFLICT DO NOTHING` | Tes unit + integrasi | ⬜ **Belum** — tabel tujuan belum ada. Diverifikasi di Fase 3 bersama `attendance`, karena itulah satu-satunya tempat pola ini dipakai |
+| 3 | Partial unique index didukung D1 | Migrasi lokal + tes insert duplikat | ✅ Terverifikasi — `spike.index.test.ts` memakai tabel sekali-pakai `spike_outbox` dengan bentuk & indeks identik. **Catatan**: `ON CONFLICT` wajib mengulang predikat indeks (§6) |
+| 4 | Trigger `RAISE(ABORT)` berjalan normal di D1 | Tes `audit.immutable.test.ts` | ⬜ **Belum** — trigger audit ikut dihapus saat skema dipangkas (`docs/OPERASIONAL.md` §4.3). Diverifikasi di Fase 4 |
+| 5 | `EXPLAIN QUERY PLAN` menampilkan `SEARCH` untuk semua query utama | Skrip pemeriksaan indeks | ✅ Terverifikasi — `spike.explain.test.ts`, 10/10 query memakai `SEARCH ... USING INDEX` (tabel sekali-pakai) + `app_meta` yang nyata |
 | 6 | Ukuran nyata per baris | `SELECT SUM(pgsize) FROM dbstat` bila tersedia, atau `wrangler d1 export` + hitung file | ⬜ **Belum** — `dbstat` tidak tersedia di D1; perlu data nyata + `wrangler d1 export` (Fase 2, setelah import peserta) |
 
 Detail angka dan quirk lingkungan ada di `docs/OPERASIONAL.md` §1–§2.

@@ -7,33 +7,42 @@ const NOW = 1_730_000_000_000;
  * Spike (IMPLEMENTATION_PLAN.md Fase 0): is a *partial* unique index
  * (`WHERE status IN (...)`) supported and enforced?
  *
- * ADR-004 / outbox coalescing depends on it: at most one pending sync row per
- * participant, while completed rows stay as history.
+ * The future outbox coalescing (ADR-004) depends on it: at most one pending
+ * sync row per participant, while completed rows stay as history.
+ *
+ * This uses a throwaway table with the same shape as the planned `outbox`
+ * instead of the real table, because Fase 0 deliberately ships no business
+ * tables. The SQL under test is identical.
  */
 describe("spike: partial unique index", () => {
   beforeEach(async () => {
-    await env.DB.exec("DELETE FROM outbox; DELETE FROM participants; DELETE FROM events; DELETE FROM users;");
-    await env.DB.batch([
-      env.DB.prepare(
-        "INSERT INTO users (id, display_name, role, status, created_at) VALUES (?, ?, ?, ?, ?)",
-      ).bind("u1", "Admin", "superadmin", "active", NOW),
-      env.DB.prepare(
-        "INSERT INTO events (id, slug, name, created_at, created_by) VALUES (?, ?, ?, ?, ?)",
-      ).bind("e1", "ev-1", "Event", NOW, "u1"),
-      env.DB.prepare(
-        `INSERT INTO participants
-           (id, event_id, external_ref, full_name, qr_token_hash, qr_issued_at, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind("p1", "e1", "R1", "Budi", "h1", NOW, NOW, NOW),
-    ]);
+    await env.DB.exec("DROP TABLE IF EXISTS spike_outbox;");
+    // `db.exec()` splits SQL per line, so multi-line DDL must go through
+    // `prepare().run()` (docs/OPERASIONAL.md §4.2).
+    await env.DB.prepare(
+      `CREATE TABLE spike_outbox (
+        id             TEXT PRIMARY KEY,
+        event_id       TEXT NOT NULL,
+        participant_id TEXT NOT NULL,
+        status         TEXT NOT NULL,
+        attempts       INTEGER NOT NULL,
+        next_attempt_at INTEGER NOT NULL,
+        updated_at     INTEGER NOT NULL
+      )`,
+    ).run();
+    await env.DB.prepare(
+      `CREATE UNIQUE INDEX spike_uq_outbox_pending
+        ON spike_outbox(event_id, participant_id)
+        WHERE status IN ('pending','inflight','failed')`,
+    ).run();
   });
 
   const insertOutbox = (id: string, status: string) =>
     env.DB.prepare(
-      `INSERT INTO outbox (id, event_id, participant_id, kind, status, attempts, next_attempt_at, created_at, updated_at)
-       VALUES (?, 'e1', 'p1', 'attendance', ?, 0, ?, ?, ?)`,
+      `INSERT INTO spike_outbox (id, event_id, participant_id, status, attempts, next_attempt_at, updated_at)
+       VALUES (?, 'e1', 'p1', ?, 0, ?, ?)`,
     )
-      .bind(id, status, NOW, NOW, NOW)
+      .bind(id, status, NOW, NOW)
       .run();
 
   it("rejects a second pending row for the same participant", async () => {
@@ -53,21 +62,20 @@ describe("spike: partial unique index", () => {
     await insertOutbox("o1", "pending");
 
     await env.DB.prepare(
-      `INSERT INTO outbox (id, event_id, participant_id, kind, status, attempts, next_attempt_at, created_at, updated_at)
-       VALUES (?, 'e1', 'p1', 'attendance', 'pending', 0, ?, ?, ?)
+      `INSERT INTO spike_outbox (id, event_id, participant_id, status, attempts, next_attempt_at, updated_at)
+       VALUES (?, 'e1', 'p1', 'pending', 0, ?, ?)
        ON CONFLICT (event_id, participant_id) WHERE status IN ('pending','inflight','failed') DO UPDATE SET
          status = 'pending',
          attempts = 0,
          next_attempt_at = excluded.next_attempt_at,
          updated_at = excluded.updated_at`,
     )
-      .bind("o4", NOW + 60_000, NOW, NOW + 60_000)
+      .bind("o4", NOW + 60_000, NOW + 60_000)
       .run();
 
-    const row = await env.DB.prepare("SELECT COUNT(*) AS n, MAX(id) AS id FROM outbox").first<{
-      n: number;
-      id: string;
-    }>();
+    const row = await env.DB.prepare(
+      "SELECT COUNT(*) AS n, MAX(id) AS id FROM spike_outbox",
+    ).first<{ n: number; id: string }>();
 
     expect(row?.n).toBe(1);
     expect(row?.id).toBe("o1"); // updated in place, not inserted
@@ -80,11 +88,11 @@ describe("spike: partial unique index", () => {
     // bare conflict target. Documented in docs/DESAIN_DATABASE.md.
     await expect(
       env.DB.prepare(
-        `INSERT INTO outbox (id, event_id, participant_id, kind, status, attempts, next_attempt_at, created_at, updated_at)
-         VALUES (?, 'e1', 'p1', 'attendance', 'pending', 0, ?, ?, ?)
+        `INSERT INTO spike_outbox (id, event_id, participant_id, status, attempts, next_attempt_at, updated_at)
+         VALUES (?, 'e1', 'p1', 'pending', 0, ?, ?)
          ON CONFLICT (event_id, participant_id) DO UPDATE SET updated_at = excluded.updated_at`,
       )
-        .bind("o5", NOW, NOW, NOW)
+        .bind("o5", NOW, NOW)
         .run(),
     ).rejects.toThrow(/ON CONFLICT clause does not match/);
   });

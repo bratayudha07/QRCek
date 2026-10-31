@@ -39,19 +39,20 @@ Total: ~20–26 hari kerja efektif. Perkiraan ini mengasumsikan satu orang; tida
 **Tujuan**: membuktikan bahwa platform free tier sanggup menjalankan sistem ini **sebelum** membangun fitur di atasnya. Ini fase yang mencegah seluruh proyek dibangun di atas asumsi yang salah.
 
 > **Status: SELESAI SEBAGIAN — 3 butir belum terverifikasi.** Semua gerbang lokal hijau
-> (`typecheck`, `lint`, `test` 34/34, `build`, migrasi lokal, dev loop). Yang **belum**:
+> (`typecheck`, `lint`, `test` 44/44, `build`, migrasi lokal, dev loop). Yang **belum**:
 > gerbang CPU p95 ≤ 5 ms (butuh akun Cloudflare + `wrangler tail`), perilaku `Set-Cookie`
 > lewat Static Assets (belum ada endpoint penerbit cookie — Fase 1), dan CI hijau
-> (repo belum di-`git init`, workflow belum pernah dijalankan).
+> (repo sudah punya commit tetapi belum punya remote, workflow belum pernah dijalankan).
 > Hasil lengkap: `docs/OPERASIONAL.md`.
 
 ### Catatan deviasi dari rencana
 
 | Rencana | Yang dikerjakan | Alasan |
 |---|---|---|
-| Satu file `migrations/0001_init.sql` | Tiga file: `0001_init.sql`, `0002_auth.sql`, `0003_sync.sql` | Mengikuti `docs/DESAIN_DATABASE.md` (dokumen desain adalah acuan); memisahkan domain, auth, dan sync membuat migrasi lebih mudah ditinjau |
+| `migrations/0001_init.sql` berisi **skema penuh** | Satu file `0001_init.sql` berisi **satu tabel** `app_meta` | **Keputusan pemilik proyek (31 Okt)**: Fase 0 tidak boleh memuat tabel bisnis (`events`, `participants`, `attendance`, `audit_log`, `outbox`, …). Skema penuh juga bertabrakan dengan aturan "jangan implementasi fitur sebelum fase-nya dibuka". Tabel dibuat per fase; `DESAIN_DATABASE.md` §3 tetap desain target. Lihat `docs/OPERASIONAL.md` §4.3 |
 | `apps/api/src/test/bench.test.ts` | `apps/api/src/test/spike.measure.test.ts` + `npm run bench` | Nama file mengikuti pola `spike.*.test.ts` agar jelas mana tes gerbang dan mana spike |
 | `wrangler.jsonc` untuk tes | Tambahan `wrangler.test.jsonc` | Tanpa `assets`, `npm run test` tidak menuntut hasil build SPA lebih dulu |
+| Spike diuji pada tabel nyata | Tabel sekali-pakai (`spike_outbox`, `spike_attendance`, …) dengan bentuk & indeks identik | Konsekuensi dari skema minimal. SQL yang diuji tidak berubah, jadi temuan tetap berlaku saat tabel aslinya dibuat |
 
 ### Pekerjaan
 
@@ -59,7 +60,8 @@ Total: ~20–26 hari kerja efektif. Perkiraan ini mengasumsikan satu orang; tida
 2. `tsconfig.base.json` dengan `strict: true`, `noUncheckedIndexedAccess: true`.
 3. `apps/api`: Worker minimal (`GET /api/health`), `wrangler.jsonc` dengan binding D1 + Static Assets (`run_worker_first: ["/api/*"]`, `not_found_handling: "single-page-application"`).
 4. `apps/web`: Vite + React + TS + Tailwind + shadcn/ui (`components.json`), proxy `/api` → `:8787`.
-5. `migrations/0001_init.sql` (skema penuh dari `DESAIN_DATABASE.md`).
+5. `migrations/0001_init.sql` — **minimal**: hanya `app_meta` (key/value + `updated_at`).
+   Tabel bisnis dibuat pada fase yang membutuhkannya (keputusan 31 Okt; lihat deviasi di atas).
 6. Script kanonik di root `package.json` sesuai `AGENTS.md`.
 7. Vitest: unit (node) + integrasi (`@cloudflare/vitest-plugin`), satu tes contoh D1.
 8. CI GitHub Actions: `typecheck → lint → test → build`.
@@ -78,7 +80,7 @@ Buat modul `apps/api/src/test/bench.test.ts` atau skrip `npm run bench` yang men
 | Partial unique index | Migrasi + insert duplikat | Didukung | ✅ Didukung. **Temuan**: `ON CONFLICT` wajib mengulang predikat indeks (`spike.index.test.ts`) |
 | `EXPLAIN QUERY PLAN` | Semua query utama | `SEARCH`, bukan `SCAN` | ✅ 10/10 `SEARCH ... USING INDEX` (`spike.explain.test.ts`) |
 | Perilaku `Set-Cookie` dengan Static Assets | Request ke `/api/*` | Cookie tidak terpotong | ⚠️ **Belum dapat diuji.** Belum ada endpoint yang menerbitkan cookie; ditunda ke Fase 1 |
-| Batas ukuran import | Kirim CSV 500 / 1.000 / 2.000 baris | Menemukan titik di mana CPU > 5 ms | ⚠️ **Sebagian.** Wall-clock: 180 / 354 / 601 ms. Titik CPU belum diketahui → batas sementara **1.000 baris/request** |
+| Batas ukuran import | Kirim CSV 500 / 1.000 / 2.000 baris | Menemukan titik di mana CPU > 5 ms | ⚠️ **Sebagian.** Wall-clock run 2: 82 / 149 / 301 ms. Titik CPU belum diketahui → batas sementara **1.000 baris/request** |
 
 **Hasil spike menjadi keputusan konkret**: berapa baris maksimum per import, apakah rate limit memakai `RETURNING`, apakah `batch()` boleh diandalkan untuk atomisitas.
 
@@ -88,12 +90,12 @@ Keputusan yang sudah diambil: rate limit memakai `RETURNING`; absensi + outbox +
 
 - [x] `npm run typecheck` → 0 error.
 - [x] `npm run lint` → 0 error, 0 warning.
-- [x] `npm run test` → lulus, ≥ 1 tes unit + ≥ 1 tes integrasi D1 yang benar-benar menyentuh `env.DB`. *(9 file, 34 tes)*
+- [x] `npm run test` → lulus, ≥ 1 tes unit + ≥ 1 tes integrasi D1 yang benar-benar menyentuh `env.DB`. *(10 file, 44 tes)*
 - [x] `npm run build` → menghasilkan `apps/web/dist/index.html` dan bundle Worker.
 - [x] `npm run dev:web` + `npm run dev:api` → `/api/health` merespons `{"ok":true}` dari `http://localhost:5173/api/health`.
-- [x] `npm run db:migrate:local` pada database kosong → semua tabel, indeks, dan trigger terbentuk (14 tabel + 2 trigger); migrasi kedua kali → `No migrations to apply`.
+- [x] `npm run db:migrate:local` pada database kosong → `0001_init.sql` diterapkan (1 tabel `app_meta`, 1 baris `schema_version`); migrasi kedua kali → `No migrations to apply`.
 - [x] Semua 7 item spike punya angka/kesimpulan tertulis di `docs/ARSITEKTUR.md` §11 atau `docs/OPERASIONAL.md`. *(3 di antaranya tercatat sebagai **belum terverifikasi**, bukan lulus)*
-- [ ] CI hijau pada PR fase ini. **Belum terverifikasi** — repo belum di-`git init` dan workflow belum pernah dijalankan.
+- [ ] CI hijau pada PR fase ini. **Belum terverifikasi** — commit ada, remote belum, workflow belum pernah dijalankan.
 
 ### Risiko fase ini
 

@@ -45,11 +45,17 @@ describe("spike: hot path cost proxy", () => {
   beforeEach(async () => {
     await env.DB.exec("DROP TABLE IF EXISTS spike_scan;");
     await env.DB.exec("DROP TABLE IF EXISTS spike_import;");
+    await env.DB.exec("DROP TABLE IF EXISTS spike_rate_limits;");
     await env.DB.exec(
       "CREATE TABLE spike_scan (id TEXT PRIMARY KEY, token_hash TEXT NOT NULL UNIQUE);",
     );
     await env.DB.exec(
       "CREATE TABLE spike_import (id TEXT PRIMARY KEY, token_hash TEXT NOT NULL UNIQUE, name TEXT NOT NULL);",
+    );
+    // Placeholder for the future rate-limit table; Fase 0 ships no business
+    // tables, but the scan proxy needs a second statement in its batch.
+    await env.DB.exec(
+      "CREATE TABLE spike_rate_limits (bucket TEXT NOT NULL, window_start INTEGER NOT NULL, counter INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (bucket, window_start));",
     );
   });
 
@@ -91,7 +97,7 @@ describe("spike: hot path cost proxy", () => {
           tokenHash,
         ),
         env.DB.prepare(
-          "INSERT INTO rate_limits (bucket, window_start, counter) VALUES (?, ?, 1) ON CONFLICT (bucket, window_start) DO UPDATE SET counter = counter + 1",
+          "INSERT INTO spike_rate_limits (bucket, window_start, counter) VALUES (?, ?, 1) ON CONFLICT (bucket, window_start) DO UPDATE SET counter = counter + 1",
         ).bind(`scan:${i}`, NOW),
       ]);
 

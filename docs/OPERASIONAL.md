@@ -26,7 +26,7 @@ Tanggal pengukuran: 30 Oktober 2026.
 | 2 | `RETURNING` pada `INSERT ... ON CONFLICT` | ✅ **terverifikasi** | Didukung, termasuk di dalam `db.batch()` |
 | 3 | Partial unique index | ✅ **terverifikasi** | Didukung dan ditegakkan |
 | 4 | `EXPLAIN QUERY PLAN` query panas | ✅ **terverifikasi** | 10/10 query memakai `SEARCH ... USING INDEX` |
-| 5 | Migrasi D1 pada database kosong | ✅ **terverifikasi** | 3 file, 18 command, 14 tabel, 2 trigger |
+| 5 | Migrasi D1 pada database kosong | ✅ **terverifikasi** | 1 file, 3 command, 1 tabel (`app_meta`) |
 | 6 | `Set-Cookie` lewat Static Assets | ❌ **belum dapat diverifikasi** | Tidak ada endpoint penerbit cookie di Fase 0 |
 | 7 | CPU p95 ≤ 5 ms | ⚠️ **hanya proksi** | Wall-clock lokal terukur; CPU platform butuh `wrangler tail` pada Worker ter-deploy |
 
@@ -36,18 +36,22 @@ Tanggal pengukuran: 30 Oktober 2026.
 
 Diukur dengan `npm run bench` di `workerd` lokal. **Ini wall-clock, bukan CPU platform.** Resolusi `performance.now()` di workerd adalah 1 ms, sehingga pengukuran per-operasi dibulatkan; karena itu HMAC diukur secara batch.
 
-| Skenario | Hasil |
-|---|---|
-| HMAC-SHA256 throughput | 1000 ops / 54,0 ms → **0,054 ms per operasi** |
-| Scan proxy (HMAC + indexed SELECT + batch 2 statement) | **p50 = 7 ms, p95 = 11 ms, max = 14 ms** |
-| Import proxy 500 baris (HMAC + insert) | 180 ms total → 0,36 ms/baris |
-| Import proxy 1.000 baris | 354 ms total → 0,35 ms/baris |
-| Import proxy 2.000 baris | 601 ms total → 0,30 ms/baris |
+Dua run pada mesin yang sama (jeda satu hari) — perhatikan selisihnya, inilah alasan angka ini tidak boleh dipakai sebagai gerbang:
+
+| Skenario | Run 1 (30 Okt) | Run 2 (31 Okt) |
+|---|---|---|
+| HMAC-SHA256 throughput | 1000 ops / 54,0 ms → 0,054 ms/op | 1000 ops / 24,0 ms → 0,024 ms/op |
+| Scan proxy (HMAC + indexed SELECT + batch 2 statement) | p50 7 ms · p95 11 ms · max 14 ms | p50 3 ms · p95 5 ms · max 6 ms |
+| Import proxy 500 baris | 180 ms → 0,36 ms/baris | 82 ms → 0,16 ms/baris |
+| Import proxy 1.000 baris | 354 ms → 0,35 ms/baris | 149 ms → 0,15 ms/baris |
+| Import proxy 2.000 baris | 601 ms → 0,30 ms/baris | 301 ms → 0,15 ms/baris |
+
+Selisih sampai ~2,5× antar-run pada mesin yang sama menunjukkan angka ini didominasi keadaan host (cache, I/O, beban), bukan sifat kode. **Jangan pakai selisih ini untuk menyimpulkan perbaikan atau regresi.**
 
 ### Cara membacanya (penting)
 
-- Angka scan proxy **tidak boleh** dibandingkan langsung dengan batas 10 ms CPU. Angka itu didominasi waktu tunggu I/O D1 lokal (tulis ke disk), dan **waktu tunggu I/O tidak dihitung sebagai CPU** oleh Cloudflare. Komponen CPU yang sebenarnya — HMAC + serialisasi JSON — hanya ~0,05 ms per operasi.
-- Angka import proxy juga wall-clock. Yang CPU-nya adalah 1.000 HMAC (±54 ms) + parsing; sisanya I/O D1.
+- Angka scan proxy **tidak boleh** dibandingkan langsung dengan batas 10 ms CPU. Angka itu didominasi waktu tunggu I/O D1 lokal (tulis ke disk), dan **waktu tunggu I/O tidak dihitung sebagai CPU** oleh Cloudflare. Komponen CPU yang sebenarnya — HMAC + serialisasi JSON — hanya ~0,02–0,05 ms per operasi.
+- Angka import proxy juga wall-clock. Yang CPU-nya adalah 1.000 HMAC (±24–54 ms) + parsing; sisanya I/O D1.
 - **Kesimpulan yang sah**: tidak ada indikasi biaya CPU tinggi dari operasi kripto. **Kesimpulan yang tidak sah**: "gerbang 5 ms lulus". Gerbang itu belum diuji.
 
 ### Cara memverifikasi gerbang CPU (butuh akun Cloudflare)
@@ -107,6 +111,10 @@ DO UPDATE SET ...
 Kedua perilaku ini dikunci oleh tes: `spike.index.test.ts` (tes positif dan negatif).
 Dokumen desain database sudah diperbarui.
 
+> Sejak skema dipangkas jadi minimal (lihat §4.3), tes itu memakai tabel sekali-pakai
+> `spike_outbox` dengan bentuk dan indeks yang sama, bukan tabel `outbox` sungguhan.
+> SQL yang diuji identik, jadi temuan tetap berlaku saat `outbox` dibuat di Fase 5.
+
 ### 4.2 `db.exec()` tidak bisa dipakai untuk file migrasi multi-baris
 
 `db.exec(sql)` memecah SQL berdasarkan baris, sehingga `CREATE TABLE` multi-baris
@@ -129,8 +137,10 @@ Hasil verifikasi nyata:
 |---|---|
 | `GET :8787/api/health` | `{"ok":true,"data":{"service":"absensi-api","version":"v1","status":"ok","timestamp":...}}` |
 | `GET :5173/api/health` (lewat proxy Vite) | Respons identik — same-origin seperti produksi |
-| `GET :5173/` | `index.html` SPA |
+| `GET :8787/api/nope` | `404` + `{"ok":false,"error":{"code":"NOT_FOUND",...}}` |
+| `GET :8787/` | `200` + `index.html` SPA |
 | `GET :8787/aktivasi` (deep link) | `200` + `index.html` → `not_found_handling: "single-page-application"` bekerja |
+| `GET :5173/` | `200` + `index.html` |
 
 ### Quirk yang akan mengganggu agent berikutnya
 
@@ -143,6 +153,38 @@ Hasil verifikasi nyata:
 3. **`wrangler dev` butuh `apps/web/dist` ada** karena `assets.directory` menunjuk
    ke sana. Jalankan `npm run build` (atau `npm run build -w @absensi/web`) dulu.
    Tes tidak terpengaruh: tes memakai `wrangler.test.jsonc` tanpa `assets`.
+4. **`db.exec()` tidak bisa untuk DDL multi-baris.** Muncul lagi saat menulis tes
+   spike: `CREATE TABLE` dengan baris baru gagal dengan `incomplete input`.
+   Pakai `db.prepare(sql).run()` (§4.2).
+
+---
+
+## 4.3 Skema dipangkas jadi minimal (31 Okt)
+
+Keputusan pemilik proyek: Fase 0 **tidak** memuat tabel bisnis. `AGENTS.md` poin 5
+aslinya meminta "skema penuh", tetapi itu bertabrakan dengan aturan roadmap
+("jangan implementasi fitur sebelum fase-nya dibuka") — tabel `outbox` untuk Fase 5
+sudah ada sejak Fase 0.
+
+Yang berubah:
+
+| Sebelum | Sesudah |
+|---|---|
+| `0001_init.sql`, `0002_auth.sql`, `0003_sync.sql` | satu file `0001_init.sql` |
+| 15 tabel + 2 trigger | 1 tabel: `app_meta` |
+| 4 tes bergantung pada tabel bisnis | tes memakai tabel sekali-pakai berindeks sama |
+
+`app_meta` (key/value + `updated_at`) dipilih supaya pipeline migrasi punya sesuatu
+yang nyata untuk diterapkan, dan supaya migrasi fase berikutnya punya jangkar versi.
+
+Konsekuensi yang disengaja:
+
+- Tes `db.integration.test.ts` punya penjaga batas: **gagal** kalau `events`,
+  `participants`, `attendance`, `audit_log`, `outbox`, `users`, `staff` muncul.
+  Menambah tabel tanpa membuka fasenya kini menghasilkan tes merah, bukan scope creep diam-diam.
+- Temuan spike tetap sah karena diuji pada tabel sekali-pakai dengan bentuk dan
+  indeks yang identik; yang berubah hanya nama tabelnya.
+- `docs/DESAIN_DATABASE.md` §3 tetap menjadi **desain target**, bukan keadaan sekarang.
 
 ---
 
@@ -150,14 +192,19 @@ Hasil verifikasi nyata:
 
 ```bash
 npm run db:reset:local    # hapus apps/api/.wrangler/state
-npm run db:migrate:local  # terapkan 0001, 0002, 0003
+npm run db:migrate:local  # terapkan 0001_init.sql
 npm run db:migrate:local  # "✅ No migrations to apply!" (idempoten)
 ```
 
-Hasil: 14 tabel aplikasi (`users`, `events`, `event_memberships`, `participants`,
-`attendance`, `audit_log`, `device_credentials`, `sessions`, `invites`,
-`recovery_codes`, `rate_limits`, `sync_state`, `sheet_rows`, `outbox`) dan
-2 trigger `audit_log_no_update` / `audit_log_no_delete`.
+Hasil: 1 tabel aplikasi — `app_meta` (`key`, `value`, `updated_at`) dengan satu baris
+awal `schema_version = 1`. Tidak ada tabel bisnis; lihat §4.3.
+
+```bash
+# bukti dari database lokal
+npx wrangler d1 execute absensi-db --local \
+  --command "SELECT name, type FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'"
+# -> app_meta (table), d1_migrations (table)
+```
 
 ---
 
@@ -170,5 +217,6 @@ Hasil: 14 tabel aplikasi (`users`, `events`, `event_memberships`, `participants`
 | CI hijau | Setelah repo di-push ke GitHub | Workflow `.github/workflows/ci.yml` sudah ada, belum pernah dijalankan |
 | Batas baris import final | Setelah pengukuran CPU | Naikkan `MAX_IMPORT_ROWS` bertahap sambil memantau CPU |
 
-**Repo ini belum menjadi git repository**, sehingga CI belum dapat dijalankan.
-Workflow ditulis tetapi statusnya *belum diverifikasi*.
+**Repo ini sekarang sudah menjadi git repository** (commit awal `3cb7568`), tetapi
+**belum punya remote**, sehingga CI belum dapat dijalankan. Workflow ditulis tetapi
+statusnya *belum diverifikasi*.
