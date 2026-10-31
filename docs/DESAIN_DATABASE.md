@@ -263,6 +263,20 @@ CREATE TABLE rate_limits (
 );
 ```
 
+> **Deviasi implementasi (Tahap 2, `migrations/0002_auth.sql`).** Blok DDL di atas adalah
+> desain target. Yang benar-benar berjalan berbeda di tiga hal, semuanya karena kebutuhan
+> bootstrap (akun pertama ada sebelum acara pertama):
+>
+> 1. `invites.event_id` **nullable**, dengan `CHECK` `(role = 'superadmin' AND event_id IS
+>    NULL) OR (role <> 'superadmin' AND event_id IS NOT NULL)`.
+> 2. `invites.created_by` **nullable**, hanya sah untuk undangan bootstrap superadmin
+>    (`CHECK (created_by IS NOT NULL OR (role = 'superadmin' AND event_id IS NULL))`).
+> 3. `invites.role` menerima `'superadmin'` di samping `event_admin` dan `officer`.
+>
+> Konsekuensi: undangan yang dibuat admin acara selalu punya `event_id` dan `created_by`,
+> jadi invariant lama tetap berlaku untuk seluruh jalur normal. Migrasi berikutnya tidak
+> boleh "merapikan" kolom ini tanpa memikirkan baris bootstrap yang mungkin belum dipakai.
+
 File: `migrations/0003_sync.sql`
 
 ```sql

@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "db:migrate:local": "wrangler d1 migrations apply absensi-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply absensi-db --remote",
-    "db:reset:local": "node ./scripts/reset-local-db.mjs"
+    "db:reset:local": "node ./scripts/reset-local-db.mjs",
+    "seed:superadmin": "node ./scripts/seed-superadmin.mjs"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "^1.4.11",

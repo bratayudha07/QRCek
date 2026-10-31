@@ -68,6 +68,18 @@ Dievaluasi di middleware, sebelum handler, untuk **setiap** route. Tidak ada rou
 
 Catatan: `superadmin` boleh melakukan koreksi absensi, tetapi tetap wajib mengisi `reason` dan tetap tercatat di audit.
 
+**Aturan 403 vs 404 (diterapkan sejak Tahap 2).** Untuk resource milik acara:
+
+| Kondisi | Respons |
+|---|---|
+| Pemanggil bukan anggota acara itu (dan bukan superadmin) | **404** — jangan mengonfirmasi bahwa acara milik orang lain ada |
+| Pemanggil anggota, tetapi peran membership-nya kurang | **403** — jujur dan bisa ditindaklanjuti |
+| Acara tidak ada | **404** |
+
+`GET /api/auth/me` mengembalikan `memberships` = keanggotaan eksplisit saja. Superadmin
+tidak punya baris membership untuk acara yang belum ia masuki; haknya berasal dari
+`user.role`, bukan dari daftar itu.
+
 ---
 
 ## 2. Autentikasi
@@ -164,7 +176,7 @@ archived → (final, tidak ada transisi)
   "data": {
     "inviteId": "01J...",
     "token": "<sekali tampil>",
-    "activateUrl": "https://absensi.example.com/aktivasi#t=<token>",
+    "activatePath": "/aktivasi#t=<token>",
     "expiresAt": 1730000000000
   }
 }
@@ -172,7 +184,10 @@ archived → (final, tidak ada transisi)
 
 - `expiresInHours` default 72, maksimum 168.
 - `token` **tidak pernah** bisa diambil ulang; hanya hash yang tersimpan.
-- Klien merender QR dari `activateUrl`. Token berada di fragment (`#`) agar tidak masuk log akses.
+- Klien merender QR dari URL absolut yang disusun sendiri: `location.origin + activatePath`.
+  Worker tidak mengembalikan URL absolut karena hostname publik di balik proxy/custom domain
+  tidak dapat diketahui dengan andal dari request.
+- Token berada di fragment (`#`) agar tidak masuk log akses.
 - Batas: 50 undangan aktif per acara (mencegah penyalahgunaan).
 
 ---
@@ -393,7 +408,12 @@ Berbasis tabel `rate_limits` dengan jendela tetap.
 | `import:<eventId>` | 5 / jam |
 | `sync:run:<eventId>` | 1 / menit |
 
-Implementasi: satu `INSERT ... ON CONFLICT DO UPDATE SET counter = counter + 1 RETURNING counter` ⚠️ (dukungan `RETURNING` pada D1 perlu dikonfirmasi; alternatifnya `UPDATE` lalu `SELECT` dalam `batch()`).
+Implementasi: satu `INSERT ... ON CONFLICT DO UPDATE SET counter = counter + 1 RETURNING counter`
+(dukungan `RETURNING` pada D1 sudah dikonfirmasi di Fase 0: `spike.returning.test.ts`).
+
+Batasan yang disadari: jendela tetap bisa memberi hingga 2× batas di perbatasan jendela
+(klasik fixed window). Untuk melindungi endpoint auth dari tebakan token, itu cukup — yang
+dilindungi adalah percobaan berulang dalam jumlah besar, bukan burst presisi.
 
 Pembersihan baris `rate_limits` lama dilakukan oleh cron yang sama dengan sync (jendela lebih dari 1 jam dihapus).
 
@@ -420,10 +440,14 @@ Cron harus **selalu selesai** walaupun salah satu tugas gagal; kegagalan dicatat
 
 ## 12. Hal yang perlu diverifikasi
 
-| ⚠️ | Yang perlu dibuktikan |
-|---|---|
-| 1 | `RETURNING` didukung D1 untuk `INSERT ... ON CONFLICT` (dipakai di counter rate limit) |
-| 2 | Perilaku `Set-Cookie` pada respons Worker dengan Static Assets tidak terpotong |
-| 3 | Middleware `Origin`/`Host` benar untuk request di balik custom domain |
-| 4 | Content-Type `text/csv` terbaca dengan benar oleh `request.text()` pada Worker |
-| 5 | Token di fragment (`#`) tidak terkirim ke server pada navigasi pertama (jaminan browser, bukan jaminan kode — diuji manual) |
+Status per akhir Tahap 2.
+
+| ⚠️ | Yang perlu dibuktikan | Status |
+|---|---|---|
+| 1 | `RETURNING` didukung D1 untuk `INSERT ... ON CONFLICT` (dipakai di counter rate limit) | **TERVERIFIKASI** — `spike.returning.test.ts`, dipakai `db/rate-limit.ts` |
+| 2 | Perilaku `Set-Cookie` pada respons Worker dengan Static Assets tidak terpotong | **TERVERIFIKASI LOKAL** — `wrangler dev` mengembalikan `Set-Cookie: absensi_session=…; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`. Belum diuji di deployment nyata |
+| 3 | Middleware `Origin`/`Host` benar untuk request di balik custom domain | **BELUM** — butuh deployment. `ALLOWED_ORIGINS` disediakan sebagai jalan keluar bila origin browser ≠ URL Worker |
+| 4 | Content-Type `text/csv` terbaca dengan benar oleh `request.text()` pada Worker | **BELUM** — Fase 2 |
+| 5 | Token di fragment (`#`) tidak terkirim ke server pada navigasi pertama | **TERVERIFIKASI (sifat browser)** — halaman `/aktivasi` membaca `location.hash`, dan `readInviteToken` hanya menerima fragmen. Tidak ada request yang membawa token |
+| 6 | Rate limit tidak memblokir pengguna sah di balik NAT bersama | **BELUM** — batas 10/15 menit per IP-hash; perlu diamati di produksi |
+| 7 | Cookie `Secure` benar-benar dipasang di HTTPS | **BELUM** — kode menambahkan `Secure` saat `request.url` https; hanya teruji di `workerd` lokal |

@@ -1,11 +1,18 @@
-# Copy to `.dev.vars` (gitignored) and fill in real values.
+# Copy to `apps/api/.dev.vars` (gitignored) and fill in real values.
 # Generate with:  openssl rand -base64 32
 #
-# Fase 0 does not read these yet. They exist so the local dev loop and secret
-# rotation procedure are documented before auth lands in Fase 1.
+# SESSION_PEPPER is read by the Worker (Tahap 2) and by
+# `npm run seed:superadmin`. Changing it revokes every session, invite, and
+# recovery code at once — that is the emergency rotation, not a routine edit.
+#
+# Production never reads this file: use `wrangler secret put <NAME>`.
 
 QR_PEPPER="ganti-dengan-32-byte-acak"
 SESSION_PEPPER="ganti-dengan-32-byte-acak"
+
+# Optional: extra browser origins trusted by the CSRF check, comma-separated.
+# Leave empty for same-origin production (ADR-001).
+ALLOWED_ORIGINS=""
 
 # Service account JSON contents (Fase 5). Never commit the real value.
 GOOGLE_SA_KEY=""

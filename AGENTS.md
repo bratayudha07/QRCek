@@ -57,8 +57,13 @@ Urutan verifikasi sebelum menyatakan selesai: **`typecheck` → `lint` → `test
 
 - **Worker bukan Node.** Tidak ada `fs`, `path`, `process.env`, `Buffer` default, atau `crypto` dari Node. Baca config lewat parameter `env` (`env.DB`, `env.QR_SIGNING_SECRET`). Web Crypto tersedia sebagai `globalThis.crypto`.
 - **D1 adalah SQLite**, bukan Postgres. Tidak ada stored procedure, tidak ada transaksi interaktif. Untuk operasi atomik multi-statement gunakan `env.DB.batch([...])`, dan `ALTER TABLE` sangat terbatas — rencanakan skema dengan hati-hati karena mengubahnya setelah migrasi berjalan itu mahal.
-- **Auth hashing pakai PBKDF2-SHA256 via Web Crypto** (native, nol dependensi). Jangan pakai `bcrypt` native (tidak kompilasi di workerd); `bcryptjs` hanya kalau PBKDF2 terbukti tidak cukup, dengan justifikasi tertulis.
-  - ⚠️ **Aturan ini sedang dipertanyakan.** PBKDF2 di iterasi yang layak diperkirakan melebihi batas **10 ms CPU** Workers Free. Usulan penggantinya adalah autentikasi token sepenuhnya (tanpa password) — lihat `docs/ARSITEKTUR.md` ADR-002. **Jangan implementasi PBKDF2 sebelum ADR-002 disetujui.**
+- **Auth passwordless berbasis token — tidak ada password, tidak ada PBKDF2/bcrypt.** Berlaku `docs/ARSITEKTUR.md` ADR-002. Aturan:
+  - Kredensial (token aktivasi, token sesi, kode pemulihan) dibuat dari `crypto.getRandomValues` dengan entropi ≥ 100 bit (sesi 256-bit).
+  - Yang disimpan di D1 **hanya** `HMAC-SHA256(SESSION_PEPPER, token)`; token mentah tidak pernah masuk DB, log, atau bundle frontend.
+  - Sesi dikirim sebagai cookie `absensi_session`: `HttpOnly`, `SameSite=Lax`, `Path=/`, `Max-Age` 30 hari, `Secure` saat HTTPS. Frontend tidak menyimpan token di `localStorage`/state yang bisa dibaca skrip.
+  - Semua request non-GET wajib `X-Absensi-Csrf: 1` **dan** `Origin` cocok dengan host (cek di Worker sebelum routing). Jangan mengganti ini dengan guard React.
+  - Rate limit login/aktivasi/pemulihan dari tabel D1 (per IP-hash), bukan UI atau Cloudflare Rate Limiting Rules.
+  - Jangan menurunkan entropi token, memperpanjang masa berlaku, atau menonaktifkan CSRF demi kemudahan development. Perubahan pada aturan ini wajib lewat ADR baru, bukan edit diam-diam.
 - **Rate limiting tanpa layanan berbayar**: ambil dari tabel D1 (token bucket/sliding window). Jangan mengandalkan Cloudflare Rate Limiting Rules (berbayar).
 - **State lokal `wrangler dev`** hidup di `.wrangler/state`. Kalau skema terasa "tidak berubah", reset state lokal dulu, jangan menuduh migrasinya salah.
 - **Kamera & `getUserMedia` butuh secure context.** `localhost` aman; domain wajib HTTPS. Di iOS Safari, akses kamera harus dipicu gesture user, bukan `useEffect` otomatis.
@@ -76,6 +81,7 @@ Urutan verifikasi sebelum menyatakan selesai: **`typecheck` → `lint` → `test
 ## Keamanan (permanen)
 
 - Otorisasi **selalu** dievaluasi di Worker pada setiap route. Guard di React hanya UX, bukan kontrol keamanan.
+- Sesi diverifikasi dari cookie `absensi_session` + hash token di DB pada setiap request; tidak ada "sudah login" implisit dari state frontend. Detail ada di `docs/ARSITEKTUR.md` ADR-001 (same-origin, satu Worker) dan ADR-002 (passwordless).
 - Model peran minimal: `superadmin` (lintas acara), `event_admin` (satu acara), `officer` (scan untuk acara yang ditugaskan). Cek kepemilikan acara secara eksplisit — jangan hanya cek "sudah login".
 - Secret Google Sheets dan penandatanganan QR **tidak boleh** pernah sampai ke bundle frontend. Frontend tidak boleh bicara langsung ke Google API.
 - Aktivasi akun petugas lewat QR undangan: token sekali pakai, punya masa berlaku, dan diinvalidasi setelah dipakai.
@@ -118,11 +124,11 @@ Urutan verifikasi sebelum menyatakan selesai: **`typecheck` → `lint` → `test
 
 **Fase 0 — Fondasi.** Workspace, TS strict, Vite+Tailwind+shadcn, Worker hello-world, D1 binding, pipeline migrasi, Vitest, CI GitHub Actions (typecheck+lint+test). *Gate: semua command di atas hijau.*
 
-**Fase 1 — Identitas & acara.** Skema DB (users, events, memberships). Auth + sesi. CRUD acara oleh superadmin, penugasan admin/petugas. *Gate: tes otorisasi lintas acara lulus.*
+**Fase 1 — Identitas & acara.** Skema DB (users, events, memberships). Auth + sesi. CRUD acara oleh superadmin, penugasan admin/petugas. *Gate: tes otorisasi lintas acara lulus.* Catatan: undangan/aktivasi petugas via QR sudah dikerjakan di fase ini (lebih awal dari Fase 3); Fase 3 tinggal bagian scan.
 
 **Fase 2 — Peserta & QR.** Import CSV, pembuatan peserta, QR bertanda tangan, halaman cetak/unduh QR. *Gate: tes HMAC + tes parsing CSV lulus.*
 
-**Fase 3 — Scan & kehadiran.** Undangan/aktivasi petugas via QR, endpoint scan, pemindai kamera di mobile, pencegahan ganda di DB. *Gate: tes scan ganda & lintas acara lulus.*
+**Fase 3 — Scan & kehadiran.** Endpoint scan, pemindai kamera di mobile, pencegahan ganda di DB (undangan/aktivasi sudah ada di Fase 1). *Gate: tes scan ganda & lintas acara lulus.*
 
 **Fase 4 — Rekap & audit.** Dashboard rekap per acara, audit log, koreksi absensi ber-otorisasi. *Gate: tes koreksi tanpa otorisasi ditolak.*
 
@@ -134,8 +140,8 @@ Urutan verifikasi sebelum menyatakan selesai: **`typecheck` → `lint` → `test
 
 Selesaikan di sesi perencanaan arsitektur, catat sebagai ADR — jangan diam-diam dipilih saat menulis kode:
 
-1. **Topologi origin**: satu Worker yang menyajikan static assets (same-origin, tanpa CORS) vs Pages terpisah + Worker API di subdomain (perlu CORS). Trade-off: kesederhanaan vs independensi deploy.
-2. **Mekanisme sesi**: cookie `HttpOnly` same-origin vs bearer token di `Authorization`. Bergantung pada #1.
-3. **Bentuk token QR**: random opaque yang di-lookup di DB vs payload berisi data + HMAC. Trade-off: rotasi/revokasi vs jumlah query saat scan.
-4. **Mode sinkronisasi Sheets**: append-only vs upsert per `participant_id`, dan bagaimana mencegah duplikasi saat retry.
-5. **Batas free tier D1** untuk audit log jangka panjang — perlu strategi arsip?
+Sudah diputuskan: topologi origin (satu Worker same-origin) → ADR-001; mekanisme sesi (cookie `HttpOnly`) dan auth passwordless → ADR-002.
+
+1. **Bentuk token QR**: random opaque yang di-lookup di DB vs payload berisi data + HMAC. Trade-off: rotasi/revokasi vs jumlah query saat scan.
+2. **Mode sinkronisasi Sheets**: append-only vs upsert per `participant_id`, dan bagaimana mencegah duplikasi saat retry.
+3. **Batas free tier D1** untuk audit log jangka panjang — perlu strategi arsip?

@@ -9,6 +9,11 @@
   "name": "absensi-api-test",
   "main": "src/index.ts",
   "compatibility_date": "2026-10-30",
+  // Test-only pepper. Never reuse this value outside `vitest`.
+  "vars": {
+    "SESSION_PEPPER": "test-only-pepper-0123456789abcdef",
+    "ALLOWED_ORIGINS": "https://absensi.test"
+  },
   "d1_databases": [
     {
       "binding": "DB",

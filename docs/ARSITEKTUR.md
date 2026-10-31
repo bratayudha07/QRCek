@@ -57,13 +57,24 @@ Karena sistem **sudah** punya kanal undangan QR, password tidak diperlukan:
 |---|---|---|
 | Token aktivasi (QR undangan) | 128-bit acak, sekali pakai, kedaluwarsa | `HMAC-SHA256(pepper, token)` |
 | Kredensial perangkat | 256-bit acak, per perangkat | `HMAC-SHA256(pepper, token)` |
-| Kode pemulihan | 128-bit acak, sekali pakai, ditampilkan sekali | `HMAC-SHA256(pepper, kode)` |
+| Kode pemulihan | **100-bit** acak (5×4 Crockford), sekali pakai, ditampilkan sekali | `HMAC-SHA256(pepper, kode `normalized`)` |
 | Sesi | 256-bit acak, cookie `HttpOnly` | `HMAC-SHA256(pepper, token)` |
+
+> **Koreksi angka**: dokumen ini awalnya mengklaim kode pemulihan 128-bit. Format yang
+> dipilih (5 grup × 4 simbol Crockford = 20 simbol = 100 bit) tidak mencapai itu. 100 bit
+> tetap jauh di atas ambang praktis untuk kode sekali pakai yang dibatasi 5 percobaan per
+> 15 menit. Angka yang benar dicatat di sini, bukan dibiarkan salah.
 
 Karena entropi sumbernya tinggi, hash cepat (HMAC) sudah memadai secara kriptografis — serangan kamus tidak berlaku pada ruang 2^128. Tidak ada KDF mahal, tidak ada CPU spike.
 
+- **Status: DIIMPLEMENTASIKAN di Tahap 2.** `apps/api/src/domain/token.ts`,
+  `apps/api/src/routes/auth.ts`, `apps/api/src/http/cookies.ts`. Cookie `absensi_session`
+  (`HttpOnly`, `SameSite=Lax`, 30 hari, `Secure` saat HTTPS), CSRF header + `Origin`,
+  dan rate limit per IP-hash.
 - **Konsekuensi**: tidak ada "lupa password" mandiri via email (email transaksional = layanan pihak ketiga). Pemulihan dilakukan dengan kode pemulihan atau undangan baru dari admin.
-- **Perlu persetujuan**: aturan "Auth hashing pakai PBKDF2-SHA256" di `AGENTS.md` harus diganti dengan aturan token di atas.
+- **Selaras**: `AGENTS.md` sudah diperbarui (aturan PBKDF2 dicabut, diganti aturan
+  passwordless). Jangan mengimplementasikan PBKDF2/bcrypt; perubahan arah auth wajib
+  lewat ADR baru.
 
 ### ADR-003 — QR peserta: **token opaque, hash di server** (bukan payload bertanda tangan)
 

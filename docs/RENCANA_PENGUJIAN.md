@@ -129,6 +129,43 @@ it("menolak koreksi tanpa alasan yang memadai", () => {
 | I-27 | `error.no-stack-trace` | Error internal tidak membocorkan stack/pesan D1 mentah | |
 | I-28 | `pagination.cursor-stable` | Kursor tetap benar saat ada insert baru di antara halaman | |
 
+#### Status implementasi per akhir Tahap 2
+
+Nama tes di bawah adalah file nyata di `apps/api/src/test/`, bukan rencana.
+
+| ID | Status | File / tes |
+|---|---|---|
+| I-08 | **PASS** | `authz.events.test.ts` → "returns 404 instead of 403 for another event's admin (IDOR)" dan dua tes IDOR invite/revoke |
+| I-09 | **PASS** | `authz.unauthenticated.test.ts` → "rejects every protected route without a session" (iterasi `ROUTES`) |
+| I-10 | **PASS** | `auth.activate.test.ts` → "rejects a replayed invite without writing a second user" |
+| I-11 | **PASS** | `auth.activate.test.ts` → "rejects an expired invite" |
+| I-12 | **PASS** | `authz.events.test.ts` → "revokes the membership and kills the officer's session" |
+| I-13 | **PASS** | `auth.recover.test.ts` → "issues a new session and a new recovery code" |
+| I-24 | **PASS** | `authz.unauthenticated.test.ts` → "rejects a state-changing request without the CSRF header" |
+| I-25 | **PASS** | `authz.unauthenticated.test.ts` → "rejects a request whose Origin does not match the host" |
+| I-26 | **PASS** | `auth.activate.test.ts` → "rate limits repeated attempts per client" (11 → 429 + `Retry-After`) |
+| I-27 | **PASS** | `health.test.ts` → "does not leak stack traces on unknown routes" |
+| I-01…I-07, I-14…I-23, I-28 | **NOT IMPLEMENTED** | Fase 2+ (peserta, scan, audit, outbox). Sengaja belum ada |
+
+Tambahan yang tidak ada di daftar awal tetapi diuji karena Tahap 2:
+
+| Tes | File |
+|---|---|
+| Sesi kedaluwarsa / dicabut / dipalsukan / user suspended → 401 | `auth.activate.test.ts` (describe "session lifetime") |
+| Revoke sesi milik orang lain → 404 (IDOR) dan sesi korban tetap hidup | `auth.sessions.test.ts` |
+| Kode pemulihan dipakai ulang → 401, pesan identik dengan kode tidak dikenal | `auth.recover.test.ts` |
+| `recover` mencabut perangkat lama | `auth.recover.test.ts` |
+| Rotasi kode pemulihan menghanguskan kode lama | `auth.recover.test.ts` |
+| Batas 50 undangan aktif per acara → 422 | `authz.events.test.ts` |
+| Undangan yang sudah dipakai tidak bisa dihapus | `authz.events.test.ts` |
+| Tidak bisa mencabut akses sendiri → 422 | `authz.events.test.ts` |
+| Route publik dibatasi tepat 3 (health, activate, recover) | `authz.unauthenticated.test.ts` |
+| Matriks §5.1 lengkap, termasuk aksi baru yang lupa didaftarkan | `permissions.test.ts` |
+| Primitif token: base32, normalisasi kode, HMAC, panjang entropi | `token.test.ts` |
+| Generator ID: panjang 26, urut secara leksikografis, unik dalam 1 ms | `ids.test.ts` |
+| Skema Fase 1 ada, tabel Fase 2+ tidak ada | `db.integration.test.ts` |
+
+
 ### 4.2 Bentuk tes integrasi
 
 ```ts

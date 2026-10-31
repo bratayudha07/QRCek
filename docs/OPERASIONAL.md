@@ -140,6 +140,9 @@ Hasil verifikasi nyata:
 | `GET :8787/api/nope` | `404` + `{"ok":false,"error":{"code":"NOT_FOUND",...}}` |
 | `GET :8787/` | `200` + `index.html` SPA |
 | `GET :8787/aktivasi` (deep link) | `200` + `index.html` → `not_found_handling: "single-page-application"` bekerja |
+| `POST :5173/api/auth/activate` (lewat proxy, `Origin: http://localhost:5173`) | `200` + `Set-Cookie: absensi_session=…; HttpOnly; SameSite=Lax` — CSRF cocok karena proxy meneruskan `Host` asli |
+| `POST :8787/api/auth/logout` tanpa `X-Absensi-Csrf` | `403 CSRF_FAILED` |
+| `POST :8787/api/auth/logout` dengan `Origin` berbeda | `403 CSRF_FAILED` |
 | `GET :5173/` | `200` + `index.html` |
 
 ### Quirk yang akan mengganggu agent berikutnya
@@ -192,31 +195,110 @@ Konsekuensi yang disengaja:
 
 ```bash
 npm run db:reset:local    # hapus apps/api/.wrangler/state
-npm run db:migrate:local  # terapkan 0001_init.sql
+npm run db:migrate:local  # terapkan 0001_init.sql + 0002_auth.sql
 npm run db:migrate:local  # "✅ No migrations to apply!" (idempoten)
 ```
 
-Hasil: 1 tabel aplikasi — `app_meta` (`key`, `value`, `updated_at`) dengan satu baris
-awal `schema_version = 1`. Tidak ada tabel bisnis; lihat §4.3.
+Hasil per Tahap 2: 2 migrasi, 9 tabel aplikasi.
+
+| Migrasi | Tabel |
+|---|---|
+| `0001_init.sql` | `app_meta` |
+| `0002_auth.sql` | `users`, `events`, `event_memberships`, `device_credentials`, `sessions`, `invites`, `recovery_codes`, `rate_limits` |
 
 ```bash
 # bukti dari database lokal
 npx wrangler d1 execute absensi-db --local \
-  --command "SELECT name, type FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'"
-# -> app_meta (table), d1_migrations (table)
+  --command "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
 ```
 
 ---
 
-## 7. Yang belum diverifikasi dan kapan akan diverifikasi
+## 7. Autentikasi: secret, akun pertama, dan perilaku sesi (Tahap 2)
+
+### 7.1 Secret
+
+| Nama | Dipakai untuk | Cara memasang |
+|---|---|---|
+| `SESSION_PEPPER` | HMAC semua token: sesi, undangan, kode pemulihan, hash IP | lokal: `apps/api/.dev.vars`; produksi: `wrangler secret put SESSION_PEPPER` |
+
+Aturan:
+
+- **Jangan pernah** menaruh `SESSION_PEPPER` di `wrangler.jsonc` `vars` untuk produksi, di
+  frontend, atau di commit. `wrangler.test.jsonc` memakai nilai khusus tes yang tidak
+  dipakai di mana pun selain `vitest`.
+- Mengganti pepper **mencabut semua sesi, undangan, dan kode pemulihan** sekaligus (semua
+  hash lama tidak cocok lagi). Itu bukan bug; itulah tombol darurat jika pepper bocor.
+- `ALLOWED_ORIGINS` (opsional, dipisah koma) hanya untuk kasus origin browser berbeda dari
+  URL Worker. Produksi same-origin tidak memerlukannya.
+
+```bash
+# lokal
+cp .dev.vars.example apps/api/.dev.vars   # isi SESSION_PEPPER
+openssl rand -base64 32                   # nilai yang layak
+
+# produksi (setelah `wrangler deploy`)
+cd apps/api && npx wrangler secret put SESSION_PEPPER
+```
+
+### 7.2 Akun pertama (bootstrap superadmin)
+
+```bash
+npm run db:migrate:local
+npm run seed:superadmin
+# → URL aktivasi : http://localhost:5173/aktivasi#t=...
+```
+
+Skrip menulis satu baris `invites` (peran `superadmin`, tanpa acara, tanpa pembuat) dan
+mencetak URL-nya. Token **hanya tampil di output itu**; yang tersimpan hanya HMAC.
+
+Untuk remote, skrip menolak berjalan tanpa konfirmasi dan tanpa pepper produksi:
+
+```bash
+export SESSION_PEPPER='<secret produksi>'
+npm run seed:superadmin -- --remote --yes
+```
+
+Opsi lain: `--expires-hours 24` (1–168), `--base-url https://absensi.example.com`, `--db <nama>`.
+
+### 7.3 Perilaku sesi yang perlu diketahui saat operasional
+
+| Hal | Nilai |
+|---|---|
+| Nama cookie | `absensi_session` |
+| Atribut | `HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000` (+ `Secure` saat HTTPS) |
+| Umur | 30 hari, tidak diperpanjang otomatis |
+| Logout | mencabut baris sesi itu saja, bukan sesi lain |
+| Pemulihan kode | mencabut **semua** sesi + kredensial user, lalu menerbitkan satu sesi baru |
+| Cabut anggota | mencabut semua sesi user tersebut (global, bukan per acara) — konsekuensi sesi tidak terikat acara |
+| `last_seen_at` | diperbarui maksimal setiap 5 menit, supaya GET tidak jadi write di setiap request |
+
+### 7.4 Batas percobaan
+
+| Bucket | Batas | Efek |
+|---|---|---|
+| `auth:activate:<ipHash>` | 10 / 15 menit | 429 + `Retry-After` |
+| `auth:recover:<ipHash>` | 5 / 15 menit | 429 + `Retry-After` |
+
+IP di-hash dengan `SESSION_PEPPER`, jadi tidak ada IP mentah di D1. Pembersihan baris
+`rate_limits` lama belum dijadwalkan (butuh cron Fase 6); tabel ini tumbuh satu baris per
+(bucket, jendela), jadi volumenya kecil untuk skala saat ini.
+
+---
+
+## 8. Yang belum diverifikasi dan kapan akan diverifikasi
 
 | Item | Kapan | Cara |
 |---|---|---|
 | CPU p95 ≤ 5 ms | Setelah deploy pertama (butuh akun Cloudflare) | `wrangler tail`, lihat §2 |
-| `Set-Cookie` lewat Static Assets | Fase 1, endpoint `POST /api/auth/activate` | `curl -i` ke Worker ter-deploy, pastikan `Set-Cookie` utuh |
+| `Set-Cookie` di deployment nyata | Deploy pertama | **Lokal sudah terverifikasi** lewat `wrangler dev`; sisanya memastikan Static Assets tidak memotong header di domain asli |
+| `Origin`/`Host` di balik custom domain | Deploy pertama | `curl -i -X POST` dengan `Origin` domain asli; kalau proxy mengubah host, set `ALLOWED_ORIGINS` |
+| Cookie `Secure` di HTTPS | Deploy pertama | Periksa `Set-Cookie` memuat `Secure` |
+| Token undangan tidak muncul di log | Deploy pertama | `wrangler tail` saat 20 aktivasi; kode tidak pernah me-log token, ini verifikasi silang |
+| Rate limit di balik NAT bersama | Setelah ada pengguna nyata | Amati 429 pada petugas yang berbagi IP; naikkan batas bila perlu |
 | CI hijau | Setelah repo di-push ke GitHub | Workflow `.github/workflows/ci.yml` sudah ada, belum pernah dijalankan |
 | Batas baris import final | Setelah pengukuran CPU | Naikkan `MAX_IMPORT_ROWS` bertahap sambil memantau CPU |
 
-**Repo ini sekarang sudah menjadi git repository** (commit awal `3cb7568`), tetapi
-**belum punya remote**, sehingga CI belum dapat dijalankan. Workflow ditulis tetapi
-statusnya *belum diverifikasi*.
+**Repo ini punya remote** (`git@github.com:bratayudha07/QRCek.git`, SSH), tetapi commit
+`e8699f6` dan pekerjaan Tahap 2 belum ter-push karena kunci SSH di mesin ini ber-passphrase
+dan agent tidak berjalan. CI tetap belum pernah dijalankan.

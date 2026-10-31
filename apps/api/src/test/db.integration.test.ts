@@ -21,12 +21,12 @@ describe("D1 integration", () => {
     expect(tables).toContain("app_meta");
   });
 
-  it("records the migration so it is not applied twice", async () => {
+  it("records each migration so it is not applied twice", async () => {
     const { results } = await env.DB.prepare("SELECT name FROM d1_migrations ORDER BY id").all<{
       name: string;
     }>();
 
-    expect(results.map((r) => r.name)).toEqual(["0001_init.sql"]);
+    expect(results.map((r) => r.name)).toEqual(["0001_init.sql", "0002_auth.sql"]);
   });
 
   it("seeds a schema version", async () => {
@@ -67,31 +67,54 @@ describe("D1 integration", () => {
   });
 
   /**
-   * Boundary guard for Tahap 1.
+   * Boundary guard per phase.
    *
-   * If one of these tables appears here, it means a later phase started before
-   * its gate was opened (AGENTS.md "Roadmap bertahap"). Adding a table is
+   * If a table from a later phase appears here, it means that phase started
+   * before its gate was opened (AGENTS.md "Roadmap bertahap"). Adding a table is
    * exactly when you want a failing test, not a silent scope creep.
+   *
+   * Tahap 2 (Fase 1) owns identity and sessions. Participants, attendance,
+   * audit, and the sync outbox still belong to Fase 2+.
    */
-  it("ships no business tables yet", async () => {
+  it("ships Fase 1 tables and nothing from later phases", async () => {
     const { results } = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
       .all<{ name: string }>();
 
     const tables = results.map((r) => r.name);
 
-    for (const forbidden of [
-      "attendance",
-      "audit_log",
-      "audit_logs",
+    for (const expected of [
+      "device_credentials",
       "event_memberships",
       "events",
       "invites",
-      "outbox",
-      "participants",
-      "staff",
+      "rate_limits",
+      "recovery_codes",
+      "sessions",
       "users",
     ]) {
+      expect(tables).toContain(expected);
+    }
+
+    for (const forbidden of ["attendance", "audit_log", "audit_logs", "outbox", "participants"]) {
       expect(tables).not.toContain(forbidden);
     }
+  });
+
+  /**
+   * The bootstrap superadmin invite has no event and no author yet. The CHECK
+   * constraints must still reject an event-bound invite without an author.
+   */
+  it("enforces invite role/event/author invariants", async () => {
+    const insert = (id: string, eventId: string | null, role: string, createdBy: string | null) =>
+      env.DB.prepare(
+        `INSERT INTO invites (id, event_id, role, token_hash, created_by, created_at, expires_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+        .bind(id, eventId, role, `hash-${id}`, createdBy, NOW, NOW + 1000)
+        .run();
+
+    await expect(insert("01INV-BOOT", null, "superadmin", null)).resolves.toBeDefined();
+    await expect(insert("01INV-NOEVENT", null, "officer", null)).rejects.toThrow(/CHECK/i);
+    await expect(insert("01INV-NOAUTHOR", "01EVT", "officer", null)).rejects.toThrow(/CHECK/i);
   });
 });

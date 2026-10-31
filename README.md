@@ -4,9 +4,16 @@ Sistem absensi peserta berbasis QR untuk **banyak acara sekaligus**. Setiap acar
 
 Stack: React + Vite (SPA) · Cloudflare Workers + D1 (API dan database) · Google Sheets API (laporan, fase lanjut). Semua di free tier.
 
-> **Status: fondasi selesai.** Yang ada sekarang: SPA, Worker, binding D1, pipeline migrasi, pengujian, CI. Yang **belum** ada: login, acara, peserta, QR, absensi, dan sinkronisasi Sheets — semuanya dikerjakan per fase sesuai `IMPLEMENTATION_PLAN.md`.
+> **Status: Fase 1 (Tahap 2) selesai sebagian.** Yang hidup: health check, autentikasi
+> passwordless, sesi cookie, peran `superadmin`/`event_admin`/`officer`, otorisasi per acara,
+> undangan sekali pakai, kode pemulihan, dan halaman aktivasi. Yang **belum**: CRUD acara,
+> peserta, QR, absensi, rekap, dan sinkronisasi Sheets — dikerjakan per fase sesuai
+> `IMPLEMENTATION_PLAN.md`.
 >
-> Skema database saat ini **sengaja minimal**: hanya satu tabel `app_meta`. Tabel bisnis (`events`, `participants`, `attendance`, `audit_log`, `outbox`, …) baru dibuat pada fase yang membutuhkannya.
+> Skema database sekarang berisi 9 tabel: `app_meta` (Fase 0) + `users`, `events`,
+> `event_memberships`, `device_credentials`, `sessions`, `invites`, `recovery_codes`,
+> `rate_limits` (Fase 1). Tabel `events` ada sebagai skema saja; endpoint CRUD acara belum
+> dibuat. Peserta, attendance, audit, dan outbox menyusul pada fasenya.
 
 ## Prasyarat
 
@@ -40,7 +47,22 @@ npm run dev:api             # Worker  -> http://localhost:8787
 npm run dev:web             # Vite    -> http://localhost:5173
 ```
 
-Buka **<http://localhost:5173>**. Halaman awal menampilkan status API; `fetch("/api/health")` diproksikan Vite ke Worker, jadi browser tetap satu origin seperti produksi.
+Buka **<http://localhost:5173>**. Halaman awal menampilkan status API dan status sesi; `fetch("/api/health")` diproksikan Vite ke Worker, jadi browser tetap satu origin seperti produksi.
+
+Buat akun pertama (superadmin). Skrip mencetak URL aktivasi sekali pakai:
+
+```bash
+npm run seed:superadmin
+# → URL aktivasi : http://localhost:5173/aktivasi#t=...
+```
+
+Buka URL itu, klik **Aktifkan akun**, lalu simpan kode pemulihan yang muncul (hanya tampil
+sekali). Setelah itu beranda menampilkan nama dan peran Anda, dan tombol **Keluar** bekerja.
+Untuk masuk lagi dari perangkat lain, buka `/masuk` dan masukkan kode pemulihan.
+
+> `npm run seed:superadmin` membutuhkan `SESSION_PEPPER` di `apps/api/.dev.vars`. Tanpa itu
+> skrip berhenti dengan pesan jelas — lebih baik daripada menulis hash yang tidak akan cocok
+> dengan Worker.
 
 Cek manual:
 
@@ -74,22 +96,29 @@ Untuk secret Worker: `cp .dev.vars.example apps/api/.dev.vars` lalu isi. Di prod
 
 ```
 apps/web/                  SPA — React + Vite + Tailwind + shadcn/ui
-  src/app.tsx              composition root (routing menyusul)
-  src/pages/               halaman (home.tsx)
+  src/App.tsx              composition root + router mini (3 halaman statis)
+  src/pages/               home.tsx, activation.tsx (/aktivasi), login.tsx (/masuk)
   src/components/ui/       komponen shadcn/ui copy-in (button.tsx)
-  src/lib/                 helper murni: api.ts (base URL), health.ts (parsing)
+  src/lib/                 helper: api.ts, http.ts (fetch + CSRF), auth.ts, health.ts,
+                           invite-token.ts (parsing fragment #t=)
   vite.config.ts           dev server + proxy /api -> :8787
   .env.example             VITE_API_BASE_URL
 
 apps/api/                  Cloudflare Worker — satu-satunya pemegang secret
-  src/index.ts             entry: route /api/*, fallback SPA
-  src/env.ts               tipe binding (DB, ASSETS)
+  src/index.ts             entry tipis → app.ts
+  src/app.ts               tabel ROUTES + handleRequest(request, env, { now })
+  src/routes/              auth.ts, events.ts (handler tipis)
+  src/http/                auth, cookies, csrf, errors, respond, router, validate
+  src/domain/              token.ts, ids.ts, permissions.ts (murni, tanpa I/O)
+  src/db/                  SQL per topik: users, sessions, invites, recovery, rate-limit
+  src/env.ts               tipe binding (DB, ASSETS, SESSION_PEPPER, ALLOWED_ORIGINS)
   src/test/                tes integrasi + spike D1 (berjalan di workerd)
   wrangler.jsonc           config produksi (D1 + Static Assets)
-  wrangler.test.jsonc      config tes (tanpa assets)
+  wrangler.test.jsonc      config tes (tanpa assets, pepper khusus tes)
   scripts/reset-local-db.mjs
+  scripts/seed-superadmin.mjs
 
-packages/shared/           tipe + kontrak API dipakai web & api
+packages/shared/           tipe + skema zod + kontrak API dipakai web & api
 migrations/                migrasi SQL D1 (urutan = nama file)
 docs/                      arsitektur, API, database, pengujian, operasional
 ```
@@ -108,6 +137,7 @@ docs/                      arsitektur, API, database, pengujian, operasional
 | `npm run db:migrate:local` | Terapkan migrasi ke D1 lokal |
 | `npm run db:migrate:remote` | Terapkan ke D1 remote — **minta konfirmasi dulu** |
 | `npm run db:reset:local` | Hapus `.wrangler/state` |
+| `npm run seed:superadmin` | Buat undangan superadmin + cetak URL aktivasi |
 
 Tes terfokus:
 
@@ -122,11 +152,19 @@ npm run test -- -t "rejects an empty key"
 |---|---|---|
 | Kontrak API bersama | 2 | `packages/shared/src/types.test.ts` |
 | Worker: health + 404 envelope | 3 | `apps/api/src/test/health.test.ts` |
-| Integrasi D1 (skema nyata di `workerd`) | 6 | `apps/api/src/test/db.integration.test.ts` |
+| Integrasi D1 (skema nyata di `workerd`) | 7 | `apps/api/src/test/db.integration.test.ts` |
 | Spike D1 (atomisitas, `RETURNING`, index parsial, query plan, biaya) | 24 | `apps/api/src/test/spike.*.test.ts` |
-| Frontend (parsing respons, base URL) | 9 | `apps/web/src/lib/*.test.ts` |
+| Primitif token (base32, HMAC, kode pemulihan) | 16 | `apps/api/src/test/token.test.ts` |
+| Generator ID (ULID) | 3 | `apps/api/src/test/ids.test.ts` |
+| Matriks izin §5.1 | 6 | `apps/api/src/test/permissions.test.ts` |
+| Auth: aktivasi, umur sesi, logout | 19 | `apps/api/src/test/auth.activate.test.ts` |
+| Auth: pemulihan & rotasi kode | 9 | `apps/api/src/test/auth.recover.test.ts` |
+| Manajemen sesi perangkat | 5 | `apps/api/src/test/auth.sessions.test.ts` |
+| Otorisasi per acara + undangan | 19 | `apps/api/src/test/authz.events.test.ts` |
+| Tanpa sesi + CSRF | 9 | `apps/api/src/test/authz.unauthenticated.test.ts` |
+| Frontend (parsing respons, base URL, token fragment) | 14 | `apps/web/src/lib/*.test.ts` |
 
-**Total: 44 tes di 10 file.**
+**Total: 136 tes di 19 file.**
 
 Tes API berjalan di `workerd` dengan binding D1 asli (`@cloudflare/vitest-plugin`), memakai file migrasi yang sama dengan wrangler. Tes frontend berjalan di Node tanpa DOM karena yang diuji logika murni.
 
@@ -161,7 +199,11 @@ Menghasilkan `apps/web/dist/` (SPA) dan dry-run bundle Worker di `apps/api/dist/
 | `SQL code did not contain a statement` | `db.exec()` memecah SQL per baris | Pakai `db.prepare(...).run()`, atau `applyD1Migrations()` untuk file migrasi |
 | `ON CONFLICT clause does not match ...` | unique index parsial tanpa predikat | Ulangi predikatnya: `ON CONFLICT (...) WHERE status IN (...)` |
 | `npm run test` lambat (~1,5 s/berkas) | satu `workerd` per file tes | Normal. Jangan set `isolate: false` tanpa mengukur ulang isolasi D1 |
-| Worker merespons 404 JSON untuk `/api/*` yang tidak ada | memang perilaku yang diinginkan | Tambahkan route-nya di `apps/api/src/index.ts` |
+| Worker merespons 404 JSON untuk `/api/*` yang tidak ada | memang perilaku yang diinginkan | Tambahkan route-nya di `apps/api/src/app.ts` |
+| Semua POST mengembalikan 403 `CSRF_FAILED` | request non-browser tanpa `Origin` | Kirim `Origin` yang sama dengan host + header `X-Absensi-Csrf: 1` |
+| Aktivasi selalu 401 padahal URL baru dibuat | `SESSION_PEPPER` saat seed ≠ pepper Worker | Seed ulang dengan pepper yang sama, atau samakan `.dev.vars` |
+| Undangan hangus setelah percobaan aktivasi yang gagal di tengah | klaim undangan terjadi lebih dulu, lalu batch tulis | Buat undangan baru; ini konsekuensi disengaja agar replay tidak mungkin |
+| `npm install` mengubah `package-lock.json` | workspace menambah dependensi | Commit lockfile-nya; jangan hapus |
 
 Detail lingkungan dan hasil pengukuran: `docs/OPERASIONAL.md`.
 
@@ -173,13 +215,17 @@ Belum pernah dijalankan — belum ada akun Cloudflare yang terhubung. Urutan yan
 cd apps/api
 npx wrangler d1 create absensi-db            # isi database_id di wrangler.jsonc
 npx wrangler d1 migrations apply absensi-db --remote
-npx wrangler secret put QR_PEPPER
 npx wrangler secret put SESSION_PEPPER
+npx wrangler secret put QR_PEPPER
 cd ../.. && npm run build
 cd apps/api && npx wrangler deploy
+
+# akun pertama (setelah deploy): ekspor pepper produksi yang sama
+cd ../.. && export SESSION_PEPPER='<secret produksi>'
+npm run seed:superadmin -- --remote --yes --base-url https://<domain-anda>
 ```
 
-`wrangler.jsonc` masih memakai `database_id` placeholder (`00000000-…`) dan **wajib** diganti sebelum deploy.
+`wrangler.jsonc` masih memakai `database_id` placeholder (`00000000-…`) dan **wajib** diganti sebelum deploy. `SESSION_PEPPER` adalah secret, bukan `vars`; jangan pernah menaruhnya di `wrangler.jsonc` atau bundle frontend.
 
 ## Dokumen
 

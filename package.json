@@ -20,7 +20,8 @@
     "build": "npm run build -w @absensi/web && npm run build -w @absensi/api",
     "db:migrate:local": "npm run db:migrate:local -w @absensi/api",
     "db:migrate:remote": "npm run db:migrate:remote -w @absensi/api",
-    "db:reset:local": "npm run db:reset:local -w @absensi/api"
+    "db:reset:local": "npm run db:reset:local -w @absensi/api",
+    "seed:superadmin": "npm run seed:superadmin -w @absensi/api"
   },
   "allowScripts": {
     "esbuild@0.28.2": true,

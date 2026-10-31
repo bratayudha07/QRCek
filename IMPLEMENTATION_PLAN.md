@@ -2,7 +2,8 @@
 
 Rencana implementasi bertahap untuk Multi-Event Parent Attendance Management System.
 
-**Status: menunggu persetujuan.** Tidak ada kode aplikasi yang ditulis pada tahap ini.
+**Status: Fase 0 selesai sebagian, Fase 1 (Tahap 2) selesai sebagian.** Lihat blok status di
+tiap fase untuk butir yang belum terverifikasi. Fase 2 belum dibuka.
 
 Dokumen pendukung: [`AGENTS.md`](./AGENTS.md), [`docs/ARSITEKTUR.md`](./docs/ARSITEKTUR.md), [`docs/DESAIN_DATABASE.md`](./docs/DESAIN_DATABASE.md), [`docs/DESAIN_API.md`](./docs/DESAIN_API.md), [`docs/RENCANA_PENGUJIAN.md`](./docs/RENCANA_PENGUJIAN.md), [`COSTS_AND_LIMITS.md`](./COSTS_AND_LIMITS.md).
 
@@ -111,6 +112,20 @@ Keputusan yang sudah diambil: rate limit memakai `RETURNING`; absensi + outbox +
 
 **Tujuan**: seseorang bisa masuk tanpa password dan mengelola acara.
 
+> **Status: SELESAI SEBAGIAN (Tahap 2) — cakupan dipersempit oleh instruksi pemilik.**
+> Autentikasi, sesi, peran, otorisasi per acara, dan undangan sudah hidup dan teruji:
+> `typecheck`, `lint`, `test` 136/136 (19 file), `build`, migrasi lokal, serta alur nyata
+> lewat `wrangler dev` (aktivasi → `set-cookie` → `me` → logout → recover → replay ditolak).
+>
+> **Yang belum dan mengapa**: CRUD acara (`list/create/get/patch/status/summary`) dan UI
+> daftar acara **tidak** dikerjakan, karena instruksi Tahap 2 melarang CRUD acara. Tabel
+> `events` dibuat sebagai skema saja — tanpa itu, otorisasi per acara tidak bisa dibuktikan.
+> `domain/event-status.ts` juga belum ada. Semua itu pindah ke Tahap 3 bersama Fase 2.
+>
+> **Catatan ADR-002**: `AGENTS.md` sudah diselaraskan — aturan PBKDF2 dicabut dan diganti
+> aturan auth passwordless sesuai `docs/ARSITEKTUR.md` ADR-002. Implementasi memakai
+> autentikasi passwordless; tidak ada PBKDF2/bcrypt di kode.
+
 ### Pekerjaan
 
 1. `migrations/0002_auth.sql`.
@@ -125,18 +140,58 @@ Keputusan yang sudah diambil: rate limit memakai `RETURNING`; absensi + outbox +
 
 ### Kriteria penerimaan (terukur)
 
-- [ ] Tes `invite.replay`, `invite.expired`, `invite.revoke-kills-sessions`, `recover.rotates-devices` lulus.
-- [ ] Tes `authz.unauthenticated` iterasi **semua** route terdaftar → 100% mengembalikan 401.
-- [ ] `authz.cross-event-member`: admin acara A mengakses acara B → 404.
-- [ ] Matriks otorisasi §5.1 `RENCANA_PENGUJIAN.md` dieksekusi sebagai tes parametrik dan lulus.
-- [ ] Token undangan **tidak pernah** muncul di log: `grep` pada output `wrangler tail` selama 20 request aktivasi → 0 kemunculan token.
-- [ ] `POST /auth/activate` mengembalikan `recoveryCode` tepat sekali; pemanggilan `GET /auth/me` berikutnya tidak memuatnya.
-- [ ] Semua transisi status acara (sah dan terlarang) tercakup tes `domain/event-status.ts`.
-- [ ] Setiap endpoint ≤ 6 statement D1 (dihitung manual + `meta` pada tes).
+| Kriteria | Status | Bukti |
+|---|---|---|
+| Tes `invite.replay`, `invite.expired`, `invite.revoke-kills-sessions`, `recover.rotates-devices` lulus | **PASS** | `auth.activate.test.ts`, `auth.recover.test.ts`, `authz.events.test.ts` |
+| `authz.unauthenticated` iterasi **semua** route terdaftar → 401 | **PASS** | `authz.unauthenticated.test.ts` mengiterasi `ROUTES`; daftar route publik diuji eksplisit |
+| `authz.cross-event-member`: admin acara A mengakses acara B → 404 | **PASS** | `authz.events.test.ts` (members, invites, revoke) |
+| Matriks otorisasi §5.1 dieksekusi sebagai tes parametrik | **PASS** | `permissions.test.ts`, tabel ekspektasi ditulis manual |
+| Token undangan tidak pernah muncul di log (`wrangler tail`, 20 request) | **NOT RUN** | Butuh deployment; secara kode token tidak pernah di-log, dan `wrangler dev` hanya mencatat request line + status |
+| `activate` mengembalikan `recoveryCode` sekali; `me` tidak memuatnya | **PASS** | `auth.activate.test.ts`; tipe `MePayload` tidak punya field itu |
+| Semua transisi status acara tercakup tes `domain/event-status.ts` | **NOT DONE** | CRUD acara di luar cakupan Tahap 2 (lihat status di atas) |
+| Setiap endpoint ≤ 6 statement D1 | **SEBAGIAN** | Lihat tabel di bawah |
+
+#### Jumlah statement D1 per endpoint
+
+Dihitung manual dari kode (bukan diklaim dari `meta`). `touchSession` hanya menulis bila
+`last_seen_at` lebih tua dari 5 menit, jadi angka bawah adalah kondisi "baru saja aktif".
+
+| Endpoint | Statement | Catatan |
+|---|---|---|
+| `GET /api/auth/me` | 2–3 | lookup sesi + daftar membership (+ touch) |
+| `GET /api/auth/sessions` | 2–3 | + touch |
+| `POST /api/auth/logout` | 2 | touch + revoke |
+| `POST /api/auth/sessions/:id/revoke` | 2–3 | |
+| `POST /api/auth/recovery-code` | 3 | batch 2 statement kode |
+| `GET /api/events/:id/members` | 4 | cek acara + membership + daftar |
+| `GET /api/events/:id/invites` | 4 | |
+| `POST /api/events/:id/invites` | 5 | + hitung undangan aktif |
+| `DELETE /api/events/:id/invites/:id` | 4 | |
+| `POST /api/events/:id/members/:id/revoke` | 6–7 | + cabut sesi & kredensial |
+| `POST /api/auth/activate` | 10–12 | satu `db.batch()`: user + membership + kredensial + sesi + kode + atribusi undangan |
+| `POST /api/auth/recover` | 9–11 | satu `db.batch()`: cabut semua sesi/kredensial + terbitkan yang baru |
+
+Ambang 6 statement dilewati oleh dua endpoint tulis terberat. Itu konsekuensi model
+kredensial per perangkat (ADR-002), bukan query yang bisa digabung: tabelnya berbeda.
+Keduanya tetap **satu round trip** karena memakai `env.DB.batch()`. Angka ini yang perlu
+diawasi di `docs/OPERASIONAL.md`, bukan jumlah statement per tabel.
 
 ### Yang sengaja belum dikerjakan
 
-Peserta, QR, scan, rekap nyata, sync. Endpoint `summary` mengembalikan angka nol yang sah.
+- CRUD acara dan seluruh UI acara (dilarang pada Tahap 2). Endpoint `summary` tidak ada.
+- `domain/event-status.ts` dan tes transisinya.
+- Peserta, QR, scan, rekap nyata, sync.
+
+### Catatan deviasi dari rencana
+
+| Rencana | Yang dikerjakan | Alasan |
+|---|---|---|
+| `invites.event_id` NOT NULL | `event_id` **nullable** + `CHECK` yang mengikat peran | Undangan bootstrap superadmin tidak punya acara, karena acara belum ada saat akun pertama dibuat |
+| `invites.created_by` NOT NULL | `created_by` **nullable** hanya untuk undangan bootstrap | Belum ada admin yang bisa dicatat sebagai pembuat |
+| `POST /invites` mengembalikan `activateUrl` absolut | Mengembalikan `activatePath` (`/aktivasi#t=…`) | Worker tidak tahu hostname publik di balik proxy; SPA menyusun URL absolut. Token tetap di fragmen |
+| Kode pemulihan 128-bit | **100-bit** (5×4 Crockford = 20 simbol) | Klaim 128-bit di `ARSITEKTUR.md` tidak akurat untuk format yang dipilih. 100 bit tetap di atas ambang aman untuk kode sekali pakai ber-rate-limit; dicatat jujur, bukan dibulatkan |
+| Middleware `request-id` | Belum ada | Tidak dibutuhkan oleh satu pun kriteria penerimaan Tahap 2; menambahkannya tanpa pemakai adalah kode mati |
+
 
 ---
 
@@ -311,7 +366,7 @@ Sebuah fase dinyatakan selesai hanya bila **semua** benar:
 | # | Keputusan | Default yang diusulkan | Dampak bila diubah setelah Fase 0 |
 |---|---|---|---|
 | 1 | ADR-001 topologi: satu Worker same-origin | **Setuju** | Menambah CORS, cookie, dan pipeline deploy kedua |
-| 2 | ADR-002 passwordless (mengganti aturan PBKDF2 di `AGENTS.md`) | **Setuju** | Auth harus ditulis ulang seluruhnya |
+| 2 | ADR-002 passwordless (mengganti aturan PBKDF2 di `AGENTS.md`) | **Disetujui & diterapkan** di Tahap 2; `AGENTS.md` sudah diperbarui | Auth harus ditulis ulang seluruhnya |
 | 3 | ADR-003 QR opaque + HMAC di server | **Setuju** | Skema `participants` berubah |
 | 4 | ADR-004 Sheets upsert, bukan append | **Setuju** | Tabel `sheet_rows` dan outbox berubah |
 | 5 | Batas baris per import (nilai dari spike Fase 0) | 1.000 baris, diturunkan bila CPU > 5 ms | Kontrak API berubah |
