@@ -25,3 +25,9 @@ ALLOWED_ORIGINS=""
 
 # Service account JSON contents (Fase 5). Never commit the real value.
 GOOGLE_SA_KEY=""
+
+# Optional bot gate for public self-registration (ADR-007).
+# Free tier. When empty, /api/auth/register relies only on the D1 rate limit.
+# The matching site key is public: put it in apps/web/.env.local as
+# VITE_TURNSTILE_SITE_KEY.
+TURNSTILE_SECRET_KEY=""

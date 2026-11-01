@@ -51,4 +51,12 @@ export interface Env {
 
   /** Service account email when `GOOGLE_SA_KEY` contains only the key. */
   GOOGLE_SA_EMAIL?: string;
+
+  /**
+   * Turnstile secret key (ADR-007). Empty or missing disables the bot gate on
+   * `/api/auth/register`; production should always set it, because registration
+   * is public and every account costs a D1 write. The matching site key is
+   * public and belongs in the frontend build (`VITE_TURNSTILE_SITE_KEY`).
+   */
+  TURNSTILE_SECRET_KEY?: string;
 }

@@ -10,6 +10,7 @@ export type ApiErrorCode =
   | "UNAUTHENTICATED"
   | "FORBIDDEN"
   | "CSRF_FAILED"
+  | "TURNSTILE_FAILED"
   | "NOT_FOUND"
   | "CONFLICT"
   | "PAYLOAD_TOO_LARGE"

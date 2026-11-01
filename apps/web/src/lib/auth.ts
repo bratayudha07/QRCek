@@ -27,6 +27,22 @@ export function recoverAccount(recoveryCode: string, label: string) {
   });
 }
 
+/**
+ * ADR-007: self-service registration. The account is an `event_admin` that owns
+ * only the events it creates. `turnstileToken` is present only when the build
+ * has a site key configured.
+ */
+export function registerAccount(displayName: string, label: string, turnstileToken?: string) {
+  return apiRequest<ActivatePayload>("/api/auth/register", {
+    method: "POST",
+    body: JSON.stringify({
+      displayName: displayName.trim(),
+      ...withLabel(label),
+      ...(turnstileToken ? { turnstileToken } : {}),
+    }),
+  });
+}
+
 export function logoutSession() {
   return apiRequest<{ revoked: true }>("/api/auth/logout", { method: "POST" });
 }

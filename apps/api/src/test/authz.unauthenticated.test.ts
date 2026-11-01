@@ -87,11 +87,12 @@ describe("unauthenticated access", () => {
     expect(failures).toEqual([]);
   });
 
-  it("publishes exactly the three intended endpoints", () => {
+  it("publishes exactly the four intended endpoints", () => {
     expect(PUBLIC.map((route) => `${route.method} ${route.pattern}`).sort()).toEqual([
       "GET /api/health",
       "POST /api/auth/activate",
       "POST /api/auth/recover",
+      "POST /api/auth/register",
     ]);
   });
 });

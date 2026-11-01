@@ -46,6 +46,7 @@ export type AppRoute =
   | { name: "staffHistory" }
   | { name: "staffProfile" }
   | { name: "login" }
+  | { name: "register" }
   | { name: "activation" }
   | { name: "notFound" };
 
@@ -61,6 +62,7 @@ export const paths = {
   staffHistory: "/staff/history",
   staffProfile: "/staff/profile",
   login: "/masuk",
+  register: "/daftar",
   activation: "/aktivasi",
 } as const;
 
@@ -84,6 +86,7 @@ export function parseRoute(pathname: string): AppRoute {
   const [first, second, third, fourth, fifth] = segments;
 
   if (first === "masuk" && segments.length === 1) return { name: "login" };
+  if (first === "daftar" && segments.length === 1) return { name: "register" };
   if (first === "aktivasi" && segments.length === 1) return { name: "activation" };
 
   // Legacy paths from Tahap 3. Parsed to their canonical destination so a
@@ -210,6 +213,8 @@ export function routePath(route: AppRoute): string | null {
       return paths.staffProfile;
     case "login":
       return paths.login;
+    case "register":
+      return paths.register;
     case "activation":
       return paths.activation;
     case "notFound":

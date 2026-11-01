@@ -136,6 +136,11 @@ it("menolak koreksi tanpa alasan yang memadai", () => {
 | I-26 | **`rate-limit.activate`** | Percobaan ke-11 dalam 15 menit → 429 + `Retry-After` | |
 | I-27 | `error.no-stack-trace` | Error internal tidak membocorkan stack/pesan D1 mentah | |
 | I-28 | `pagination.cursor-stable` | Kursor tetap benar saat ada insert baru di antara halaman | |
+| I-29 | **`register.scope-zero`** | Akun hasil daftar sendiri adalah `event_admin` tanpa keanggotaan dan tidak bisa membaca acara orang lain (404) | |
+| I-30 | **`register.role-injection`** | Payload berisi `role` ditolak 400; tidak ada baris `users` yang tertulis | |
+| I-31 | `register.rate-limit` | Pendaftaran ke-6 dalam 1 jam per IP-hash → 429, tanpa penulisan | |
+| I-32 | `register.creates-owner` | Admin baru membuat acara → baris acara + keanggotaan `event_admin` dalam satu batch | |
+| I-33 | **`turnstile.fail-closed`** | Token kosong / HTTP error / fetch throw → registrasi ditolak; tidak ada penulisan | |
 
 #### Status implementasi per akhir Tahap 3
 
@@ -195,7 +200,9 @@ Tambahan yang tidak ada di daftar awal tetapi diuji karena Tahap 2 dan 3:
 | Batas 50 undangan aktif per acara → 422 | `authz.events.test.ts` |
 | Undangan yang sudah dipakai tidak bisa dihapus | `authz.events.test.ts` |
 | Tidak bisa mencabut akses sendiri → 422 | `authz.events.test.ts` |
-| Route publik dibatasi tepat 3 (health, activate, recover) | `authz.unauthenticated.test.ts` |
+| Route publik dibatasi tepat 4 (health, activate, register, recover) | `authz.unauthenticated.test.ts` |
+| Pendaftaran mandiri: sesi + kode pemulihan, peran tidak bisa dipilih, isolasi acara, rate limit | `auth.register.test.ts` |
+| Turnstile gagal-tertutup dan tidak memanggil jaringan saat token kosong | `turnstile.test.ts` |
 | Matriks §5.1 lengkap, termasuk aksi baru yang lupa didaftarkan | `permissions.test.ts` |
 | Primitif token: base32, normalisasi kode, HMAC, panjang entropi | `token.test.ts` |
 | Generator ID: panjang 26, urut secara leksikografis, unik dalam 1 ms | `ids.test.ts` |

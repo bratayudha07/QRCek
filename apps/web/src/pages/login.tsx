@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { RecoveryCodePanel } from "@/components/recovery-code-panel";
 import { Button } from "@/components/ui/button";
 import { recoverAccount } from "@/lib/auth";
+import { paths } from "@/lib/router";
 
 /**
  * `/masuk` — login with a recovery code.
@@ -103,6 +104,10 @@ export function LoginPage() {
           </Button>
         </form>
       )}
+
+      <a className="text-sm underline underline-offset-4" href={paths.register}>
+        Belum punya akun? Daftar sebagai admin acara
+      </a>
 
       <a className="text-sm underline underline-offset-4" href="/">
         Kembali ke beranda

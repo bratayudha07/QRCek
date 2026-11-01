@@ -87,6 +87,7 @@ tidak punya baris membership untuk acara yang belum ia masuki; haknya berasal da
 | Method | Path | Peran | Keterangan |
 |---|---|---|---|
 | `POST` | `/api/auth/activate` | publik | Tukar token undangan menjadi sesi |
+| `POST` | `/api/auth/register` | publik | Daftar sendiri sebagai admin acara (ADR-007) |
 | `POST` | `/api/auth/recover` | publik | Tukar kode pemulihan menjadi sesi baru |
 | `GET` | `/api/auth/me` | semua | Profil + daftar acara yang boleh diakses |
 | `POST` | `/api/auth/logout` | semua | Cabut sesi aktif |
@@ -126,6 +127,32 @@ Perilaku:
 - Menerbitkan kode pemulihan baru, ditampilkan sekali.
 - Rate limit ketat: 5 percobaan / 15 menit per IP-hash.
 
+### `POST /api/auth/register`
+
+```jsonc
+// request
+{ "displayName": "Sari Wulandari", "turnstileToken": "<token Turnstile, opsional>" }
+
+// 201
+{
+  "ok": true,
+  "data": {
+    "user": { "id": "01J...", "displayName": "Sari Wulandari", "role": "event_admin" },
+    "memberships": [],
+    "recoveryCode": "ABCD-EFGH-IJKL-MNOP"
+  }
+}
+```
+
+Perilaku (ADR-007):
+- Publik, tetapi tetap wajib header CSRF + `Origin` yang cocok seperti semua POST.
+- Peran selalu `event_admin`. Klien tidak bisa memilih peran: field asing ditolak `400`.
+- Akun baru **tidak** mendapat keanggotaan acara mana pun; ia hanya bisa membuat acara
+  sendiri dan otomatis menjadi `event_admin` acara itu.
+- Rate limit 5 pendaftaran/jam per IP-hash. Bila `TURNSTILE_SECRET_KEY` diisi, token
+  Turnstile wajib dan diverifikasi sebelum penulisan; kegagalan → `400 TURNSTILE_FAILED`.
+- Sesi 30 hari + kode pemulihan sekali tampil, sama seperti aktivasi.
+
 ---
 
 ## 3. Acara
@@ -133,7 +160,7 @@ Perilaku:
 | Method | Path | Peran | Keterangan |
 |---|---|---|---|
 | `GET` | `/api/events` | semua | Hanya acara yang boleh diakses pemanggil |
-| `POST` | `/api/events` | superadmin | Buat acara (status awal `draft`) |
+| `POST` | `/api/events` | event_admin, superadmin | Buat acara (status awal `draft`); pembuat otomatis jadi `event_admin` acara itu |
 | `GET` | `/api/events/:eventId` | anggota acara | Detail |
 | `PATCH` | `/api/events/:eventId` | event_admin, superadmin | Nama, deskripsi, jadwal, timezone, `allow_manual` |
 | `POST` | `/api/events/:eventId/status` | event_admin, superadmin | Transisi lifecycle |

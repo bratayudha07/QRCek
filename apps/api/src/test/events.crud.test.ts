@@ -78,12 +78,37 @@ describe("POST /api/events", () => {
     expect(body.data.event.slug).toMatch(/^wisuda-santri-2026-[a-z0-9]{6}$/);
   });
 
-  it("rejects a non-superadmin event creator", async () => {
+  it("lets an event_admin create an event it will own (ADR-007)", async () => {
     const w = await world();
 
     const response = await callApi("/api/events", {
       cookie: w.adminA.cookie,
       body: { name: "Acara Baru" },
+    });
+
+    expect(response.status).toBe(201);
+
+    const body = response.json<EventDetailPayload>();
+    if (!body.ok) throw new Error("expected success");
+    expect(body.data.event.accessRole).toBe("event_admin");
+
+    // The creator owns the new event immediately: one batch, no gap.
+    const me = await callApi("/api/events", { cookie: w.adminA.cookie });
+    const list = me.json<EventListPayload>();
+    if (!list.ok) throw new Error("expected success");
+    expect(list.data.events.map((event) => event.id)).toContain(body.data.event.id);
+
+    // ...and it stays invisible to another admin.
+    const other = await callApi(`/api/events/${body.data.event.id}`, { cookie: w.adminB.cookie });
+    expect(other.status).toBe(404);
+  });
+
+  it("still rejects an officer as event creator", async () => {
+    const w = await world();
+
+    const response = await callApi("/api/events", {
+      cookie: w.officerA.cookie,
+      body: { name: "Acara Petugas" },
     });
 
     expect(response.status).toBe(403);

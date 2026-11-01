@@ -323,8 +323,22 @@ CREATE TABLE rate_limits (
 > Migrasi berikutnya tidak boleh mengedit `0003`/`0004`; perubahan skema selalu lewat file baru.
 
 > Nomor file aktual saat ini: `0001_init.sql`, `0002_auth.sql`, `0003_participants.sql`,
-> `0004_qr.sql`. Blok sinkronisasi di bawah tetap desain target; kalau dikerjakan pada
-> Tahap 5, filenya menjadi `0005_sync.sql` (nomor tidak boleh dipakai ulang).
+> `0004_qr.sql`, `0005_attendance_sync.sql`, `0006_self_signup.sql`. Blok sinkronisasi di
+> bawah tetap desain target; kalau dikerjakan pada tahap berikutnya, filenya menjadi
+> `0007_*.sql` (nomor tidak boleh dipakai ulang).
+
+> **ADR-007 (`0006_self_signup.sql`).** Satu kolom baru pada `users`:
+>
+> ```sql
+> ALTER TABLE users ADD COLUMN created_via TEXT NOT NULL DEFAULT 'invite'
+>   CHECK (created_via IN ('seed', 'invite', 'self_signup'));
+> CREATE INDEX idx_users_created_via ON users(created_via, created_at);
+> ```
+>
+> `DEFAULT 'invite'` menjaga baris lama tetap valid tanpa penulisan ulang tabel. Nilai
+> `seed` dipakai untuk akun bootstrap superadmin, `invite` untuk aktivasi undangan, dan
+> `self_signup` untuk `POST /api/auth/register`. Kolom ini **bukan** penanda kepercayaan:
+> otorisasi tetap dihitung dari `users.role` + `event_memberships`.
 
 File: `migrations/0005_sync.sql`
 

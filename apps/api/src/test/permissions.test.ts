@@ -11,7 +11,7 @@ import type { Action } from "../domain/permissions";
  * entry here fails, which is the point.
  */
 const EXPECTED: Record<Action, { superadmin: boolean; eventAdmin: boolean; officer: boolean }> = {
-  "event:create": { superadmin: true, eventAdmin: false, officer: false },
+  "event:create": { superadmin: true, eventAdmin: true, officer: false },
   "event:read": { superadmin: true, eventAdmin: true, officer: true },
   "event:update": { superadmin: true, eventAdmin: true, officer: false },
   "event:delete": { superadmin: true, eventAdmin: false, officer: false },
@@ -50,11 +50,21 @@ describe("authorization matrix", () => {
     }
   });
 
-  it("denies every event action without an active membership", () => {
+  it("denies every event action without an active membership, except creating a new event", () => {
     for (const action of ACTIONS) {
+      if (action === "event:create") continue;
+
       expect(isAllowed({ role: "event_admin", action, membershipRole: null })).toBe(false);
       expect(isAllowed({ role: "officer", action, membershipRole: null })).toBe(false);
     }
+  });
+
+  /** ADR-007: self-registered admins must be able to start their own event. */
+  it("lets a global event_admin create an event without any membership", () => {
+    expect(isAllowed({ role: "event_admin", action: "event:create", membershipRole: null })).toBe(
+      true,
+    );
+    expect(isAllowed({ role: "officer", action: "event:create", membershipRole: null })).toBe(false);
   });
 
   /** The membership role wins over the global role for a specific event. */
@@ -66,10 +76,14 @@ describe("authorization matrix", () => {
     expect(isAllowed({ role: "event_admin", action: "scan", membershipRole: "officer" })).toBe(true);
   });
 
-  it("marks global event actions as superadmin-only", () => {
+  it("keeps event deletion superadmin-only and event creation globally grantable", () => {
     for (const action of ACTIONS) {
       const minimum = minMembershipFor(action);
-      if (action === "event:create" || action === "event:delete") {
+
+      if (action === "event:delete") {
+        expect(minimum).toBeNull();
+      } else if (action === "event:create") {
+        // No membership can grant it; the global role does (MIN_GLOBAL_ROLE).
         expect(minimum).toBeNull();
       } else {
         expect(minimum).not.toBeNull();

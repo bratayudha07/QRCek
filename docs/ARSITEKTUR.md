@@ -112,6 +112,53 @@ Token peserta adalah 32 byte acak (256 bit). Dua secret dengan tugas terpisah:
 - **Cetak ulang**: kredensial dibuat hanya saat `qr_token_hash IS NULL`; `UPDATE ... WHERE qr_token_hash IS NULL` membuat dua printer yang balapan menghasilkan satu pemenang, dan yang kalah membaca ulang kredensial pemenang. Mencetak ulang **tidak pernah** merotasi token.
 - **Konsekuensi**: setiap cetak ulang melakukan dekripsi AES-GCM untuk setiap label. Batch dibatasi 50 label/request (`QR_LABEL_BATCH_MAX`) setelah pengukuran menunjukkan 100 label melewati budget CPU ±10 ms.
 
+### ADR-007 — Pendaftaran mandiri admin acara: **akun ber-scope nol, kepemilikan lahir saat acara dibuat**
+
+**Konteks.** Sampai Tahap 6 satu-satunya jalur membuat akun adalah undangan yang diterbitkan
+superadmin (ADR-002). Itu berarti setiap pengguna baru bergantung pada satu orang pemilik
+akun Cloudflare. Untuk pemakaian nyata, admin acara harus bisa mendaftar sendiri tanpa
+membuka akses ke acara milik orang lain. Sistem ini tidak punya verifikasi email, sehingga
+"identitas" tidak bisa dibuktikan — yang bisa dijamin hanya **batas akses**.
+
+**Opsi yang dipertimbangkan.**
+
+1. **Superadmin tunggal + undangan** — aman, tetapi tetap membutuhkan operator untuk setiap
+   akun. Ditolak karena menjadi hambatan operasional yang tidak perlu.
+2. **Pendaftaran bebas dengan peran penuh** — satu formulir publik bisa membuat `event_admin`
+   yang melihat semua acara. Ditolak: satu akun palsu membocorkan seluruh data.
+3. **Pendaftaran bebas dengan cakupan nol** — akun baru berperan `event_admin` tetapi tidak
+   punya keanggotaan apa pun; ia hanya bisa membuat acara baru dan otomatis menjadi admin
+   acara itu. **Dipilih.**
+
+**Keputusan.**
+
+- `POST /api/auth/register` bersifat publik, hanya butuh `displayName`. Peran **selalu**
+  `event_admin`; field `role` dari klien ditolak oleh skema `.strict()`.
+- `event:create` boleh diberikan oleh `users.role` saja (`MIN_GLOBAL_ROLE`), tanpa
+  keanggotaan. Semua aksi lain tetap mensyaratkan keanggotaan acara. `event:delete` tetap
+  superadmin-only; penghapusan diganti status `archived`.
+- Pembuatan acara menulis baris acara **dan** keanggotaan pemilik dalam satu
+  `db.batch()`. Tidak ada acara tanpa pemilik, dan pemilik tidak bisa terkunci dari acara
+  yang baru ia buat.
+- Registrasi menerbitkan sesi dan kode pemulihan sekali tampil, sama seperti aktivasi:
+  tidak ada kata sandi dan tidak ada email untuk memulihkan akun.
+- Dua gerbang penyalahgunaan, keduanya server-side: rate limit D1 per IP-hash
+  (5 pendaftaran/jam) dan Cloudflare Turnstile (gratis) bila `TURNSTILE_SECRET_KEY` diisi.
+  Turnstile **fail-closed**; bila secret kosong, rate limit D1 tetap berjalan.
+- `users.created_via` mencatat `seed` / `invite` / `self_signup` untuk audit dan operasional
+  (migrasi `0006_self_signup.sql`).
+
+**Konsekuensi.**
+
+- Tidak perlu superadmin global untuk operasi normal; superadmin tetap ada untuk
+  break-glass dan tindakan lintas acara.
+- Akun palsu tetap mungkin dibuat, tetapi hanya menghasilkan data miliknya sendiri. Dampak
+  terburuk adalah sampah di database sendiri, bukan kebocoran acara lain.
+- Tidak ada verifikasi identitas. Nama tampilan tidak unik dan tidak boleh dipakai sebagai
+  bukti siapa pun.
+- Kode pemulihan menjadi satu-satunya jalan masuk kembali; kehilangannya berarti akun
+  tersebut tidak bisa dipulihkan tanpa intervensi operator D1.
+
 ---
 
 ## 3. Topologi dan komponen
@@ -379,7 +426,8 @@ Kontrak respons selalu HTTP 200 untuk hasil bisnis (`present`, `duplicate`, `not
 |---|---|
 | Petugas ganti/lupa HP | Minta admin acara membuat undangan baru; kredensial lama dicabut |
 | Petugas tetap punya kode pemulihan | `POST /api/auth/recover` dengan kode → kredensial baru + kode pemulihan baru |
-| Admin acara kehilangan akses | Dipulihkan oleh `superadmin` (undangan baru) |
+| Admin acara kehilangan akses | Kode pemulihan sendiri; tanpa kode, akun tidak dapat dipulihkan (ADR-007) |
+| Admin acara baru | Daftar sendiri di `/daftar`; akun `event_admin` tanpa keanggotaan, hanya melihat acara yang ia buat |
 | `superadmin` kehilangan akses | **Break-glass terdokumentasi**: `wrangler d1 execute` untuk menyisipkan undangan baru, dilakukan manual oleh pemilik akun Cloudflare. Prosedur ini dicatat di `docs/OPERASIONAL.md` dan setiap penggunaan wajib menghasilkan entri audit |
 
 Tidak ada email, tidak ada SMS, tidak ada OAuth Google untuk pengguna.

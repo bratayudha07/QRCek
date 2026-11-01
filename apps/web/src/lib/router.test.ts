@@ -24,6 +24,7 @@ describe("parseRoute", () => {
     [paths.staffHistory, "staffHistory"],
     [paths.staffProfile, "staffProfile"],
     [paths.login, "login"],
+    [paths.register, "register"],
     [paths.activation, "activation"],
   ] as const)("maps %s to %s", (path, name) => {
     expect(parseRoute(path).name).toBe(name);

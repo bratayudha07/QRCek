@@ -26,7 +26,8 @@ export type Action =
 
 /**
  * Minimum event membership needed for a non-superadmin to perform an action on
- * that event. `null` means "no event membership can grant it" (superadmin only).
+ * that event. `null` means "no event membership can grant it" (superadmin only,
+ * unless the action is listed in `MIN_GLOBAL_ROLE`).
  *
  * The membership role, not `users.role`, is the authority for a specific
  * event: a user can be `event_admin` globally but only an `officer` in an event
@@ -56,6 +57,23 @@ const MEMBERSHIP_RANK: Record<EventRole, number> = {
   event_admin: 2,
 };
 
+const ROLE_RANK: Record<Role, number> = {
+  officer: 1,
+  event_admin: 2,
+  superadmin: 3,
+};
+
+/**
+ * Actions a non-superadmin may perform without any event membership (ADR-007).
+ *
+ * Only *creation of a new resource* belongs here: the caller becomes the owner
+ * of what it creates, so no existing event's data is exposed. Reading or
+ * mutating someone else's event still needs a membership.
+ */
+const MIN_GLOBAL_ROLE: Partial<Record<Action, Role>> = {
+  "event:create": "event_admin",
+};
+
 export interface AuthorizationInput {
   /** Global role from `users.role`. */
   role: Role;
@@ -72,6 +90,10 @@ export interface AuthorizationInput {
  */
 export function isAllowed({ role, action, membershipRole }: AuthorizationInput): boolean {
   if (role === "superadmin") return true;
+
+  // A global action may be granted by `users.role` alone (event creation).
+  const globalMinimum = MIN_GLOBAL_ROLE[action];
+  if (globalMinimum !== undefined && ROLE_RANK[role] >= ROLE_RANK[globalMinimum]) return true;
 
   const minimum = MIN_MEMBERSHIP[action];
   if (minimum === null) return false; // superadmin-only action

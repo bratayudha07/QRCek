@@ -29,7 +29,7 @@ import {
   updateEvent,
   updateEventStatus,
 } from "../db/events";
-import { listMembers, revokeMembership } from "../db/users";
+import { listMembers, revokeMembership, upsertMembershipStatement } from "../db/users";
 import {
   countActiveInvites,
   deletePendingInvite,
@@ -105,23 +105,44 @@ async function createEvent(ctx: RouteContext): Promise<RouteResult> {
   const body = await parseJsonBody(ctx.request, EventCreateRequestSchema);
   const id = newId(ctx.now);
 
-  await insertEventStatement(ctx.env.DB, {
-    id,
-    slug: eventSlug(body.name, id),
-    name: body.name,
-    description: body.description ?? null,
-    timezone: body.timezone,
-    startsAt: body.startsAt ?? null,
-    endsAt: body.endsAt ?? null,
-    allowManual: body.allowManual,
-    createdAt: ctx.now,
-    createdBy: auth.user.id,
-  }).run();
+  const writes = [
+    insertEventStatement(ctx.env.DB, {
+      id,
+      slug: eventSlug(body.name, id),
+      name: body.name,
+      description: body.description ?? null,
+      timezone: body.timezone,
+      startsAt: body.startsAt ?? null,
+      endsAt: body.endsAt ?? null,
+      allowManual: body.allowManual,
+      createdAt: ctx.now,
+      createdBy: auth.user.id,
+    }),
+  ];
+
+  // ADR-007: a self-registered admin owns what it creates. The membership row
+  // is written in the same batch as the event, so an event can never exist
+  // without an owner and the owner can never be locked out of its own event.
+  if (auth.user.role !== "superadmin") {
+    writes.push(
+      upsertMembershipStatement(ctx.env.DB, {
+        id: newId(ctx.now),
+        eventId: id,
+        userId: auth.user.id,
+        role: "event_admin",
+        createdAt: ctx.now,
+      }),
+    );
+  }
+
+  await ctx.env.DB.batch(writes);
 
   const row = await findAccessibleEvent(ctx.env.DB, id);
   if (!row) throw notFound("Acara tidak ditemukan setelah dibuat");
 
-  const payload: EventDetailPayload = { event: toEventSummary(row, "superadmin") };
+  const payload: EventDetailPayload = {
+    event: toEventSummary(row, auth.user.role === "superadmin" ? "superadmin" : "event_admin"),
+  };
   return { status: 201, data: payload };
 }
 

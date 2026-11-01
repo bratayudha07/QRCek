@@ -32,6 +32,7 @@ describe("D1 integration", () => {
       "0003_participants.sql",
       "0004_qr.sql",
       "0005_attendance_sync.sql",
+      "0006_self_signup.sql",
     ]);
   });
 
@@ -40,7 +41,7 @@ describe("D1 integration", () => {
       .bind("schema_version")
       .first<{ value: string }>();
 
-    expect(row?.value).toBe("5");
+    expect(row?.value).toBe("6");
   });
 
   it("stores and updates a key", async () => {
