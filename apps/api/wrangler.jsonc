@@ -23,8 +23,5 @@
       "database_id": "5c8ec1c4-c1ef-4058-80bc-1d114929c669",
       "migrations_dir": "../../migrations"
     }
-  ],
-  "vars": {
-    "VITE_TURNSTILE_SITE_KEY": "0x4AAAAAAFu473J7AXeNkvOy"
-  }
+  ]
 }

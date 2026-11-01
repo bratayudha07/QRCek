@@ -11,6 +11,8 @@ coverage/
 .env
 .env.*
 !.env.example
+# Public build-time values only (e.g. Turnstile site key). Never put secrets here.
+!.env.production
 
 # Editor / OS
 .DS_Store
