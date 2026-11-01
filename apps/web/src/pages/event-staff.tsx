@@ -168,7 +168,7 @@ export function EventStaffPage({ eventId }: { eventId: string }) {
               <option value={24}>24 jam</option><option value={72}>3 hari</option><option value={168}>7 hari</option>
             </Select>
           </Field>
-          <Button className="sm:col-span-3" disabled={busy}>Buat tautan undangan</Button>
+          <Button type="submit" className="sm:col-span-3" disabled={busy}>Buat tautan undangan</Button>
         </form>
         {createdInvite && (
           <div className="grid gap-4 rounded-lg bg-muted/60 p-4 sm:grid-cols-[1fr_auto] sm:items-center">
