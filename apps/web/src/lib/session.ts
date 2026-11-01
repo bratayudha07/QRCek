@@ -15,13 +15,30 @@ export type SessionState =
   | { status: "authenticated"; user: UserSummary; memberships: MembershipSummary[] }
   | { status: "error"; message: string };
 
+/**
+ * Concurrent mounts (the navigation frame and the page it wraps) share one
+ * `/api/auth/me` request. Only in-flight requests are shared: the result is not
+ * cached, so logging out or switching users can never read a stale session.
+ */
+let inFlight: ReturnType<typeof fetchMe> | null = null;
+
+function loadSession(): ReturnType<typeof fetchMe> {
+  if (inFlight === null) {
+    inFlight = fetchMe().finally(() => {
+      inFlight = null;
+    });
+  }
+
+  return inFlight;
+}
+
 export function useSession(): SessionState {
   const [session, setSession] = useState<SessionState>({ status: "loading" });
 
   useEffect(() => {
     let cancelled = false;
 
-    fetchMe()
+    loadSession()
       .then((body) => {
         if (cancelled) return;
 

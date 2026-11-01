@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { getEvent } from "@/lib/events";
 import { formatBytes, formatCount } from "@/lib/format";
 import { importParticipants, participantTemplateUrl } from "@/lib/participants";
-import { eventPath, navigate, type AppRoute } from "@/lib/router";
+import { navigate, participantsPath } from "@/lib/router";
 
 const MAX_BYTES = 2 * 1024 * 1024;
 
@@ -24,13 +24,13 @@ type EventState =
   | { status: "error"; message: string };
 
 /**
- * `/acara/:id/impor` — preview, then confirm.
+ * `/admin/events/:id/participants/import` — preview, then confirm.
  *
  * The Worker defaults to `dry_run=true`, so the only way to write is the
  * explicit "Impor sekarang" button below. The preview is not a promise: the
  * confirmation re-sends the same file and the server recomputes the result.
  */
-export function ImportPage({ route, eventId }: { route: AppRoute; eventId: string }) {
+export function ImportPage({ eventId }: { eventId: string }) {
   const [eventState, setEventState] = useState<EventState>({ status: "loading" });
   const [file, setFile] = useState<ChosenFile | null>(null);
   const [preview, setPreview] = useState<ImportPreviewPayload | null>(null);
@@ -146,10 +146,9 @@ export function ImportPage({ route, eventId }: { route: AppRoute; eventId: strin
 
   return (
     <AppShell
-      route={route}
       title="Impor peserta"
       subtitle={eventState.status === "ready" ? eventState.name : undefined}
-      backTo={eventPath(eventId)}
+      backTo={participantsPath(eventId)}
     >
       {eventState.status === "loading" && <LoadingState label="Memuat acara…" />}
 
@@ -334,7 +333,7 @@ export function ImportPage({ route, eventId }: { route: AppRoute; eventId: strin
               )}
 
               <div className="flex flex-wrap gap-2">
-                <Button onClick={() => navigate(eventPath(eventId))}>Lihat daftar peserta</Button>
+                <Button onClick={() => navigate(participantsPath(eventId))}>Lihat daftar peserta</Button>
                 <Button variant="outline" onClick={reset}>
                   <FileUp aria-hidden="true" className="size-4" />
                   Impor file lain

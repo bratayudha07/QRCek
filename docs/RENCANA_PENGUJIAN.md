@@ -83,7 +83,8 @@ Target: setiap fungsi murni punya tes tanpa I/O. Daftar minimum:
 | `domain/attendance-status.ts` | Koreksi `present → excused` sah; `absent → present` sah; nilai tak dikenal ditolak; `reason` < 10 karakter ditolak |
 | `domain/permissions.ts` | Matriks peran → aksi (lihat §5) |
 | `web/lib/format.ts` | Konversi datetime-local ↔ UTC memakai zona waktu acara; DST; nilai kosong |
-| `web/lib/router.ts` | Semua path, id ter-encode, trailing slash, path tak dikenal |
+| `web/lib/router.ts` | Semua path kanonis, semua tab acara, path lama (`/acara…`, `/akun`) tetap diparse lalu dipetakan ke URL kanonis, id ter-encode, trailing slash, path tak dikenal |
+| `web/lib/navigation.ts` | Navigasi admin vs petugas, label sidebar/bottom, item aktif per route, route → tab acara, id acara hanya di dalam workspace |
 | `web/lib/participants.ts` | Query list/ekspor: trim, encoding, cursor, `query=` kosong tidak dikirim |
 | `shared/schemas/*` | Batas atas/bawah setiap field; field tak dikenal; tipe salah |
 
@@ -322,3 +323,16 @@ Checklist singkat yang dijalankan pada staging sebelum deploy produksi:
 5. Print 10 label QR → pindai hasil cetak (memvalidasi ukuran & koreksi error QR).
 6. Koreksi satu absensi sebagai admin → cek baris di sheet berubah, cek audit bertambah.
 7. Putus koneksi → scan menampilkan pesan jaringan yang bisa ditindaklanjuti.
+8. Sidebar desktop: ciutkan/perluas, tooltip saat ciut, fokus keyboard terlihat, dan lebar konten
+   ikut bergeser tanpa melompat.
+9. Mobile: bottom nav tidak menutupi konten/aksi utama, aman di perangkat dengan safe-area,
+   dan Scan QR adalah aksi yang paling menonjol bagi petugas.
+10. Event switcher: pindah acara dari sidebar (desktop) dan strip atas (mobile) → URL memuat id
+    acara baru dan tidak ada data acara sebelumnya yang tersisa di layar. Pindah acara saat berada
+    di tab Peserta tetap berada di tab Peserta.
+11. Event tabs: indikator geser mengikuti tab aktif (bergerak, bukan melompat), kelima tab tetap
+    terbaca pada lebar 320 px (scroll horizontal, bukan teks mengecil), dan bisa dioperasikan
+    dengan Tab + Enter.
+12. Reduced motion: aktifkan preferensi sistem → transisi halaman dan indikator tab berhenti.
+13. Navigasi antar halaman: scroll kembali ke atas, fokus pindah ke area konten (Tab berikutnya
+    masuk ke konten, bukan tertinggal di sidebar), dan `#main-content` tetap jadi target skip link.

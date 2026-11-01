@@ -2,6 +2,7 @@ import type { EventAccessRole, EventSummary } from "@absensi/shared";
 import { CalendarDays, ChevronRight, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { AppLink } from "@/components/app-link";
 import { AppShell } from "@/components/app-shell";
 import { EventForm, type EventFormValues } from "@/components/event-form";
 import { EmptyState, ErrorState, LoadingState, Notice } from "@/components/page-state";
@@ -9,7 +10,7 @@ import { EventStatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { createEvent, listEvents } from "@/lib/events";
 import { formatCount, formatSchedule } from "@/lib/format";
-import { eventPath, navigate, type AppRoute } from "@/lib/router";
+import { eventOverviewPath, navigate } from "@/lib/router";
 import { useSession } from "@/lib/session";
 
 type LoadState =
@@ -23,7 +24,7 @@ const ACCESS_LABEL: Record<EventAccessRole, string> = {
   officer: "Petugas",
 };
 
-export function EventsPage({ route }: { route: AppRoute }) {
+export function EventsPage() {
   const session = useSession();
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [reloadKey, setReloadKey] = useState(0);
@@ -70,7 +71,7 @@ export function EventsPage({ route }: { route: AppRoute }) {
 
       if (body.ok) {
         setShowCreate(false);
-        navigate(eventPath(body.data.event.id));
+        navigate(eventOverviewPath(body.data.event.id));
         return;
       }
 
@@ -86,7 +87,6 @@ export function EventsPage({ route }: { route: AppRoute }) {
 
   return (
     <AppShell
-      route={route}
       title="Acara"
       subtitle="Kelola acara dan peserta yang terdaftar"
       actions={
@@ -146,9 +146,9 @@ export function EventsPage({ route }: { route: AppRoute }) {
         <ul className="space-y-2">
           {state.events.map((event) => (
             <li key={event.id}>
-              <a
-                href={eventPath(event.id)}
-                className="group flex items-start gap-3 rounded-lg border p-4 transition-colors hover:bg-muted/40"
+              <AppLink
+                href={eventOverviewPath(event.id)}
+                className="group flex items-start gap-3 rounded-lg border p-4 transition-colors duration-150 hover:bg-muted/40 focus-visible:outline-2 focus-visible:outline-offset-2"
               >
                 <div className="min-w-0 flex-1 space-y-1.5">
                   <div className="flex flex-wrap items-center gap-2">
@@ -169,7 +169,7 @@ export function EventsPage({ route }: { route: AppRoute }) {
                   aria-hidden="true"
                   className="mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
                 />
-              </a>
+              </AppLink>
             </li>
           ))}
         </ul>

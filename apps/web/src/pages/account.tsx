@@ -2,11 +2,12 @@ import type { Role } from "@absensi/shared";
 import { ChevronRight, LogOut } from "lucide-react";
 import { useState } from "react";
 
+import { AppLink } from "@/components/app-link";
 import { AppShell } from "@/components/app-shell";
 import { ErrorState, LoadingState, Notice } from "@/components/page-state";
 import { Button } from "@/components/ui/button";
 import { logoutSession } from "@/lib/auth";
-import { eventPath, navigate, type AppRoute } from "@/lib/router";
+import { eventOverviewPath, navigate, paths } from "@/lib/router";
 import { useSession } from "@/lib/session";
 
 const ROLE_LABEL: Record<Role, string> = {
@@ -15,7 +16,13 @@ const ROLE_LABEL: Record<Role, string> = {
   officer: "Petugas",
 };
 
-export function AccountPage({ route }: { route: AppRoute }) {
+export function AccountPage({
+  title = "Akun",
+  subtitle = "Sesi dan keanggotaan acara",
+}: {
+  title?: string;
+  subtitle?: string;
+}) {
   const session = useSession();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +33,7 @@ export function AccountPage({ route }: { route: AppRoute }) {
 
     try {
       await logoutSession();
-      navigate("/masuk");
+      navigate(paths.login);
     } catch {
       setError("Tidak bisa menghubungi server");
     } finally {
@@ -35,7 +42,7 @@ export function AccountPage({ route }: { route: AppRoute }) {
   }
 
   return (
-    <AppShell route={route} title="Akun" subtitle="Sesi dan keanggotaan acara">
+    <AppShell title={title} subtitle={subtitle}>
       {session.status === "loading" && <LoadingState label="Memeriksa sesi…" />}
 
       {session.status === "error" && <ErrorState message={session.message} />}
@@ -83,9 +90,9 @@ export function AccountPage({ route }: { route: AppRoute }) {
               <ul className="divide-y rounded-lg border">
                 {session.memberships.map((membership) => (
                   <li key={membership.eventId}>
-                    <a
-                      href={eventPath(membership.eventId)}
-                      className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/40"
+                    <AppLink
+                      href={eventOverviewPath(membership.eventId)}
+                      className="group flex items-center gap-3 px-4 py-3 transition-colors duration-150 hover:bg-muted/40 focus-visible:outline-2 focus-visible:outline-offset-2"
                     >
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium">{membership.eventName}</p>
@@ -97,7 +104,7 @@ export function AccountPage({ route }: { route: AppRoute }) {
                         aria-hidden="true"
                         className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
                       />
-                    </a>
+                    </AppLink>
                   </li>
                 ))}
               </ul>

@@ -3,8 +3,9 @@
 Rencana implementasi bertahap untuk Multi-Event Parent Attendance Management System.
 
 **Status: Fase 0 selesai sebagian, Fase 1 (Tahap 2) selesai sebagian, Tahap 3 selesai
-(manajemen acara + peserta non-QR).** Lihat blok status di tiap fase untuk butir yang belum
-terverifikasi. QR, pemindaian, rekap, dan Sheets belum dibuka.
+(manajemen acara + peserta non-QR), Tahap 3.5 selesai (penyelarasan UI/UX dan navigasi).** Lihat
+blok status di tiap fase untuk butir yang belum terverifikasi. QR, pemindaian, rekap, dan Sheets
+belum dibuka.
 
 Dokumen pendukung: [`AGENTS.md`](./AGENTS.md), [`docs/ARSITEKTUR.md`](./docs/ARSITEKTUR.md), [`docs/DESAIN_DATABASE.md`](./docs/DESAIN_DATABASE.md), [`docs/DESAIN_API.md`](./docs/DESAIN_API.md), [`docs/RENCANA_PENGUJIAN.md`](./docs/RENCANA_PENGUJIAN.md), [`COSTS_AND_LIMITS.md`](./COSTS_AND_LIMITS.md).
 
@@ -262,6 +263,67 @@ aman.
 | `qr-labels` + kolom QR | Tidak dibuat | Di luar cakupan Tahap 3; migrasi fase QR akan menambah kolom |
 | Status acara bebas | `draft → active → closed → active|archived`; `archived` final; `active → archived` ditolak | Mencegah acara diarsipkan tanpa ditutup dan dibuka lagi setelah final |
 | Hapus acara oleh admin acara | Hanya superadmin, hanya draf tanpa peserta | Hard delete adalah tindakan lintas acara; selain itu arahkan ke arsip |
+
+---
+
+## TAHAP 3.5 — Penyelarasan UI/UX dan sistem navigasi
+
+**Status: SELESAI (belum di-commit, menunggu review).** Lapisan UI saja; tidak ada endpoint,
+migrasi, atau dependensi baru.
+
+Tujuan: dua tingkat navigasi yang terpisah — global (sidebar desktop / bottom nav mobile) dan
+workspace acara (segmented control) — tanpa mencampurnya.
+
+### Yang dikerjakan
+
+1. Route tree kanonis: `/admin/{dashboard,events,activity,settings}`,
+   `/admin/events/:eventId/{overview,participants,staff,attendance,reports}`,
+   `/admin/events/:eventId/participants/{import,:participantId}`,
+   `/staff/{home,scan,history,profile}`. Path lama `/acara…` dan `/akun` tetap diparse lalu
+   ditulis ulang ke URL kanonis (`replaceState`), bukan diduplikasi.
+2. `lib/navigation.ts` (murni + unit test): item sidebar/bottom per peran, aturan item aktif,
+   dan pemetaan route → tab acara.
+3. `AppLayout` + `Sidebar` + `BottomNav`: sidebar 248 px ↔ 76 px, tooltip saat ciut, bottom nav
+   empat item dengan safe-area, aksi Scan QR ditonjolkan untuk petugas.
+4. `EventSwitcher` di sidebar (desktop) dan strip atas (mobile) untuk berpindah acara tanpa
+   kembali ke daftar; halaman di-*remount* per route sehingga data acara lama tidak tertinggal.
+5. `EventTabs`: segmented control dengan indikator geser (spring), ikon + label, dan scroll
+   horizontal di layar sempit. Baris tab dirender `AppLayout` (bukan tiap halaman) supaya
+   komponennya tidak ikut ter-*remount* saat pindah tab — kalau tidak, indikator lahir langsung
+   di posisi akhir dan animasinya tidak pernah terlihat. Indikator memakai `translateX` per
+   indeks, jadi tidak perlu mengukur DOM.
+6. Halaman baru: dashboard, aktivitas (placeholder), Petugas/Absensi/Laporan (placeholder),
+   Beranda/Scan/Riwayat petugas (placeholder), serta pemisahan detail acara menjadi Ringkasan
+   dan Peserta.
+7. Motion CSS: transisi halaman 220 ms, sidebar 200 ms, hover/press 150 ms, spring tab; semua
+   menghormati `prefers-reduced-motion`.
+
+### Deviasi & batasan yang disengaja
+
+| Rencana / kebutuhan | Yang dikerjakan | Alasan |
+|---|---|---|
+| Route staff hanya `/staff/{home,scan,history}` | Tambah `/staff/profile` | Item bottom nav "Profil" wajib punya tujuan; `/admin/settings` tidak pantas untuk peran petugas |
+| Sidebar hanya untuk admin | Sidebar juga dipakai petugas di desktop | Tanpa itu petugas di layar lebar tidak punya navigasi sama sekali |
+| Event switcher hanya di sidebar | Juga tampil sebagai strip di atas konten pada mobile | Sidebar tidak dirender di mobile, sedangkan berpindah acara tanpa kembali ke daftar tetap diperlukan |
+| Tab Petugas/Absensi/Laporan punya fitur | Placeholder eksplisit "Belum tersedia" | Fitur tersebut milik fase berikutnya (AGENTS.md) |
+| Data acara lama dibersihkan manual | Halaman di-*remount* per route + effect bergantung `eventId` | Dua lapis pencegahan data basi |
+| Pengujian visual/keyboard/reduced-motion otomatis | **NOT RUN** (manual) | Web test berjalan di Node, tanpa jsdom/Playwright |
+
+### Polish hasil review (sebelum commit)
+
+1. `EventSwitcher` menerima `id` dari pemanggil: sebelumnya dua salinan memakai `id` yang sama
+   dan `<label for>` mengarah ke salinan yang tersembunyi di mobile.
+2. Sidebar ciut tidak lagi menghilangkan switcher: rail menampilkan tombol "Ganti acara" yang
+   memperluas sidebar (sebelumnya di ≥1024 px tidak ada cara berpindah acara sama sekali).
+3. Berpindah acara mempertahankan tab aktif, bukan selalu kembali ke Ringkasan.
+4. Permukaan `header`, baris tab, dan bottom nav dibuat opak — `bg-background/85` + `backdrop-blur`
+   membiarkan teks yang lewat terlihat samar di bawah judul.
+5. `--muted-foreground` 0.556 → 0.50 (4.34:1 → 5.5:1 di atas `--muted`) agar badge status dan
+   header tabel lulus AA.
+6. Navigasi mereset scroll dan memindahkan fokus ke `main`; tooltip sidebar muncul pada
+   `focus-visible`, bukan hanya `title` saat hover.
+
+Verifikasi: `typecheck`, `lint`, `test` **296/296** (27 file), `build` — PASS.
 
 ---
 

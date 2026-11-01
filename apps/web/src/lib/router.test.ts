@@ -1,28 +1,78 @@
 import { describe, expect, it } from "vitest";
 
-import { eventPath, importPath, parseRoute, participantPath } from "./router";
+import {
+  EVENT_TAB_KEYS,
+  eventTabPath,
+  importPath,
+  parseRoute,
+  participantPath,
+  participantsPath,
+  paths,
+  routePath,
+} from "./router";
 
 describe("parseRoute", () => {
   it.each([
-    ["/", "events"],
-    ["/acara", "events"],
-    ["/akun", "account"],
-    ["/masuk", "login"],
-    ["/aktivasi", "activation"],
+    ["/", "home"],
+    [paths.dashboard, "dashboard"],
+    [paths.events, "events"],
+    [paths.activity, "activity"],
+    [paths.settings, "settings"],
+    [paths.staffHome, "staffHome"],
+    [paths.staffScan, "staffScan"],
+    [paths.staffHistory, "staffHistory"],
+    [paths.staffProfile, "staffProfile"],
+    [paths.login, "login"],
+    [paths.activation, "activation"],
   ] as const)("maps %s to %s", (path, name) => {
     expect(parseRoute(path).name).toBe(name);
   });
 
-  it("ignores trailing slashes", () => {
-    expect(parseRoute("/acara/")).toEqual({ name: "events" });
-    expect(parseRoute("/acara/EVT/")).toEqual({ name: "event", eventId: "EVT" });
+  it("treats bare /admin as the dashboard", () => {
+    expect(parseRoute("/admin")).toEqual({ name: "dashboard" });
   });
 
-  it("parses event detail", () => {
-    expect(parseRoute("/acara/01JEVENT")).toEqual({ name: "event", eventId: "01JEVENT" });
+  it.each(EVENT_TAB_KEYS)("parses the %s event tab", (tab) => {
+    expect(parseRoute(`/admin/events/01JEVENT/${tab}`)).toEqual({
+      name: "event",
+      eventId: "01JEVENT",
+      tab,
+    });
   });
 
-  it("parses participant detail", () => {
+  it("defaults an event URL without a tab to the overview", () => {
+    expect(parseRoute("/admin/events/01JEVENT")).toEqual({
+      name: "event",
+      eventId: "01JEVENT",
+      tab: "overview",
+    });
+  });
+
+  it("parses participant detail and the import wizard", () => {
+    expect(parseRoute("/admin/events/01JEVENT/participants/01JPART")).toEqual({
+      name: "participant",
+      eventId: "01JEVENT",
+      participantId: "01JPART",
+    });
+
+    expect(parseRoute("/admin/events/01JEVENT/participants/import")).toEqual({
+      name: "import",
+      eventId: "01JEVENT",
+    });
+  });
+
+  it("keeps legacy Tahap 3 paths working", () => {
+    expect(parseRoute("/acara")).toEqual({ name: "events" });
+    expect(parseRoute("/akun")).toEqual({ name: "settings" });
+    expect(parseRoute("/acara/01JEVENT")).toEqual({
+      name: "event",
+      eventId: "01JEVENT",
+      tab: "overview",
+    });
+    expect(parseRoute("/acara/01JEVENT/impor")).toEqual({
+      name: "import",
+      eventId: "01JEVENT",
+    });
     expect(parseRoute("/acara/01JEVENT/peserta/01JPART")).toEqual({
       name: "participant",
       eventId: "01JEVENT",
@@ -30,31 +80,70 @@ describe("parseRoute", () => {
     });
   });
 
-  it("parses the import wizard", () => {
-    expect(parseRoute("/acara/01JEVENT/impor")).toEqual({
-      name: "import",
-      eventId: "01JEVENT",
+  it("ignores trailing slashes", () => {
+    expect(parseRoute("/admin/events/")).toEqual({ name: "events" });
+    expect(parseRoute("/admin/events/EVT/")).toEqual({
+      name: "event",
+      eventId: "EVT",
+      tab: "overview",
     });
+    expect(parseRoute("/acara/")).toEqual({ name: "events" });
   });
 
   it("decodes URL-encoded ids", () => {
-    expect(parseRoute("/acara/a%20b")).toEqual({ name: "event", eventId: "a b" });
+    expect(parseRoute("/admin/events/a%20b/overview")).toEqual({
+      name: "event",
+      eventId: "a b",
+      tab: "overview",
+    });
+    expect(parseRoute("/acara/a%20b")).toEqual({
+      name: "event",
+      eventId: "a b",
+      tab: "overview",
+    });
   });
 
-  it.each(["/foo", "/acara/EVT/peserta", "/acara/EVT/lain", "/akun/extra"])(
-    "returns notFound for %s",
-    (path) => {
-      expect(parseRoute(path)).toEqual({ name: "notFound" });
-    },
-  );
+  it.each([
+    "/foo",
+    "/admin/events/EVT/lain",
+    "/admin/events/EVT/staff/extra",
+    "/admin/events/EVT/participants/import/extra",
+    "/admin/activity/extra",
+    "/acara/EVT/peserta",
+    "/acara/EVT/lain",
+    "/akun/extra",
+    "/staff",
+    "/staff/home/extra",
+  ])("returns notFound for %s", (path) => {
+    expect(parseRoute(path)).toEqual({ name: "notFound" });
+  });
+});
 
+describe("routePath", () => {
   it("builds canonical paths", () => {
-    expect(eventPath("EVT")).toBe("/acara/EVT");
-    expect(participantPath("EVT", "P1")).toBe("/acara/EVT/peserta/P1");
-    expect(importPath("EVT")).toBe("/acara/EVT/impor");
+    expect(eventTabPath("EVT", "overview")).toBe("/admin/events/EVT/overview");
+    expect(participantsPath("EVT")).toBe("/admin/events/EVT/participants");
+    expect(participantPath("EVT", "P1")).toBe("/admin/events/EVT/participants/P1");
+    expect(importPath("EVT")).toBe("/admin/events/EVT/participants/import");
   });
 
   it("encodes ids in generated paths", () => {
-    expect(eventPath("a/b")).toBe("/acara/a%2Fb");
+    expect(eventTabPath("a/b", "participants")).toBe("/admin/events/a%2Fb/participants");
+    expect(participantPath("a/b", "c/d")).toBe("/admin/events/a%2Fb/participants/c%2Fd");
+  });
+
+  it("rewrites legacy and partial paths to their canonical address", () => {
+    expect(routePath(parseRoute("/acara"))).toBe(paths.events);
+    expect(routePath(parseRoute("/akun"))).toBe(paths.settings);
+    expect(routePath(parseRoute("/acara/EVT"))).toBe("/admin/events/EVT/overview");
+    expect(routePath(parseRoute("/acara/EVT/impor"))).toBe(
+      "/admin/events/EVT/participants/import",
+    );
+    expect(routePath(parseRoute("/admin/events/EVT"))).toBe("/admin/events/EVT/overview");
+    expect(routePath(parseRoute("/admin"))).toBe(paths.dashboard);
+  });
+
+  it("has no canonical address for a 404", () => {
+    expect(routePath(parseRoute("/foo"))).toBeNull();
   });
 });

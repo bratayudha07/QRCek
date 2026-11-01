@@ -18,7 +18,7 @@ import {
   getParticipant,
   updateParticipant,
 } from "@/lib/participants";
-import { eventPath, navigate, type AppRoute } from "@/lib/router";
+import { navigate, participantsPath } from "@/lib/router";
 
 type LoadState =
   | { status: "loading" }
@@ -26,11 +26,9 @@ type LoadState =
   | { status: "error"; message: string };
 
 export function ParticipantDetailPage({
-  route,
   eventId,
   participantId,
 }: {
-  route: AppRoute;
   eventId: string;
   participantId: string;
 }) {
@@ -80,7 +78,10 @@ export function ParticipantDetailPage({
 
   if (state.status === "loading") {
     return (
-      <AppShell route={route} title="Peserta" backTo={eventPath(eventId)}>
+      <AppShell
+        title="Peserta"
+        backTo={participantsPath(eventId)}
+      >
         <LoadingState label="Memuat peserta…" />
       </AppShell>
     );
@@ -88,7 +89,10 @@ export function ParticipantDetailPage({
 
   if (state.status === "error") {
     return (
-      <AppShell route={route} title="Peserta" backTo={eventPath(eventId)}>
+      <AppShell
+        title="Peserta"
+        backTo={participantsPath(eventId)}
+      >
         <ErrorState message={state.message} onRetry={() => setReloadKey((key) => key + 1)} />
       </AppShell>
     );
@@ -173,10 +177,9 @@ export function ParticipantDetailPage({
 
   return (
     <AppShell
-      route={route}
       title={participant.fullName}
       subtitle={event.name}
-      backTo={eventPath(eventId)}
+      backTo={participantsPath(eventId)}
       actions={<ParticipantStatusBadge status={participant.status} />}
     >
       {actionError && <ErrorState message={actionError} />}
@@ -264,7 +267,7 @@ export function ParticipantDetailPage({
       )}
 
       <div className="flex justify-center">
-        <Button variant="ghost" size="sm" onClick={() => navigate(eventPath(eventId))}>
+        <Button variant="ghost" size="sm" onClick={() => navigate(participantsPath(eventId))}>
           Kembali ke daftar peserta
         </Button>
       </div>
