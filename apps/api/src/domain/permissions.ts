@@ -10,8 +10,12 @@ import type { EventRole, Role } from "@absensi/shared";
 
 export type Action =
   | "event:create"
+  | "event:read"
   | "event:update"
+  | "event:delete"
   | "invite:manage"
+  | "participant:read"
+  | "participant:write"
   | "participant:import"
   | "qr:print"
   | "scan"
@@ -30,8 +34,12 @@ export type Action =
  */
 const MIN_MEMBERSHIP: Record<Action, EventRole | null> = {
   "event:create": null,
+  "event:read": "officer",
   "event:update": "event_admin",
+  "event:delete": null,
   "invite:manage": "event_admin",
+  "participant:read": "officer",
+  "participant:write": "event_admin",
   "participant:import": "event_admin",
   "qr:print": "event_admin",
   scan: "officer",

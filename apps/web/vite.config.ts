@@ -13,6 +13,8 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // host: true,
+    // allowedHosts: true,
     // Keeps the browser on a single origin (ADR-001) so cookies behave the same
     // in dev and production.
     proxy: {

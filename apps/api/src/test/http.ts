@@ -41,6 +41,8 @@ export function createClock(start = TEST_NOW): Clock {
 export interface CallOptions {
   method?: string;
   body?: unknown;
+  /** Raw request body (CSV upload); mutually exclusive with `body`. */
+  rawBody?: string;
   headers?: Record<string, string>;
   /** Full `Cookie` header value, e.g. `absensi_session=…`. */
   cookie?: string | null;
@@ -55,6 +57,8 @@ export interface TestResponse {
   headers: Headers;
   body: ApiResponse<never>;
   json<T>(): ApiResponse<T>;
+  /** Raw body, for CSV endpoints that do not use the JSON envelope. */
+  text: string;
   /** `Cookie` header value to replay the issued session, or `null`. */
   sessionCookie(): string | null;
   rawSetCookie(): string | null;
@@ -70,7 +74,9 @@ function extractSessionCookie(setCookie: string | null): string | null {
 }
 
 export async function callApi(path: string, options: CallOptions = {}): Promise<TestResponse> {
-  const method = (options.method ?? (options.body === undefined ? "GET" : "POST")).toUpperCase();
+  const method = (
+    options.method ?? (options.body === undefined && options.rawBody === undefined ? "GET" : "POST")
+  ).toUpperCase();
   const headers = new Headers(options.headers ?? {});
 
   const isSafe = method === "GET" || method === "HEAD" || method === "OPTIONS";
@@ -86,15 +92,28 @@ export async function callApi(path: string, options: CallOptions = {}): Promise<
     headers.set("content-type", "application/json");
   }
 
+  if (options.rawBody !== undefined) {
+    headers.set("content-type", "text/csv; charset=utf-8");
+  }
+
   const now = options.now ?? TEST_NOW;
   const request = new Request(`${TEST_ORIGIN}${path}`, {
     method,
     headers,
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    body:
+      options.rawBody !== undefined
+        ? options.rawBody
+        : options.body === undefined
+          ? undefined
+          : JSON.stringify(options.body),
   });
 
   const response = await handleRequest(request, testEnv, { now: () => now });
-  const body = (await response.clone().json()) as ApiResponse<never>;
+  const text = await response.clone().text();
+  const isJson = (response.headers.get("content-type") ?? "").includes("application/json");
+  const body = isJson
+    ? (JSON.parse(text) as ApiResponse<never>)
+    : ({ ok: false, error: { code: "INTERNAL", message: "Respons bukan JSON" } } as ApiResponse<never>);
   const setCookie = response.headers.get("set-cookie");
 
   return {
@@ -102,6 +121,7 @@ export async function callApi(path: string, options: CallOptions = {}): Promise<
     headers: response.headers,
     body,
     json: <T>() => body as unknown as ApiResponse<T>,
+    text,
     sessionCookie: () => extractSessionCookie(setCookie),
     rawSetCookie: () => setCookie,
   };

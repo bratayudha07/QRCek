@@ -26,8 +26,13 @@ export interface RouteContext {
 
 export interface RouteResult {
   status?: number;
-  data: unknown;
+  data?: unknown;
   headers?: Record<string, string>;
+  /**
+   * Raw response for non-JSON endpoints (CSV export/template). When set, the
+   * dispatcher returns it untouched instead of wrapping `data` in the envelope.
+   */
+  raw?: Response;
 }
 
 export type RouteHandler = (context: RouteContext) => Promise<RouteResult> | RouteResult;
@@ -123,6 +128,8 @@ export async function dispatchRoutes(
     }
 
     const result = await matched.handler({ request, env, now, params, auth });
+
+    if (result.raw) return result.raw;
 
     return okJson(result.data, { status: result.status, headers: result.headers });
   } catch (error) {

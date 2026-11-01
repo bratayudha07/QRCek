@@ -26,7 +26,7 @@ Tanggal pengukuran: 30 Oktober 2026.
 | 2 | `RETURNING` pada `INSERT ... ON CONFLICT` | ✅ **terverifikasi** | Didukung, termasuk di dalam `db.batch()` |
 | 3 | Partial unique index | ✅ **terverifikasi** | Didukung dan ditegakkan |
 | 4 | `EXPLAIN QUERY PLAN` query panas | ✅ **terverifikasi** | 10/10 query memakai `SEARCH ... USING INDEX` |
-| 5 | Migrasi D1 pada database kosong | ✅ **terverifikasi** | 1 file, 3 command, 1 tabel (`app_meta`) |
+| 5 | Migrasi D1 pada database kosong | ✅ **terverifikasi** | 3 file (`0001`, `0002`, `0003`), 10 tabel aplikasi |
 | 6 | `Set-Cookie` lewat Static Assets | ❌ **belum dapat diverifikasi** | Tidak ada endpoint penerbit cookie di Fase 0 |
 | 7 | CPU p95 ≤ 5 ms | ⚠️ **hanya proksi** | Wall-clock lokal terukur; CPU platform butuh `wrangler tail` pada Worker ter-deploy |
 
@@ -177,6 +177,12 @@ Yang berubah:
 | 15 tabel + 2 trigger | 1 tabel: `app_meta` |
 | 4 tes bergantung pada tabel bisnis | tes memakai tabel sekali-pakai berindeks sama |
 
+> **Pembaruan setelah Tahap 3.** Keputusan di atas kini sudah berkembang wajar: `0002_auth.sql`
+> (Fase 1) dan `0003_participants.sql` (Tahap 3) sudah ada. Penjaga batas di
+> `db.integration.test.ts` sengaja hanya mengizinkan tabel yang fasenya sudah dibuka, sehingga
+> tabel `attendance`/`audit_log`/`outbox` tetap membuat tes merah sampai fasenya benar-benar
+> dikerjakan.
+
 `app_meta` (key/value + `updated_at`) dipilih supaya pipeline migrasi punya sesuatu
 yang nyata untuk diterapkan, dan supaya migrasi fase berikutnya punya jangkar versi.
 
@@ -195,16 +201,20 @@ Konsekuensi yang disengaja:
 
 ```bash
 npm run db:reset:local    # hapus apps/api/.wrangler/state
-npm run db:migrate:local  # terapkan 0001_init.sql + 0002_auth.sql
+npm run db:migrate:local  # terapkan 0001_init.sql + 0002_auth.sql + 0003_participants.sql
 npm run db:migrate:local  # "✅ No migrations to apply!" (idempoten)
 ```
 
-Hasil per Tahap 2: 2 migrasi, 9 tabel aplikasi.
+Hasil per Tahap 3: 3 migrasi, 10 tabel aplikasi.
 
 | Migrasi | Tabel |
 |---|---|
 | `0001_init.sql` | `app_meta` |
 | `0002_auth.sql` | `users`, `events`, `event_memberships`, `device_credentials`, `sessions`, `invites`, `recovery_codes`, `rate_limits` |
+| `0003_participants.sql` | `participants` (+ unique partial index `(event_id, external_ref)`) |
+
+> `participants` **belum** punya kolom `qr_token_hash`/`qr_issued_at`. Migrasi fase QR akan
+> menambahkannya lewat file baru, bukan dengan mengedit `0003`.
 
 ```bash
 # bukti dari database lokal
@@ -300,5 +310,5 @@ IP di-hash dengan `SESSION_PEPPER`, jadi tidak ada IP mentah di D1. Pembersihan 
 | Batas baris import final | Setelah pengukuran CPU | Naikkan `MAX_IMPORT_ROWS` bertahap sambil memantau CPU |
 
 **Repo ini punya remote** (`git@github.com:bratayudha07/QRCek.git`, SSH), tetapi commit
-`e8699f6` dan pekerjaan Tahap 2 belum ter-push karena kunci SSH di mesin ini ber-passphrase
-dan agent tidak berjalan. CI tetap belum pernah dijalankan.
+`e8699f6` serta pekerjaan Tahap 2 dan Tahap 3 belum ter-push karena kunci SSH di mesin ini
+ber-passphrase dan agent tidak berjalan. CI tetap belum pernah dijalankan.

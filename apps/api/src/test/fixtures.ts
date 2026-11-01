@@ -165,6 +165,53 @@ export async function countRows(table: string): Promise<number> {
   return row?.n ?? 0;
 }
 
+export interface SeededParticipant {
+  id: string;
+  externalRef: string | null;
+  fullName: string;
+}
+
+export async function createParticipant(
+  eventId: string,
+  options: {
+    id?: string;
+    externalRef?: string | null;
+    fullName?: string;
+    phone?: string | null;
+    email?: string | null;
+    category?: string | null;
+    note?: string | null;
+    status?: "active" | "inactive";
+  } = {},
+): Promise<SeededParticipant> {
+  const id = options.id ?? newId(TEST_NOW);
+  const externalRef = options.externalRef ?? null;
+  const fullName = options.fullName ?? "Peserta Uji";
+
+  await testEnv.DB.prepare(
+    `INSERT INTO participants
+       (id, event_id, external_ref, full_name, phone, email, category, note,
+        status, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(
+      id,
+      eventId,
+      externalRef,
+      fullName,
+      options.phone ?? null,
+      options.email ?? null,
+      options.category ?? null,
+      options.note ?? null,
+      options.status ?? "active",
+      TEST_NOW,
+      TEST_NOW,
+    )
+    .run();
+
+  return { id, externalRef, fullName };
+}
+
 /** Full passwordless login through the real endpoint, returning the cookie. */
 export async function loginViaInvite(
   role: Role,

@@ -1,6 +1,8 @@
 # ARSITEKTUR — Multi-Event Parent Attendance Management System
 
-Status: **draf perencanaan, menunggu persetujuan**. Tidak ada kode aplikasi pada tahap ini.
+Status: **sebagian sudah diimplementasikan.** Fase 0, Fase 1 (Tahap 2), dan Tahap 3
+(manajemen acara + peserta non-QR) sudah berjalan. QR, pemindaian, rekap, dan Sheets masih
+rencana. Lihat [`../IMPLEMENTATION_PLAN.md`](../IMPLEMENTATION_PLAN.md) untuk status per butir.
 
 Dokumen terkait: [`DESAIN_DATABASE.md`](./DESAIN_DATABASE.md), [`DESAIN_API.md`](./DESAIN_API.md), [`RENCANA_PENGUJIAN.md`](./RENCANA_PENGUJIAN.md), [`../COSTS_AND_LIMITS.md`](../COSTS_AND_LIMITS.md), [`../IMPLEMENTATION_PLAN.md`](../IMPLEMENTATION_PLAN.md).
 
@@ -163,31 +165,35 @@ absensi/
 ├── .gitignore                   # .dev.vars, .wrangler/, dist/
 ├── migrations/
 │   ├── 0001_init.sql
-│   ├── 0002_outbox.sql
-│   └── ...
+│   ├── 0002_auth.sql
+│   └── 0003_participants.sql
 ├── docs/
 │   ├── ARSITEKTUR.md
 │   ├── DESAIN_DATABASE.md
 │   ├── DESAIN_API.md
 │   ├── RENCANA_PENGUJIAN.md
+│   ├── OPERASIONAL.md
 │   └── adr/
 ├── packages/shared/
 │   ├── package.json
 │   └── src/
 │       ├── index.ts
-│       ├── schemas/             # zod: event, participant, scan, correction
+│       ├── events.ts            # kontrak respons + tabel transisi status
+│       ├── participants.ts      # kontrak list/detail/import
+│       ├── schemas/             # zod: auth, event, participant, scan, correction
 │       └── types.ts
 ├── apps/api/
 │   ├── wrangler.jsonc
 │   ├── vitest.config.ts         # @cloudflare/vitest-plugin
 │   └── src/
 │       ├── index.ts             # fetch + scheduled
-│       ├── router.ts
-│       ├── middleware/          # auth, csrf, rate-limit, error
-│       ├── routes/              # satu file per resource
-│       ├── domain/              # fungsi murni
-│       ├── db/                  # query + mapper
-│       ├── integrations/        # sheets client
+│       ├── app.ts               # tabel ROUTES
+│       ├── http/                # auth, cookies, csrf, errors, respond, router, validate
+│       ├── routes/              # auth.ts, events.ts, participants.ts
+│       ├── domain/              # fungsi murni: token, ids, permissions, csv,
+│       │                        #   participant-import, event-status, slug, cursor
+│       ├── db/                  # query + mapper per topik
+│       ├── integrations/        # sheets client (fase 5)
 │       └── test/
 │           ├── fixtures/
 │           └── *.test.ts
@@ -197,10 +203,12 @@ absensi/
     ├── components.json          # shadcn
     └── src/
         ├── main.tsx
-        ├── routes/              # halaman per fitur
+        ├── App.tsx              # router mini → satu komponen per halaman
+        ├── pages/               # events, event-detail, participant-detail, import, account
+        ├── components/          # app-shell, dock, form, badge, page-state
         ├── components/ui/       # shadcn copy-in
-        ├── components/scan/     # kamera + decoder
-        ├── lib/api.ts           # fetch wrapper, error mapping
+        ├── lib/                 # api, http, auth, router, session, events,
+        │                        #   participants, format, labels
         └── hooks/
 ```
 
@@ -213,6 +221,11 @@ Aturan: **satu file route = satu resource**. Jangan menumpuk semua endpoint di s
 Ringkasan di sini; detail lengkap di [`DESAIN_DATABASE.md`](./DESAIN_DATABASE.md).
 
 Entitas inti: `events`, `users`, `event_memberships`, `participants`, `attendance`, `audit_log`, `outbox`, `sheet_rows`, `sessions`, `device_credentials`, `invites`, `recovery_codes`, `rate_limits`.
+
+Sudah ada di database (migrasi terkini): `app_meta`, `users`, `events`, `event_memberships`,
+`device_credentials`, `sessions`, `invites`, `recovery_codes`, `rate_limits`, `participants`.
+`attendance`, `audit_log`, `outbox`, dan `sheet_rows` menyusul pada fasenya; kolom QR pada
+`participants` juga belum ada (lihat deviasi di `DESAIN_DATABASE.md` §3).
 
 Prinsip yang tidak boleh dilanggar:
 
@@ -236,10 +249,16 @@ Prinsip yang tidak boleh dilanggar:
 
 ### 6.1 Membuat acara
 
-1. `superadmin` → `POST /api/events` (nama, slug, jadwal, timezone, opsional `spreadsheet_id`).
-2. Worker memvalidasi dengan `eventCreateSchema`, menulis `events` + baris `audit_log` (`event.created`) dalam **satu `db.batch()`**.
-3. Status awal `draft`. Acara hanya menerima scan ketika `status = 'active'` dan waktu sekarang berada di antara `starts_at`/`ends_at` (atau `starts_at` kosong → selalu boleh).
-4. Admin acara ditugaskan lewat undangan (6.2), bukan lewat pembuatan akun terpisah.
+1. `superadmin` → `POST /api/events` (nama, deskripsi, jadwal, timezone, `allow_manual`).
+2. Worker memvalidasi dengan skema bersama (`eventCreateSchema`), membuat slug
+   `slugify(name)` + 6 karakter terakhir id, dan menulis `events`. Baris audit menyusul pada
+   fase audit.
+3. Status awal `draft`. Transisi sah: `draft → active → closed → active|archived`;
+   `archived` final dan `active → archived` ditolak. Tabel transisi ada di
+   `packages/shared/src/events.ts`, dan Worker tetap yang memutuskan.
+4. `DELETE` hanya untuk superadmin, hanya `draft` tanpa peserta; selain itu `422` yang
+   mengarahkan ke arsip.
+5. Admin acara ditugaskan lewat undangan (6.2), bukan lewat pembuatan akun terpisah.
 
 ### 6.2 Undangan petugas/admin via QR
 
@@ -260,13 +279,21 @@ Prinsip yang tidak boleh dilanggar:
 
 ### 6.3 Import peserta CSV
 
-1. UI mengunggah file ke `POST /api/events/:id/participants/import?dry_run=true`.
-2. Worker: batas ukuran 2 MB, batas 5.000 baris per request, decode UTF-8 (BOM dihapus), deteksi delimiter (`,` atau `;`), validasi header terhadap daftar kolom wajib.
-3. Setiap baris divalidasi; hasil `dry_run` = ringkasan `{ total, valid, invalid: [{line, reason}] }`. **Tidak ada penulisan** saat dry run.
-4. Eksekusi nyata: baris valid di-`INSERT` dalam batch (mis. 200 per batch), dengan `ON CONFLICT (event_id, external_ref) DO UPDATE` agar import ulang bersifat idempoten.
-5. Setiap peserta baru mendapat `qr_token_hash` unik yang dibuat di server.
-6. Baris tidak valid **tidak** disimpan; hasilnya dilaporkan per nomor baris agar bisa diperbaiki di CSV dan diimpor ulang.
-7. Import ditolak seluruhnya jika acara sudah `archived`.
+1. UI mengunggah file ke `POST /api/events/:eventId/participants/import?dry_run=true`.
+2. Worker: batas ukuran 2 MB, batas **1.000 baris** per request, decode UTF-8 (BOM dihapus),
+   deteksi delimiter (`,` atau `;`), validasi header terhadap daftar kolom wajib.
+3. Setiap baris divalidasi; hasil `dry_run` (default) = ringkasan
+   `{ total, valid, created, updated, invalid: [{line, reason}], sample }`. **Tidak ada
+   penulisan** saat dry run.
+4. Eksekusi nyata hanya dengan `?dry_run=false`: baris valid ditulis dalam satu `db.batch()`
+   dengan `ON CONFLICT (event_id, external_ref) WHERE external_ref IS NOT NULL DO UPDATE`,
+   sehingga impor ulang idempoten.
+5. Duplikasi di dalam file (`external_ref` sama, atau nama + kontak sama) dilaporkan dan
+   dilewati; baris valid lain tetap disimpan (partial import).
+6. Setiap peserta baru akan mendapat `qr_token_hash` unik pada fase QR; kolom itu belum ada
+   di Tahap 3.
+7. Import ditolak jika acara sudah `archived` (`422`) atau konfirmasi melebihi 10/jam per
+   acara (`429` + `Retry-After`).
 
 ### 6.4 Pemindaian QR dan pencatatan absensi
 
@@ -365,6 +392,8 @@ Detail status, kolom, dan algoritma ada di [`DESAIN_DATABASE.md`](./DESAIN_DATAB
 | Riwayat absensi per-scan di Sheets | Sheet hanya proyeksi keadaan terkini; riwayat di `audit_log` |
 | Notifikasi email/WhatsApp | Butuh layanan pihak ketiga |
 | Multi-bahasa | UI Bahasa Indonesia saja |
+| QR peserta & pemindaian di Tahap 3 | Ditunda ke fase QR; kolom QR tidak dibuat lebih awal agar tidak ada token mati |
+| Dashboard rekap penuh di Tahap 3 | Tahap 3 hanya menampilkan hitungan peserta; rekap kehadiran butuh tabel `attendance` |
 
 ---
 
@@ -372,7 +401,7 @@ Detail status, kolom, dan algoritma ada di [`DESAIN_DATABASE.md`](./DESAIN_DATAB
 
 | # | Risiko | Dampak | Mitigasi |
 |---|---|---|---|
-| R1 | **CPU 10 ms** terlampaui pada request berat (import CSV besar, verifikasi token) | Error 1102 | Batas 5.000 baris/import; semua kripto memakai HMAC/SHA-256; uji CPU di Fase 0 sebelum fitur dibangun |
+| R1 | **CPU 10 ms** terlampaui pada request berat (import CSV besar, verifikasi token) | Error 1102 | Batas 1.000 baris/import (diturunkan dari 5.000 setelah spike Fase 0); semua kripto memakai HMAC/SHA-256; CPU produksi belum terukur |
 | R2 | **50 query/invokasi** (free) terlampaui saat N+1 | Request gagal | Aturan: satu endpoint ≤ 6 statement; agregasi rekap dilakukan dalam satu `GROUP BY`, bukan loop |
 | R3 | **D1 500 MB** penuh karena audit log | Write ditolak → sistem mati | Retensi audit dapat dikonfigurasi; export arsip sebelum purge; dashboard menampilkan ukuran DB |
 | R4 | **100k baris tulis/hari** habis (indeks ikut dihitung sebagai baris tulis) | Import massal gagal | Import dipecah per hari; estimasi ditulis di `COSTS_AND_LIMITS.md` |

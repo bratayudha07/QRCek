@@ -26,7 +26,11 @@ describe("D1 integration", () => {
       name: string;
     }>();
 
-    expect(results.map((r) => r.name)).toEqual(["0001_init.sql", "0002_auth.sql"]);
+    expect(results.map((r) => r.name)).toEqual([
+      "0001_init.sql",
+      "0002_auth.sql",
+      "0003_participants.sql",
+    ]);
   });
 
   it("seeds a schema version", async () => {
@@ -73,10 +77,10 @@ describe("D1 integration", () => {
    * before its gate was opened (AGENTS.md "Roadmap bertahap"). Adding a table is
    * exactly when you want a failing test, not a silent scope creep.
    *
-   * Tahap 2 (Fase 1) owns identity and sessions. Participants, attendance,
-   * audit, and the sync outbox still belong to Fase 2+.
+   * Tahap 3 (Fase 2, non-QR) owns participants. Attendance, audit, and the sync
+   * outbox still belong to later phases.
    */
-  it("ships Fase 1 tables and nothing from later phases", async () => {
+  it("ships Fase 2 participant tables and nothing from later phases", async () => {
     const { results } = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
       .all<{ name: string }>();
 
@@ -87,6 +91,7 @@ describe("D1 integration", () => {
       "event_memberships",
       "events",
       "invites",
+      "participants",
       "rate_limits",
       "recovery_codes",
       "sessions",
@@ -95,7 +100,7 @@ describe("D1 integration", () => {
       expect(tables).toContain(expected);
     }
 
-    for (const forbidden of ["attendance", "audit_log", "audit_logs", "outbox", "participants"]) {
+    for (const forbidden of ["attendance", "audit_log", "audit_logs", "outbox", "sheet_rows"]) {
       expect(tables).not.toContain(forbidden);
     }
   });

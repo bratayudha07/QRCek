@@ -2,8 +2,9 @@
 
 Rencana implementasi bertahap untuk Multi-Event Parent Attendance Management System.
 
-**Status: Fase 0 selesai sebagian, Fase 1 (Tahap 2) selesai sebagian.** Lihat blok status di
-tiap fase untuk butir yang belum terverifikasi. Fase 2 belum dibuka.
+**Status: Fase 0 selesai sebagian, Fase 1 (Tahap 2) selesai sebagian, Tahap 3 selesai
+(manajemen acara + peserta non-QR).** Lihat blok status di tiap fase untuk butir yang belum
+terverifikasi. QR, pemindaian, rekap, dan Sheets belum dibuka.
 
 Dokumen pendukung: [`AGENTS.md`](./AGENTS.md), [`docs/ARSITEKTUR.md`](./docs/ARSITEKTUR.md), [`docs/DESAIN_DATABASE.md`](./docs/DESAIN_DATABASE.md), [`docs/DESAIN_API.md`](./docs/DESAIN_API.md), [`docs/RENCANA_PENGUJIAN.md`](./docs/RENCANA_PENGUJIAN.md), [`COSTS_AND_LIMITS.md`](./COSTS_AND_LIMITS.md).
 
@@ -117,10 +118,9 @@ Keputusan yang sudah diambil: rate limit memakai `RETURNING`; absensi + outbox +
 > `typecheck`, `lint`, `test` 136/136 (19 file), `build`, migrasi lokal, serta alur nyata
 > lewat `wrangler dev` (aktivasi → `set-cookie` → `me` → logout → recover → replay ditolak).
 >
-> **Yang belum dan mengapa**: CRUD acara (`list/create/get/patch/status/summary`) dan UI
-> daftar acara **tidak** dikerjakan, karena instruksi Tahap 2 melarang CRUD acara. Tabel
-> `events` dibuat sebagai skema saja — tanpa itu, otorisasi per acara tidak bisa dibuktikan.
-> `domain/event-status.ts` juga belum ada. Semua itu pindah ke Tahap 3 bersama Fase 2.
+> **CRUD acara dan UI daftar acara** yang ditunda dari Tahap 2 sudah dikerjakan di Tahap 3
+> (lihat blok Fase 2). Kode dan tesnya sekarang ada; catatan "belum dikerjakan" di bawah
+> dipertahankan sebagai riwayat Tahap 2.
 >
 > **Catatan ADR-002**: `AGENTS.md` sudah diselaraskan — aturan PBKDF2 dicabut dan diganti
 > aturan auth passwordless sesuai `docs/ARSITEKTUR.md` ADR-002. Implementasi memakai
@@ -148,7 +148,7 @@ Keputusan yang sudah diambil: rate limit memakai `RETURNING`; absensi + outbox +
 | Matriks otorisasi §5.1 dieksekusi sebagai tes parametrik | **PASS** | `permissions.test.ts`, tabel ekspektasi ditulis manual |
 | Token undangan tidak pernah muncul di log (`wrangler tail`, 20 request) | **NOT RUN** | Butuh deployment; secara kode token tidak pernah di-log, dan `wrangler dev` hanya mencatat request line + status |
 | `activate` mengembalikan `recoveryCode` sekali; `me` tidak memuatnya | **PASS** | `auth.activate.test.ts`; tipe `MePayload` tidak punya field itu |
-| Semua transisi status acara tercakup tes `domain/event-status.ts` | **NOT DONE** | CRUD acara di luar cakupan Tahap 2 (lihat status di atas) |
+| Semua transisi status acara tercakup tes `domain/event-status.ts` | **PASS** | Dikerjakan di Tahap 3: `event-status.test.ts` (14 kasus), aturan dipindah ke `packages/shared` |
 | Setiap endpoint ≤ 6 statement D1 | **SEBAGIAN** | Lihat tabel di bawah |
 
 #### Jumlah statement D1 per endpoint
@@ -199,28 +199,69 @@ diawasi di `docs/OPERASIONAL.md`, bukan jumlah statement per tabel.
 
 **Tujuan**: peserta masuk sistem dan punya QR yang bisa dicetak.
 
-### Pekerjaan
+> **Status: SELESAI SEBAGIAN (Tahap 3) — bagian non-QR selesai dan teruji.**
+> Yang hidup: CRUD acara lengkap dengan lifecycle, manajemen peserta terisolasi per acara,
+> impor CSV dua langkah (pratinjau → konfirmasi), pencarian, paginasi kursor, detail/edit,
+> soft-delete dengan konfirmasi, ekspor CSV, template CSV, dan UI-nya.
+>
+> Verifikasi lokal: `typecheck`, `lint`, `test` **266/266** (26 file), `build`, dan
+> `db:migrate:local` pada database kosong. Gerbang produksi (CPU p95, CI hijau) tetap
+> **NOT RUN**.
+>
+> **Yang belum dan mengapa**: QR peserta, token QR, halaman cetak label, dan `qr-labels`
+> **tidak** dibuat karena instruksi Tahap 3 melarang fitur QR. Kolom QR juga tidak ditambahkan
+> ke `participants`; migrasi fase QR akan menambahkannya. Lihat deviasi di bawah.
 
-1. `domain/csv/`: parser (delimiter, kutip, BOM, newline dalam kutip) + validator baris. **Murni, tanpa I/O.**
-2. `domain/qr.ts`: pembuatan token peserta, format `absensi:v1:<token>`.
-3. Endpoint participants: `list`, `create`, `patch`, `rotate`, `delete`, `import` (dry-run + eksekusi), `qr-labels`.
-4. UI: tabel peserta (paginasi kursor, pencarian), form tambah/edit, halaman import dengan pratinjau hasil dry-run, halaman cetak label QR (`window.print()` + CSS `@page`).
-5. Generator QR di klien (`qrcode`) dengan ukuran yang diuji terbaca.
+### Pekerjaan (yang benar-benar dikerjakan di Tahap 3)
+
+1. `migrations/0003_participants.sql`: tabel `participants`, unique partial index
+   `(event_id, external_ref)`, indeks pencarian dan paginasi.
+2. `domain/csv.ts` + `domain/participant-import.ts`: parser RFC 4180 (BOM, `;`, kutip,
+   newline dalam kutip), normalisasi telepon/email, validasi header dan baris, deteksi
+   duplikasi dalam file. **Murni, tanpa I/O.**
+3. Endpoint acara: `list`, `create`, `get`, `patch`, `status`, `summary`, `delete`
+   (superadmin, hanya draf kosong).
+4. Endpoint peserta (semua event-scoped): `list`, `create`, `get`, `patch`, `delete`
+   (soft-delete), `export`, `template`, `import` (dry-run + konfirmasi).
+5. UI: daftar acara, detail acara, tambah/edit peserta, detail peserta, wizard impor,
+   ekspor/template, halaman akun, bottom floating pill navigation dock.
+6. Rate limit konfirmasi impor: 10/jam per acara, dari tabel D1.
 
 ### Kriteria penerimaan (terukur)
 
-- [ ] Parser CSV: **≥ 15 kasus** unit test, termasuk kutip berisi koma, newline di dalam kutip, BOM, delimiter `;`, baris kosong, header duplikat.
-- [ ] `import.idempotent`: import file yang sama dua kali → jumlah peserta tidak berubah.
-- [ ] `import.partial-invalid`: file 100 baris dengan 3 baris rusak → 97 tersimpan, 3 dilaporkan dengan nomor baris yang benar.
-- [ ] Batas keras terbukti: > 2 MB → 413; > batas baris (nilai final dari spike Fase 0) → 413 dengan pesan yang menyebut batasnya.
-- [ ] Setiap peserta punya `qr_token_hash` unik; insert 1.000 peserta → 1.000 hash berbeda (tes).
-- [ ] Cetak label: 20 QR dicetak dari browser → minimal 19 terbaca oleh `BarcodeDetector` di Android pada jarak 20 cm (uji manual terdokumentasi).
-- [ ] `qr-labels` menulis entri audit `qr.labels_exported` setiap pemanggilan.
-- [ ] `officer` memanggil `import` atau `qr-labels` → 403.
+- [x] Parser CSV: **31 kasus** unit test, termasuk kutip berisi koma, newline di dalam kutip,
+      BOM, delimiter `;`, baris kosong, header duplikat/tidak dikenal. — `csv.test.ts`
+- [x] `import.idempotent`: impor file yang sama dua kali → jumlah peserta tidak berubah,
+      baris kedua dilaporkan sebagai `updated`. — `participants.import.test.ts`
+- [x] `import.partial-invalid`: baris rusak dilaporkan dengan nomor baris fisik, baris valid
+      tetap tersimpan. — `participants.import.test.ts`
+- [x] Batas keras: > 2 MB → 413; > 1.000 baris → 413 dengan pesan yang menyebut batasnya.
+- [ ] Setiap peserta punya `qr_token_hash` unik / 1.000 hash berbeda — **belum berlaku**:
+      kolom QR sengaja belum ada sampai fase QR dibuka.
+- [ ] Cetak label QR / keterbacaan `BarcodeDetector` — **belum dikerjakan** (fase QR).
+- [ ] `qr-labels` menulis audit `qr.labels_exported` — **belum dikerjakan** (fase QR).
+- [x] `officer` memanggil `import`, `export`, `template`, atau mutasi peserta → 403.
+      — `participants.crud.test.ts`, `participants.import.test.ts`
+- [x] Isolasi antaracara: peserta acara B tidak bisa dibaca/diubah lewat id acara A → 404.
+- [x] Acara berstatus `archived` menolak seluruh mutasi peserta dan acara → 422.
 
 ### Catatan desain
 
-Tidak ada kolom QR di CSV (lihat `DESAIN_API.md` §5). Ini menghilangkan seluruh kelas bug "dua peserta dengan QR sama" dan memastikan token tidak pernah melewati saluran yang tidak aman.
+Tidak ada kolom QR di CSV (lihat `DESAIN_API.md` §5). Ini menghilangkan seluruh kelas bug
+"dua peserta dengan QR sama" dan memastikan token tidak pernah melewati saluran yang tidak
+aman.
+
+### Catatan deviasi Fase 2 / Tahap 3
+
+| Rencana | Yang dikerjakan | Alasan |
+|---|---|---|
+| Endpoint peserta global `/api/participants/:id` | Semua endpoint di bawah `/api/events/:eventId/participants…` | Scope acara menjadi bagian dari URL, sehingga tidak ada permukaan lintas acara yang bisa bocor lewat id |
+| `delete` = hapus fisik | Soft-delete `status='inactive'`, wajib body `{confirm:true}`, bisa diaktifkan kembali lewat PATCH | Menjaga riwayat dan mencegah kehilangan data karena salah klik |
+| Import langsung menulis | Default `dry_run=true`; tulis hanya dengan `?dry_run=false` setelah pratinjau | Satu request yang salah tidak boleh mengubah data |
+| Batas 5.000 baris | **1.000 baris**, 2 MB | Angka sisa spike Fase 0; CPU platform belum terukur |
+| `qr-labels` + kolom QR | Tidak dibuat | Di luar cakupan Tahap 3; migrasi fase QR akan menambah kolom |
+| Status acara bebas | `draft → active → closed → active|archived`; `archived` final; `active → archived` ditolak | Mencegah acara diarsipkan tanpa ditutup dan dibuka lagi setelah final |
+| Hapus acara oleh admin acara | Hanya superadmin, hanya draf tanpa peserta | Hard delete adalah tindakan lintas acara; selain itu arahkan ke arsip |
 
 ---
 
@@ -236,6 +277,9 @@ Tidak ada kolom QR di CSV (lihat `DESAIN_API.md` §5). Ini menghilangkan seluruh
 4. Umpan balik hasil: `present` (hijau + nama), `duplicate` (kuning + jam pertama), `not_found`/`wrong_event` (merah), dengan bunyi berbeda per hasil.
 5. Antrean retry klien: bila request gagal karena jaringan, ulangi dengan `Idempotency-Key`; hasil `duplicate` ditampilkan sebagai "sudah tercatat", bukan error.
 6. PWA-lite: `manifest.json` + `display: standalone` agar terasa seperti aplikasi (tanpa service worker offline).
+7. Migrasi baru menambah `qr_token_hash` + `qr_issued_at` dan unique index
+   `idx_participant_token` ke `participants`; peserta yang sudah ada diisi tokennya lebih dulu
+   sebelum constraint `NOT NULL` dipasang. Jangan mengedit `0003_participants.sql`.
 
 ### Kriteria penerimaan (terukur)
 
@@ -261,7 +305,7 @@ Bila `scan.concurrent` tidak bisa dibuat deterministik setelah 2 hari kerja, hen
 ### Pekerjaan
 
 1. `GET /api/events/:id/attendance` (paginasi + filter status + pencarian).
-2. `GET /api/events/:id/summary` (agregat nyata: total, per status, per kategori).
+2. `GET /api/events/:id/summary` (perluas yang sudah ada di Tahap 3 dengan agregat nyata: per status, per kategori).
 3. `POST /api/attendance/:id/correction` dengan optimistic check.
 4. `GET /api/events/:id/audit` + detail.
 5. UI dashboard: kartu angka, grafik sederhana (tanpa library chart — pakai bar CSS), tabel kehadiran, dialog koreksi (wajib alasan), halaman audit.
@@ -284,7 +328,8 @@ Bila `scan.concurrent` tidak bisa dibuat deterministik setelah 2 hari kerja, hen
 
 ### Pekerjaan
 
-1. `migrations/0003_sync.sql`.
+1. `migrations/0004_sync.sql` (nomor menyesuaikan migrasi yang sudah ada: `0001_init`,
+   `0002_auth`, `0003_participants`).
 2. `integrations/sheets/`: `SheetsClient` interface (`getAccessToken`, `batchUpdateValues`, `ensureTab`, `getHeader`), implementasi nyata + fake untuk tes.
 3. Pembuatan JWT service account (`crypto.subtle` RS256) + penukaran token + cache di memori modul.
 4. Penulisan `outbox` disisipkan ke batch scan/koreksi (mengubah Fase 3 & 4 — perubahan ini memang direncanakan).

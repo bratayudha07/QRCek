@@ -4,16 +4,18 @@ Sistem absensi peserta berbasis QR untuk **banyak acara sekaligus**. Setiap acar
 
 Stack: React + Vite (SPA) · Cloudflare Workers + D1 (API dan database) · Google Sheets API (laporan, fase lanjut). Semua di free tier.
 
-> **Status: Fase 1 (Tahap 2) selesai sebagian.** Yang hidup: health check, autentikasi
-> passwordless, sesi cookie, peran `superadmin`/`event_admin`/`officer`, otorisasi per acara,
-> undangan sekali pakai, kode pemulihan, dan halaman aktivasi. Yang **belum**: CRUD acara,
-> peserta, QR, absensi, rekap, dan sinkronisasi Sheets — dikerjakan per fase sesuai
-> `IMPLEMENTATION_PLAN.md`.
+> **Status: Fase 0, Fase 1 (Tahap 2), dan Tahap 3 selesai.** Yang hidup: health check,
+> autentikasi passwordless, sesi cookie, peran `superadmin`/`event_admin`/`officer`,
+> otorisasi per acara, undangan sekali pakai, kode pemulihan, CRUD acara dengan lifecycle,
+> manajemen peserta terisolasi per acara, impor CSV dua langkah, pencarian + paginasi,
+> ekspor/template CSV, dan UI-nya. Yang **belum**: QR peserta, pemindaian absensi, rekap,
+> audit, dan sinkronisasi Sheets — dikerjakan per fase sesuai `IMPLEMENTATION_PLAN.md`.
 >
-> Skema database sekarang berisi 9 tabel: `app_meta` (Fase 0) + `users`, `events`,
+> Skema database sekarang berisi 10 tabel: `app_meta` (Fase 0); `users`, `events`,
 > `event_memberships`, `device_credentials`, `sessions`, `invites`, `recovery_codes`,
-> `rate_limits` (Fase 1). Tabel `events` ada sebagai skema saja; endpoint CRUD acara belum
-> dibuat. Peserta, attendance, audit, dan outbox menyusul pada fasenya.
+> `rate_limits` (Fase 1); `participants` (Tahap 3). Tabel `attendance`, `audit_log`,
+> `outbox`, dan `sheet_rows` menyusul pada fasenya; kolom QR pada `participants` juga
+> belum ada.
 
 ## Prasyarat
 
@@ -47,7 +49,9 @@ npm run dev:api             # Worker  -> http://localhost:8787
 npm run dev:web             # Vite    -> http://localhost:5173
 ```
 
-Buka **<http://localhost:5173>**. Halaman awal menampilkan status API dan status sesi; `fetch("/api/health")` diproksikan Vite ke Worker, jadi browser tetap satu origin seperti produksi.
+Buka **<http://localhost:5173>**. Halaman awal adalah daftar acara (`/acara`); navigasi memakai
+bottom floating pill dock. `fetch("/api/*")` diproksikan Vite ke Worker, jadi browser tetap
+satu origin seperti produksi.
 
 Buat akun pertama (superadmin). Skrip mencetak URL aktivasi sekali pakai:
 
@@ -57,8 +61,8 @@ npm run seed:superadmin
 ```
 
 Buka URL itu, klik **Aktifkan akun**, lalu simpan kode pemulihan yang muncul (hanya tampil
-sekali). Setelah itu beranda menampilkan nama dan peran Anda, dan tombol **Keluar** bekerja.
-Untuk masuk lagi dari perangkat lain, buka `/masuk` dan masukkan kode pemulihan.
+sekali). Setelah itu Anda diarahkan ke daftar acara. Untuk masuk lagi dari perangkat lain,
+buka `/masuk` dan masukkan kode pemulihan.
 
 > `npm run seed:superadmin` membutuhkan `SESSION_PEPPER` di `apps/api/.dev.vars`. Tanpa itu
 > skrip berhenti dengan pesan jelas — lebih baik daripada menulis hash yang tidak akan cocok
@@ -96,21 +100,25 @@ Untuk secret Worker: `cp .dev.vars.example apps/api/.dev.vars` lalu isi. Di prod
 
 ```
 apps/web/                  SPA — React + Vite + Tailwind + shadcn/ui
-  src/App.tsx              composition root + router mini (3 halaman statis)
-  src/pages/               home.tsx, activation.tsx (/aktivasi), login.tsx (/masuk)
-  src/components/ui/       komponen shadcn/ui copy-in (button.tsx)
-  src/lib/                 helper: api.ts, http.ts (fetch + CSRF), auth.ts, health.ts,
-                           invite-token.ts (parsing fragment #t=)
+  src/App.tsx              composition root + router mini (`lib/router.ts`)
+  src/pages/               events, event-detail, participant-detail, import, account,
+                           activation, login, not-found
+  src/components/          app-shell, dock (bottom floating pill), form, badge, page-state
+  src/components/ui/       komponen shadcn/ui copy-in (button, field)
+  src/lib/                 api, http (fetch + CSRF), auth, router, session, events,
+                           participants, format (zona waktu), labels
   vite.config.ts           dev server + proxy /api -> :8787
   .env.example             VITE_API_BASE_URL
 
 apps/api/                  Cloudflare Worker — satu-satunya pemegang secret
   src/index.ts             entry tipis → app.ts
   src/app.ts               tabel ROUTES + handleRequest(request, env, { now })
-  src/routes/              auth.ts, events.ts (handler tipis)
+  src/routes/              auth.ts, events.ts, participants.ts (handler tipis)
   src/http/                auth, cookies, csrf, errors, respond, router, validate
-  src/domain/              token.ts, ids.ts, permissions.ts (murni, tanpa I/O)
-  src/db/                  SQL per topik: users, sessions, invites, recovery, rate-limit
+  src/domain/              token, ids, permissions, csv, participant-import,
+                           event-status, slug, cursor (murni, tanpa I/O)
+  src/db/                  SQL per topik: users, sessions, invites, recovery, rate-limit,
+                           events, participants
   src/env.ts               tipe binding (DB, ASSETS, SESSION_PEPPER, ALLOWED_ORIGINS)
   src/test/                tes integrasi + spike D1 (berjalan di workerd)
   wrangler.jsonc           config produksi (D1 + Static Assets)
@@ -119,6 +127,7 @@ apps/api/                  Cloudflare Worker — satu-satunya pemegang secret
   scripts/seed-superadmin.mjs
 
 packages/shared/           tipe + skema zod + kontrak API dipakai web & api
+                           (termasuk tabel transisi status acara di `events.ts`)
 migrations/                migrasi SQL D1 (urutan = nama file)
 docs/                      arsitektur, API, database, pengujian, operasional
 ```
@@ -157,14 +166,19 @@ npm run test -- -t "rejects an empty key"
 | Primitif token (base32, HMAC, kode pemulihan) | 16 | `apps/api/src/test/token.test.ts` |
 | Generator ID (ULID) | 3 | `apps/api/src/test/ids.test.ts` |
 | Matriks izin §5.1 | 6 | `apps/api/src/test/permissions.test.ts` |
+| Parser CSV + normalisasi telepon/email | 31 | `apps/api/src/test/csv.test.ts` |
+| Lifecycle status acara | 14 | `apps/api/src/test/event-status.test.ts` |
 | Auth: aktivasi, umur sesi, logout | 19 | `apps/api/src/test/auth.activate.test.ts` |
 | Auth: pemulihan & rotasi kode | 9 | `apps/api/src/test/auth.recover.test.ts` |
 | Manajemen sesi perangkat | 5 | `apps/api/src/test/auth.sessions.test.ts` |
 | Otorisasi per acara + undangan | 19 | `apps/api/src/test/authz.events.test.ts` |
 | Tanpa sesi + CSRF | 9 | `apps/api/src/test/authz.unauthenticated.test.ts` |
-| Frontend (parsing respons, base URL, token fragment) | 14 | `apps/web/src/lib/*.test.ts` |
+| CRUD acara + lifecycle + hapus draf | 20 | `apps/api/src/test/events.crud.test.ts` |
+| Peserta: CRUD, cari, paginasi, isolasi, ekspor | 22 | `apps/api/src/test/participants.crud.test.ts` |
+| Impor CSV: pratinjau, konfirmasi, idempoten, batas | 16 | `apps/api/src/test/participants.import.test.ts` |
+| Frontend: router, format zona waktu, query peserta, base URL | 41 | `apps/web/src/lib/*.test.ts` |
 
-**Total: 136 tes di 19 file.**
+**Total: 266 tes di 26 file.**
 
 Tes API berjalan di `workerd` dengan binding D1 asli (`@cloudflare/vitest-plugin`), memakai file migrasi yang sama dengan wrangler. Tes frontend berjalan di Node tanpa DOM karena yang diuji logika murni.
 
@@ -172,7 +186,7 @@ Tes API berjalan di `workerd` dengan binding D1 asli (`@cloudflare/vitest-plugin
 
 ```bash
 # 1. buat file baru — JANGAN mengedit migrasi yang sudah pernah dijalankan
-touch migrations/0002_<nama>.sql
+touch migrations/0004_<nama>.sql
 
 # 2. terapkan ke lokal
 npm run db:migrate:local

@@ -277,7 +277,23 @@ CREATE TABLE rate_limits (
 > jadi invariant lama tetap berlaku untuk seluruh jalur normal. Migrasi berikutnya tidak
 > boleh "merapikan" kolom ini tanpa memikirkan baris bootstrap yang mungkin belum dipakai.
 
-File: `migrations/0003_sync.sql`
+> **Deviasi implementasi (Tahap 3, `migrations/0003_participants.sql`).** Kolom QR pada
+> tabel `participants` **belum dibuat**. Blok DDL di atas adalah desain target; yang berjalan
+> sekarang:
+>
+> 1. Tanpa `qr_token_hash`, `qr_issued_at`, dan tanpa `CHECK (status = 'inactive' OR
+>    qr_token_hash IS NOT NULL)`. QR milik fase QR; menambahkan kolom `NOT NULL` sekarang
+>    akan menjadi data mati atau memaksa token yang tidak pernah dipakai.
+> 2. `CHECK` panjang untuk `external_ref`, `phone`, `email`, `category`, dan `note`
+>    ditambahkan agar batas API juga ditegakkan database.
+> 3. Indeks: `uq_participant_ref` (partial), `idx_participant_event_name`, dan
+>    `idx_participant_event_created (event_id, created_at DESC, id DESC)` untuk paginasi
+>    kursor. `idx_participant_token` menyusul bersama kolom QR.
+>
+> Migrasi fase QR wajib menambah kolom QR lewat file baru (bukan mengedit `0003`) dan
+> mengisi token untuk peserta yang sudah ada sebelum constraint `NOT NULL` dipasang.
+
+File: `migrations/0004_sync.sql`
 
 ```sql
 -- ───────────────────────────────────────────── konfigurasi sync per acara
@@ -337,7 +353,8 @@ Setiap indeks menambah baris tulis. Indeks di bawah dipilih karena setiap halama
 |---|---|
 | `uq_participant_ref` (partial) | Idempotensi import CSV |
 | `idx_participant_event_name` | Daftar/pencarian peserta per acara |
-| `idx_participant_token` | Lookup saat scan (harus < 1 ms) |
+| `idx_participant_event_created` | Paginasi kursor `(created_at DESC, id DESC)` |
+| `idx_participant_token` | Lookup saat scan (belum ada — fase QR) |
 | `idx_attendance_event_time` | Rekap kronologis |
 | `idx_attendance_event_stat` | Hitungan per status |
 | `idx_membership_*` | Cek otorisasi (setiap request) |
@@ -357,9 +374,11 @@ Setiap indeks menambah baris tulis. Indeks di bawah dipilih karena setiap halama
 | Scan lintas acara ditolak | Query selalu `WHERE event_id = ?` | `scan.cross-event.test.ts` |
 | Audit tidak bisa diubah | Trigger `RAISE(ABORT)` | `audit.immutable.test.ts` — `UPDATE`/`DELETE` harus error |
 | Satu undangan satu pemakaian | `used_at` + cek dalam transaksi batch | `invite.replay.test.ts` |
-| Import CSV idempoten | `ON CONFLICT (event_id, external_ref) DO UPDATE` | `import.idempotent.test.ts` |
+| Import CSV idempoten | `ON CONFLICT (event_id, external_ref) WHERE external_ref IS NOT NULL DO UPDATE` | `participants.import.test.ts` |
+| Peserta tidak bisa diakses lintas acara | Semua query `WHERE event_id = ? AND id = ?` | `participants.crud.test.ts` |
+| Soft-delete tidak menghapus data | `UPDATE status = 'inactive'`, restore lewat PATCH | `participants.crud.test.ts` |
 | Tidak ada outbox duplikat | `uq_outbox_pending` (partial unique) | `outbox.coalesce.test.ts` |
-| Peserta tidak bisa aktif tanpa QR | `CHECK (status = 'inactive' OR qr_token_hash IS NOT NULL)` | `participant.constraint.test.ts` |
+| Peserta tidak bisa aktif tanpa QR | `CHECK (status = 'inactive' OR qr_token_hash IS NOT NULL)` — **belum berlaku** karena kolom QR belum ada | fase QR |
 
 ---
 
@@ -419,7 +438,8 @@ Error 4xx dari Google (kecuali 429 dan 403 rate-limit) menandakan masalah perman
 
 ### Aturan
 
-1. File di `migrations/` bernomor urut: `0001_init.sql`, `0002_auth.sql`, `0003_sync.sql`, dst.
+1. File di `migrations/` bernomor urut: `0001_init.sql`, `0002_auth.sql`,
+   `0003_participants.sql`, `0004_sync.sql`, dst.
 2. **File yang sudah pernah diaplikasikan (termasuk di lokal) tidak boleh diedit.** Perubahan selalu file baru.
 3. Setiap migrasi harus **idempoten-sempurna** dalam arti: berhasil dijalankan pada database kosong.
 4. Migrasi tidak boleh bergantung pada data yang dibuat di luar migrasi.

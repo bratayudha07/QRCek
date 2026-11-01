@@ -50,11 +50,11 @@ Sumber kebenaran kontrak: skema zod di `packages/shared/src/schemas/`. Dokumen i
 Kursor, bukan offset:
 
 ```
-GET /api/events/:id/participants?limit=50&cursor=<opaque>
+GET /api/events/:eventId/participants?limit=25&cursor=<opaque>
 → { ok: true, data: { items: [...], nextCursor: "..." | null } }
 ```
 
-`limit` maksimum 100, default 50. Kursor = `base64url(created_at + ":" + id)`.
+`limit` maksimum 100, default 25. Kursor = `base64url(created_at + ":" + id)`.
 
 ### Otorisasi
 
@@ -133,24 +133,32 @@ Perilaku:
 | Method | Path | Peran | Keterangan |
 |---|---|---|---|
 | `GET` | `/api/events` | semua | Hanya acara yang boleh diakses pemanggil |
-| `POST` | `/api/events` | superadmin | Buat acara |
-| `GET` | `/api/events/:id` | anggota acara | Detail |
-| `PATCH` | `/api/events/:id` | event_admin, superadmin | Nama, jadwal, timezone, `allow_manual` |
-| `POST` | `/api/events/:id/status` | event_admin, superadmin | `draft → active → closed → archived` |
-| `GET` | `/api/events/:id/summary` | anggota acara | Angka ringkas untuk dashboard |
+| `POST` | `/api/events` | superadmin | Buat acara (status awal `draft`) |
+| `GET` | `/api/events/:eventId` | anggota acara | Detail |
+| `PATCH` | `/api/events/:eventId` | event_admin, superadmin | Nama, deskripsi, jadwal, timezone, `allow_manual` |
+| `POST` | `/api/events/:eventId/status` | event_admin, superadmin | Transisi lifecycle |
+| `GET` | `/api/events/:eventId/summary` | anggota acara | Hitungan peserta total/aktif/nonaktif |
+| `DELETE` | `/api/events/:eventId` | superadmin | **Hanya** draf tanpa peserta; selain itu `422` |
 
-Transisi status yang sah (divalidasi di `domain/event-status.ts`):
+`DELETE` sengaja sempit: hard delete hanya untuk draf kosong. Draf yang sudah punya peserta,
+acara aktif, tertutup, dan terarsip ditolak dengan pesan yang mengarahkan ke arsip.
+
+Transisi status yang sah (satu sumber di `packages/shared`, ditegakkan Worker di
+`domain/event-status.ts`):
 
 ```
 draft    → active
 active   → closed
-closed   → active        (buka kembali, tercatat di audit)
+closed   → active        (buka kembali)
 closed   → archived
 active   → archived      (harus ditutup dulu; API menolak langsung)
 archived → (final, tidak ada transisi)
 ```
 
-`archived` bersifat final karena dipakai sebagai penanda aman untuk pengarsipan data.
+`archived` bersifat final karena dipakai sebagai penanda aman untuk pengarsipan data. Acara
+`archived` menolak seluruh `PATCH`, perubahan status, dan mutasi peserta (`422 BUSINESS_RULE`).
+
+Slug dibuat server: `slugify(name)` + 6 karakter terakhir id, sehingga unik tanpa retry loop.
 
 ---
 
@@ -194,72 +202,126 @@ archived → (final, tidak ada transisi)
 
 ## 5. Peserta
 
+Semua endpoint peserta **event-scoped**. Tidak ada `/api/participants/:id` global: id acara
+selalu ikut di URL, dan lookup di database menyertakan `event_id`, sehingga peserta acara B
+yang dipakai lewat acara A menjadi `404 NOT_FOUND` (bukan `403`, agar keberadaan baris tidak
+bocor).
+
 | Method | Path | Peran | Keterangan |
 |---|---|---|---|
-| `GET` | `/api/events/:id/participants` | anggota acara | Cari (`?query=`) + paginasi |
-| `POST` | `/api/events/:id/participants` | event_admin | Tambah satu peserta |
-| `PATCH` | `/api/participants/:id` | event_admin | Ubah data (tidak mengubah QR) |
-| `POST` | `/api/participants/:id/qr/rotate` | event_admin | Terbitkan token QR baru |
-| `DELETE` | `/api/participants/:id` | event_admin | Soft-delete (`status = 'inactive'`) |
-| `POST` | `/api/events/:id/participants/import` | event_admin | Import CSV |
-| `GET` | `/api/events/:id/qr-labels` | event_admin | Data untuk halaman cetak QR |
+| `GET` | `/api/events/:eventId/participants` | officer, event_admin, superadmin | Cari + filter + paginasi kursor |
+| `POST` | `/api/events/:eventId/participants` | event_admin, superadmin | Tambah satu peserta |
+| `GET` | `/api/events/:eventId/participants/:participantId` | officer+ | Detail |
+| `PATCH` | `/api/events/:eventId/participants/:participantId` | event_admin, superadmin | Ubah data, termasuk mengaktifkan kembali |
+| `DELETE` | `/api/events/:eventId/participants/:participantId` | event_admin, superadmin | Soft-delete, wajib `{ "confirm": true }` |
+| `POST` | `/api/events/:eventId/participants/import` | event_admin, superadmin | Import CSV (pratinjau + konfirmasi) |
+| `GET` | `/api/events/:eventId/participants/export` | event_admin, superadmin | Unduh CSV (PII) |
+| `GET` | `/api/events/:eventId/participants/template` | event_admin, superadmin | Template header-only |
 
-### `POST /api/events/:id/participants/import`
+### Daftar, pencarian, dan paginasi
+
+```
+GET /api/events/:eventId/participants?query=budi&status=active&limit=25&cursor=<opaque>
+```
+
+- `query` dicocokkan ke nama, `external_ref`, telepon, email, dan kategori (case-insensitive,
+  wildcard di-escape).
+- `status`: `active` (default) | `inactive` | `all`.
+- `limit`: 1–100, default 25.
+- `cursor` opaque (`base64url(created_at:id)`); cursor rusak → `400 VALIDATION_ERROR`.
+- Respons: `{ items: ParticipantSummary[], nextCursor: string | null }`.
+- Urutan stabil: `created_at DESC, id DESC` (id sebagai tie-breaker karena impor bisa menulis
+  banyak baris dalam milidetik yang sama).
+
+### `DELETE` peserta
+
+Body wajib `{ "confirm": true }`. Baris **tidak** dihapus fisik: `status` menjadi `inactive`,
+`updated_at` diperbarui. Peserta dapat diaktifkan kembali dengan
+`PATCH { "status": "active" }`. Respons: `{ "deleted": true, "status": "inactive" }`.
+
+### `POST /api/events/:eventId/participants/import`
 
 Content-Type: `text/csv` (body mentah) atau `application/json` dengan `{ "csv": "..." }`.
 
-Query: `?dry_run=true|false` (default `false`).
+Query: `?dry_run=true|false` — **default `true`**. Menulis hanya bila klien mengirim
+`dry_run=false` setelah pratinjau.
 
-Batas: **2 MB** dan **5.000 baris** per request.
+Batas: **2 MB** dan **1.000 baris** per request. Keduanya menghasilkan `413`.
 
 ```jsonc
-// 200 (dry_run = true)
+// 200 (dry_run = true, default)
 {
   "ok": true,
   "data": {
     "dryRun": true,
     "total": 120,
     "valid": 118,
-    "created": 0,
-    "updated": 0,
+    "created": 30,
+    "updated": 88,
     "invalid": [
       { "line": 7, "reason": "full_name wajib diisi" },
       { "line": 44, "reason": "external_ref duplikat di dalam file" }
-    ]
+    ],
+    "sample": [{ "line": 2, "externalRef": "NIS-1", "fullName": "Budi", "phone": "+62…", "category": "Kelas 5A", "action": "create" }]
   }
 }
 ```
 
-Kolom CSV (header wajib, urutan bebas):
+```jsonc
+// 200 (dry_run = false)
+{
+  "ok": true,
+  "data": {
+    "dryRun": false,
+    "total": 120, "valid": 118, "created": 30, "updated": 88, "skipped": 2,
+    "invalid": [ /* sama seperti pratinjau */ ]
+  }
+}
+```
+
+Kolom CSV (urutan bebas, header wajib):
 
 | Kolom | Wajib | Aturan |
 |---|---|---|
 | `full_name` | ya | 1–120 karakter |
-| `external_ref` | tidak | Unik per acara; dipakai untuk idempotensi |
-| `phone` | tidak | Dinormalisasi ke `+62...` |
-| `email` | tidak | Validasi format sederhana |
+| `external_ref` | tidak | Unik per acara; kunci idempotensi |
+| `phone` | tidak | Dinormalisasi ke `+62…`; 8–15 digit |
+| `email` | tidak | Huruf kecil, format sederhana |
 | `category` | tidak | Maks 60 karakter |
 | `note` | tidak | Maks 500 karakter |
 
-Batasan yang disengaja: **tidak ada** kolom `qr_token` di CSV. QR selalu dibuat server, sehingga tidak mungkin ada dua peserta dengan token yang sama karena input.
+Batasan yang disengaja: **tidak ada** kolom `qr_token` di CSV. QR selalu dibuat server pada
+fase QR, sehingga tidak mungkin ada dua peserta dengan token yang sama karena input.
 
 Perilaku eksekusi:
-- Baris valid ditulis dalam batch 200.
-- `external_ref` yang sudah ada → `UPDATE` (idempoten), bukan error.
-- Baris tidak valid tidak ditulis; pelaporan per nomor baris.
+
+- Baris valid ditulis dalam **satu** `db.batch()` (atomik).
+- `(event_id, external_ref)` yang sudah ada → `UPDATE` lewat `ON CONFLICT` (idempoten), bukan
+  error. Baris tanpa `external_ref` selalu `INSERT`.
+- Duplikasi di dalam file: `external_ref` sama, atau nama + kontak (telepon/email) sama →
+  baris kedua dilaporkan dan dilewati.
+- Baris tidak valid lain dilewati, baris valid tetap disimpan (partial import); pelaporan per
+  nomor baris fisik.
+- Konfirmasi (`dry_run=false`) dibatasi **10 per jam per acara** dari tabel D1 → `429` dengan
+  `Retry-After`. Pratinjau tidak dibatasi.
 - Acara `archived` → `422 BUSINESS_RULE`.
-- Lebih dari 5.000 baris → `413` dengan pesan yang meminta memecah file.
+- Lebih dari 1.000 baris atau 2 MB → `413` dengan pesan yang menyebut batasnya.
 
-### `GET /api/events/:id/qr-labels`
+### Ekspor dan template
 
-```jsonc
-// 200
-{ "ok": true, "data": { "eventName": "...", "labels": [
-  { "participantId": "01J...", "fullName": "Budi", "qr": "absensi:v1:<token>" }
-] } }
-```
+`export` mengembalikan `text/csv` dengan header kolom yang sama seperti impor, sehingga hasil
+ekspor dapat diimpor ulang (idempoten lewat `external_ref`). `template` mengembalikan file
+header-only untuk diisi pengguna. Keduanya `event_admin+` karena berisi PII, memakai BOM +
+CRLF agar aman dibuka di Excel, dan menetralkan formula injection (`=`, `@`).
 
-Token di sini **adalah** token asli — endpoint ini hanya boleh diakses `event_admin`, dan setiap pemanggilan dicatat di audit (`qr.labels_exported`) karena ini satu-satunya jalur yang membocorkan token dalam jumlah banyak. Rendering QR di browser; cetak lewat `window.print()`.
+`Content-Disposition`:
+- ekspor: `attachment; filename="peserta-<slug-acara>.csv"`
+- template: `attachment; filename="template-peserta.csv"`
+
+### QR (belum tersedia)
+
+`GET /api/events/:id/qr-labels`, rotasi token QR, dan kolom QR pada `participants` **tidak
+ada** di Tahap 3. Semua itu milik fase QR dan akan ditambahkan lewat migrasi baru.
 
 ---
 
@@ -405,7 +467,7 @@ Berbasis tabel `rate_limits` dengan jendela tetap.
 | `auth:recover:<ipHash>` | 5 / 15 menit |
 | `scan:<sessionId>` | 120 / menit |
 | `scan:<eventId>` | 600 / menit |
-| `import:<eventId>` | 5 / jam |
+| `import:<eventId>` | 10 / jam (hanya konfirmasi `dry_run=false`) |
 | `sync:run:<eventId>` | 1 / menit |
 
 Implementasi: satu `INSERT ... ON CONFLICT DO UPDATE SET counter = counter + 1 RETURNING counter`
@@ -440,14 +502,14 @@ Cron harus **selalu selesai** walaupun salah satu tugas gagal; kegagalan dicatat
 
 ## 12. Hal yang perlu diverifikasi
 
-Status per akhir Tahap 2.
+Status per akhir Tahap 3.
 
 | ⚠️ | Yang perlu dibuktikan | Status |
 |---|---|---|
 | 1 | `RETURNING` didukung D1 untuk `INSERT ... ON CONFLICT` (dipakai di counter rate limit) | **TERVERIFIKASI** — `spike.returning.test.ts`, dipakai `db/rate-limit.ts` |
 | 2 | Perilaku `Set-Cookie` pada respons Worker dengan Static Assets tidak terpotong | **TERVERIFIKASI LOKAL** — `wrangler dev` mengembalikan `Set-Cookie: absensi_session=…; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`. Belum diuji di deployment nyata |
 | 3 | Middleware `Origin`/`Host` benar untuk request di balik custom domain | **BELUM** — butuh deployment. `ALLOWED_ORIGINS` disediakan sebagai jalan keluar bila origin browser ≠ URL Worker |
-| 4 | Content-Type `text/csv` terbaca dengan benar oleh `request.text()` pada Worker | **BELUM** — Fase 2 |
+| 4 | Content-Type `text/csv` terbaca dengan benar oleh `request.text()` pada Worker | **TERVERIFIKASI** — `participants.import.test.ts` mengirim body `text/csv` mentah di `workerd` dan baris tersimpan |
 | 5 | Token di fragment (`#`) tidak terkirim ke server pada navigasi pertama | **TERVERIFIKASI (sifat browser)** — halaman `/aktivasi` membaca `location.hash`, dan `readInviteToken` hanya menerima fragmen. Tidak ada request yang membawa token |
 | 6 | Rate limit tidak memblokir pengguna sah di balik NAT bersama | **BELUM** — batas 10/15 menit per IP-hash; perlu diamati di produksi |
 | 7 | Cookie `Secure` benar-benar dipasang di HTTPS | **BELUM** — kode menambahkan `Secure` saat `request.url` https; hanya teruji di `workerd` lokal |

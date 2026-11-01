@@ -12,8 +12,12 @@ import type { Action } from "../domain/permissions";
  */
 const EXPECTED: Record<Action, { superadmin: boolean; eventAdmin: boolean; officer: boolean }> = {
   "event:create": { superadmin: true, eventAdmin: false, officer: false },
+  "event:read": { superadmin: true, eventAdmin: true, officer: true },
   "event:update": { superadmin: true, eventAdmin: true, officer: false },
+  "event:delete": { superadmin: true, eventAdmin: false, officer: false },
   "invite:manage": { superadmin: true, eventAdmin: true, officer: false },
+  "participant:read": { superadmin: true, eventAdmin: true, officer: true },
+  "participant:write": { superadmin: true, eventAdmin: true, officer: false },
   "participant:import": { superadmin: true, eventAdmin: true, officer: false },
   "qr:print": { superadmin: true, eventAdmin: true, officer: false },
   scan: { superadmin: true, eventAdmin: true, officer: true },
@@ -62,10 +66,10 @@ describe("authorization matrix", () => {
     expect(isAllowed({ role: "event_admin", action: "scan", membershipRole: "officer" })).toBe(true);
   });
 
-  it("marks event creation as superadmin-only", () => {
+  it("marks global event actions as superadmin-only", () => {
     for (const action of ACTIONS) {
       const minimum = minMembershipFor(action);
-      if (action === "event:create") {
+      if (action === "event:create" || action === "event:delete") {
         expect(minimum).toBeNull();
       } else {
         expect(minimum).not.toBeNull();

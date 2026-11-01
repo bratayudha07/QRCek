@@ -20,6 +20,7 @@ const TABLES_CHILDREN_FIRST = [
   "device_credentials",
   "recovery_codes",
   "invites",
+  "participants",
   "event_memberships",
   "events",
   "users",

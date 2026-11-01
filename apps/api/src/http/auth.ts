@@ -82,6 +82,17 @@ export interface EventAccess {
 }
 
 /**
+ * Global (non-event-scoped) permission check, used for `event:create` and
+ * `event:delete`. Superadmin-only actions have `MIN_MEMBERSHIP = null`, so they
+ * can never be granted by an event membership.
+ */
+export function requireGlobalAction(auth: AuthContext, action: Action): void {
+  if (!isAllowed({ role: auth.user.role, action, membershipRole: null })) {
+    throw forbidden("Anda tidak berwenang untuk tindakan ini");
+  }
+}
+
+/**
  * Event-scoped authorization (AGENTS.md: "Tidak ada pemindaian lintas acara";
  * RENCANA_PENGUJIAN.md §5.2 IDOR).
  *

@@ -1,12 +1,34 @@
 import { z } from "zod";
 
 import type {
+  EventDetailPayload,
+  EventListPayload,
+  EventSummary,
+  EventSummaryPayload,
   InviteCreatedPayload,
   InviteListPayload,
   MemberListPayload,
 } from "@absensi/shared";
-import { EventIdSchema, InviteCreateRequestSchema, InviteIdSchema, UserIdSchema } from "@absensi/shared";
+import {
+  EventCreateRequestSchema,
+  EventIdSchema,
+  EventStatusRequestSchema,
+  EventUpdateRequestSchema,
+  InviteCreateRequestSchema,
+  InviteIdSchema,
+  UserIdSchema,
+} from "@absensi/shared";
 
+import type { EventRow } from "../db/events";
+import {
+  countParticipantsByStatus,
+  deleteEmptyDraft,
+  findAccessibleEvent,
+  insertEventStatement,
+  listAccessibleEvents,
+  updateEvent,
+  updateEventStatus,
+} from "../db/events";
 import { listMembers, revokeMembership } from "../db/users";
 import {
   countActiveInvites,
@@ -15,21 +37,21 @@ import {
   listInvites,
 } from "../db/invites";
 import { revokeAllCredentialsStatement, revokeAllSessionsStatement } from "../db/sessions";
+import { canTransition } from "../domain/event-status";
 import { newId } from "../domain/ids";
+import { eventSlug } from "../domain/slug";
 import { hmacSha256, randomToken } from "../domain/token";
-import { authOf } from "../http/auth";
-import { requireEventAccess } from "../http/auth";
-import { businessRule, notFound } from "../http/errors";
+import { authOf, requireEventAccess, requireGlobalAction } from "../http/auth";
+import { businessRule, notFound, validationError } from "../http/errors";
 import type { RouteContext, RouteDefinition, RouteResult } from "../http/router";
 import { parseJsonBody, parsePathParams } from "../http/validate";
 
 /**
- * Event membership and invite management (DESAIN_API.md §4).
+ * Event management (DESAIN_API.md §3) and membership/invites (§4).
  *
- * Event CRUD is deliberately absent: Fase 1 in IMPLEMENTATION_PLAN.md stops at
- * identity, sessions, and per-event authorization. This file exists because
- * cross-event authorization and the invite mechanism cannot be proven without
- * a real event-scoped resource.
+ * Every event-scoped handler resolves access through `requireEventAccess`, so a
+ * route cannot accidentally rely on a UI guard. Mutations also check lifecycle
+ * state on the server: an archived event is read-only for everyone.
  */
 
 /** DESAIN_API.md §4: 50 active invites per event, to bound abuse on the free tier. */
@@ -41,6 +63,172 @@ const InviteParamsSchema = z.object({
   eventId: EventIdSchema,
   inviteId: InviteIdSchema,
 });
+
+function toEventSummary(
+  row: EventRow & { participant_count: number },
+  accessRole: EventSummary["accessRole"],
+): EventSummary {
+  return {
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    description: row.description,
+    timezone: row.timezone,
+    startsAt: row.starts_at,
+    endsAt: row.ends_at,
+    status: row.status,
+    allowManual: row.allow_manual === 1,
+    createdAt: row.created_at,
+    accessRole,
+    participantCount: row.participant_count,
+  };
+}
+
+async function listEvents(ctx: RouteContext): Promise<RouteResult> {
+  const auth = authOf(ctx);
+  const rows = await listAccessibleEvents(ctx.env.DB, {
+    userId: auth.user.id,
+    role: auth.user.role,
+  });
+
+  const payload: EventListPayload = {
+    events: rows.map((row) => toEventSummary(row, row.access_role)),
+  };
+
+  return { data: payload };
+}
+
+async function createEvent(ctx: RouteContext): Promise<RouteResult> {
+  const auth = authOf(ctx);
+  requireGlobalAction(auth, "event:create");
+
+  const body = await parseJsonBody(ctx.request, EventCreateRequestSchema);
+  const id = newId(ctx.now);
+
+  await insertEventStatement(ctx.env.DB, {
+    id,
+    slug: eventSlug(body.name, id),
+    name: body.name,
+    description: body.description ?? null,
+    timezone: body.timezone,
+    startsAt: body.startsAt ?? null,
+    endsAt: body.endsAt ?? null,
+    allowManual: body.allowManual,
+    createdAt: ctx.now,
+    createdBy: auth.user.id,
+  }).run();
+
+  const row = await findAccessibleEvent(ctx.env.DB, id);
+  if (!row) throw notFound("Acara tidak ditemukan setelah dibuat");
+
+  const payload: EventDetailPayload = { event: toEventSummary(row, "superadmin") };
+  return { status: 201, data: payload };
+}
+
+async function getEvent(ctx: RouteContext): Promise<RouteResult> {
+  const auth = authOf(ctx);
+  const { eventId } = parsePathParams(ctx.params, EventParamsSchema);
+
+  const access = await requireEventAccess(ctx.env, auth, eventId, "event:read");
+  const row = await findAccessibleEvent(ctx.env.DB, eventId);
+  if (!row) throw notFound("Acara tidak ditemukan");
+
+  const payload: EventDetailPayload = {
+    event: toEventSummary(row, access.membershipRole ?? "superadmin"),
+  };
+  return { data: payload };
+}
+
+async function patchEvent(ctx: RouteContext): Promise<RouteResult> {
+  const auth = authOf(ctx);
+  const { eventId } = parsePathParams(ctx.params, EventParamsSchema);
+
+  const access = await requireEventAccess(ctx.env, auth, eventId, "event:update");
+  const existing = await findAccessibleEvent(ctx.env.DB, eventId);
+  if (!existing) throw notFound("Acara tidak ditemukan");
+  if (existing.status === "archived") {
+    throw businessRule("Acara yang sudah diarsipkan tidak dapat diubah");
+  }
+
+  const body = await parseJsonBody(ctx.request, EventUpdateRequestSchema);
+  const startsAt = body.startsAt === undefined ? existing.starts_at : body.startsAt;
+  const endsAt = body.endsAt === undefined ? existing.ends_at : body.endsAt;
+
+  if (startsAt !== null && endsAt !== null && endsAt < startsAt) {
+    throw validationError("Waktu selesai tidak boleh sebelum waktu mulai", {
+      fieldErrors: { endsAt: ["Waktu selesai tidak boleh sebelum waktu mulai"] },
+    });
+  }
+
+  await updateEvent(ctx.env.DB, eventId, body);
+  const row = await findAccessibleEvent(ctx.env.DB, eventId);
+  if (!row) throw notFound("Acara tidak ditemukan");
+
+  const payload: EventDetailPayload = {
+    event: toEventSummary(row, access.membershipRole ?? "superadmin"),
+  };
+  return { data: payload };
+}
+
+async function changeEventStatus(ctx: RouteContext): Promise<RouteResult> {
+  const auth = authOf(ctx);
+  const { eventId } = parsePathParams(ctx.params, EventParamsSchema);
+
+  const access = await requireEventAccess(ctx.env, auth, eventId, "event:update");
+  const body = await parseJsonBody(ctx.request, EventStatusRequestSchema);
+  const existing = await findAccessibleEvent(ctx.env.DB, eventId);
+  if (!existing) throw notFound("Acara tidak ditemukan");
+
+  if (!canTransition(existing.status, body.status)) {
+    throw businessRule(
+      existing.status === "archived"
+        ? "Acara yang sudah diarsipkan bersifat final"
+        : `Status tidak dapat berubah dari ${existing.status} ke ${body.status}`,
+    );
+  }
+
+  await updateEventStatus(ctx.env.DB, eventId, body.status, ctx.now);
+  const row = await findAccessibleEvent(ctx.env.DB, eventId);
+  if (!row) throw notFound("Acara tidak ditemukan");
+
+  const payload: EventDetailPayload = {
+    event: toEventSummary(row, access.membershipRole ?? "superadmin"),
+  };
+  return { data: payload };
+}
+
+async function deleteEvent(ctx: RouteContext): Promise<RouteResult> {
+  const auth = authOf(ctx);
+  requireGlobalAction(auth, "event:delete");
+  const { eventId } = parsePathParams(ctx.params, EventParamsSchema);
+
+  const existing = await findAccessibleEvent(ctx.env.DB, eventId);
+  if (!existing) throw notFound("Acara tidak ditemukan");
+
+  const changes = await deleteEmptyDraft(ctx.env.DB, eventId);
+  if (changes === 0) {
+    throw businessRule(
+      "Hanya acara berstatus draft tanpa peserta yang dapat dihapus. Arsipkan acara lain.",
+    );
+  }
+
+  return { data: { deleted: true } };
+}
+
+async function eventSummary(ctx: RouteContext): Promise<RouteResult> {
+  const auth = authOf(ctx);
+  const { eventId } = parsePathParams(ctx.params, EventParamsSchema);
+
+  await requireEventAccess(ctx.env, auth, eventId, "event:read");
+  const counts = await countParticipantsByStatus(ctx.env.DB, eventId);
+
+  const payload: EventSummaryPayload = {
+    participantCount: counts.total,
+    activeParticipantCount: counts.active,
+    inactiveParticipantCount: counts.inactive,
+  };
+  return { data: payload };
+}
 
 async function listEventMembers(ctx: RouteContext): Promise<RouteResult> {
   const auth = authOf(ctx);
@@ -163,6 +351,23 @@ async function deleteInvite(ctx: RouteContext): Promise<RouteResult> {
 }
 
 export const eventRoutes: readonly RouteDefinition[] = [
+  { method: "GET", pattern: "/api/events", public: false, handler: listEvents },
+  { method: "POST", pattern: "/api/events", public: false, handler: createEvent },
+  { method: "GET", pattern: "/api/events/:eventId", public: false, handler: getEvent },
+  { method: "PATCH", pattern: "/api/events/:eventId", public: false, handler: patchEvent },
+  { method: "DELETE", pattern: "/api/events/:eventId", public: false, handler: deleteEvent },
+  {
+    method: "POST",
+    pattern: "/api/events/:eventId/status",
+    public: false,
+    handler: changeEventStatus,
+  },
+  {
+    method: "GET",
+    pattern: "/api/events/:eventId/summary",
+    public: false,
+    handler: eventSummary,
+  },
   { method: "GET", pattern: "/api/events/:eventId/members", public: false, handler: listEventMembers },
   {
     method: "POST",

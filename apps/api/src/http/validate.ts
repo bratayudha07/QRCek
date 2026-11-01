@@ -70,3 +70,45 @@ export function parsePathParams<T>(params: Record<string, string>, schema: ZodTy
 
   return result.data;
 }
+
+/**
+ * Query strings are attacker-controlled too. Unknown keys are stripped by the
+ * schema, and coercion (limit/cursor) happens here, never in the handler.
+ */
+export function parseQuery<T>(request: Request, schema: ZodType<T>): T {
+  const entries = Object.fromEntries(new URL(request.url).searchParams.entries());
+  const result = schema.safeParse(entries);
+
+  if (!result.success) {
+    throw validationError("Parameter pencarian tidak valid", {
+      fieldErrors: toFieldErrors(result.error),
+    });
+  }
+
+  return result.data;
+}
+
+/** Reads a bounded text body (CSV upload). Enforces the limit in bytes. */
+export async function readTextBody(
+  request: Request,
+  maxBytes: number,
+  tooLargeMessage: string,
+): Promise<string> {
+  const declaredLength = Number(request.headers.get("content-length") ?? "0");
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    throw payloadTooLarge(tooLargeMessage);
+  }
+
+  let raw: string;
+  try {
+    raw = await request.text();
+  } catch {
+    throw validationError("Body permintaan tidak bisa dibaca");
+  }
+
+  if (new TextEncoder().encode(raw).byteLength > maxBytes) {
+    throw payloadTooLarge(tooLargeMessage);
+  }
+
+  return raw;
+}

@@ -72,14 +72,19 @@ Target: setiap fungsi murni punya tes tanpa I/O. Daftar minimum:
 
 | Modul | Kasus wajib |
 |---|---|
-| `domain/csv/parse.ts` | Delimiter `,` dan `;`; BOM; baris kosong; kutip berisi koma; newline di dalam kutip; header hilang; header duplikat; baris > 100 kolom ditolak |
-| `domain/csv/validate-row.ts` | `full_name` kosong/kepanjangan; `external_ref` duplikat dalam file; email tidak valid; telepon dinormalisasi (`08xx` → `+628xx`, `+62`, spasi/tanda hubung) |
+| `domain/csv.ts` | Delimiter `,` dan `;`; BOM; baris kosong; kutip berisi koma; newline di dalam kutip; kutip ganda; CRLF; kutip tidak ditutup; writer meng-escape dan menetralkan formula |
+| `domain/participant-import.ts` | `full_name` kosong/kepanjangan; `external_ref` duplikat dalam file; email tidak valid; telepon dinormalisasi (`08xx` → `+628xx`, `+62`, spasi/tanda hubung); header hilang/duplikat/tidak dikenal; batas 1.000 baris |
 | `domain/token.ts` | Token 128/256-bit ter-encode base64url; verifikasi hash cocok/tidak; panjang token tidak valid ditolak lebih awal |
 | `domain/event-status.ts` | Semua transisi sah; semua transisi terlarang; `archived` tidak bisa dibuka |
+| `domain/cursor.ts` | Encode/decode stabil; cursor rusak → `null`; id sebagai tie-breaker |
+| `domain/slug.ts` | Normalisasi aksen/tanda baca; fallback; batas panjang; suffix id unik |
 | `domain/scan-result.ts` | Pemetaan `changes 1 → present`, `changes 0 → duplicate`, token tak dikenal → `not_found`, acara lain → `wrong_event`, di luar jendela → `event_closed` |
 | `domain/backoff.ts` | Urutan delay; batas maksimum 30 menit; jitter dalam rentang; `attempts = 8` → `dead` |
 | `domain/attendance-status.ts` | Koreksi `present → excused` sah; `absent → present` sah; nilai tak dikenal ditolak; `reason` < 10 karakter ditolak |
 | `domain/permissions.ts` | Matriks peran → aksi (lihat §5) |
+| `web/lib/format.ts` | Konversi datetime-local ↔ UTC memakai zona waktu acara; DST; nilai kosong |
+| `web/lib/router.ts` | Semua path, id ter-encode, trailing slash, path tak dikenal |
+| `web/lib/participants.ts` | Query list/ekspor: trim, encoding, cursor, `query=` kosong tidak dikirim |
 | `shared/schemas/*` | Batas atas/bawah setiap field; field tak dikenal; tipe salah |
 
 Contoh bentuk tes yang baik:
@@ -115,7 +120,7 @@ it("menolak koreksi tanpa alasan yang memadai", () => {
 | I-13 | `recover.rotates-devices` | Pemulihan mencabut semua sesi/kredensial lama | |
 | I-14 | **`import.idempotent`** | Import CSV dua kali → jumlah peserta tidak bertambah | |
 | I-15 | `import.partial-invalid` | Baris invalid tidak tertulis; nomor baris dilaporkan benar | |
-| I-16 | `import.limits` | >2 MB → 413; >5.000 baris → 413 | |
+| I-16 | `import.limits` | >2 MB → 413; >1.000 baris → 413 | |
 | I-17 | **`audit.immutable`** | `UPDATE`/`DELETE` pada `audit_log` → error dari trigger | Query langsung via `env.DB` |
 | I-18 | **`audit.correction-recorded`** | Koreksi menulis `before`/`after` yang benar | |
 | I-19 | **`outbox.coalesce`** | 3 koreksi berturut-turut → 1 item outbox | Assert `COUNT(*) = 1` |
@@ -129,25 +134,29 @@ it("menolak koreksi tanpa alasan yang memadai", () => {
 | I-27 | `error.no-stack-trace` | Error internal tidak membocorkan stack/pesan D1 mentah | |
 | I-28 | `pagination.cursor-stable` | Kursor tetap benar saat ada insert baru di antara halaman | |
 
-#### Status implementasi per akhir Tahap 2
+#### Status implementasi per akhir Tahap 3
 
 Nama tes di bawah adalah file nyata di `apps/api/src/test/`, bukan rencana.
 
 | ID | Status | File / tes |
 |---|---|---|
-| I-08 | **PASS** | `authz.events.test.ts` → "returns 404 instead of 403 for another event's admin (IDOR)" dan dua tes IDOR invite/revoke |
+| I-08 | **PASS** | `authz.events.test.ts` → "returns 404 instead of 403 for another event's admin (IDOR)" dan dua tes IDOR invite/revoke; Tahap 3 menambah IDOR peserta di `participants.crud.test.ts` |
 | I-09 | **PASS** | `authz.unauthenticated.test.ts` → "rejects every protected route without a session" (iterasi `ROUTES`) |
 | I-10 | **PASS** | `auth.activate.test.ts` → "rejects a replayed invite without writing a second user" |
 | I-11 | **PASS** | `auth.activate.test.ts` → "rejects an expired invite" |
 | I-12 | **PASS** | `authz.events.test.ts` → "revokes the membership and kills the officer's session" |
 | I-13 | **PASS** | `auth.recover.test.ts` → "issues a new session and a new recovery code" |
+| I-14 | **PASS** | `participants.import.test.ts` → "creates rows only after an explicit confirm and is idempotent" |
+| I-15 | **PASS** | `participants.import.test.ts` → "saves valid rows and reports invalid rows with physical line numbers" |
+| I-16 | **PASS** | `participants.import.test.ts` → "rejects more than 1,000 data rows with 413" dan "rejects a body larger than 2 MB" |
 | I-24 | **PASS** | `authz.unauthenticated.test.ts` → "rejects a state-changing request without the CSRF header" |
 | I-25 | **PASS** | `authz.unauthenticated.test.ts` → "rejects a request whose Origin does not match the host" |
 | I-26 | **PASS** | `auth.activate.test.ts` → "rate limits repeated attempts per client" (11 → 429 + `Retry-After`) |
 | I-27 | **PASS** | `health.test.ts` → "does not leak stack traces on unknown routes" |
-| I-01…I-07, I-14…I-23, I-28 | **NOT IMPLEMENTED** | Fase 2+ (peserta, scan, audit, outbox). Sengaja belum ada |
+| I-28 | **PASS** | `participants.crud.test.ts` → "paginates with an opaque cursor without duplicates" |
+| I-01…I-07, I-17…I-23 | **NOT IMPLEMENTED** | Fase 3+ (scan, audit, outbox). Sengaja belum ada |
 
-Tambahan yang tidak ada di daftar awal tetapi diuji karena Tahap 2:
+Tambahan yang tidak ada di daftar awal tetapi diuji karena Tahap 2 dan 3:
 
 | Tes | File |
 |---|---|
@@ -163,7 +172,16 @@ Tambahan yang tidak ada di daftar awal tetapi diuji karena Tahap 2:
 | Matriks §5.1 lengkap, termasuk aksi baru yang lupa didaftarkan | `permissions.test.ts` |
 | Primitif token: base32, normalisasi kode, HMAC, panjang entropi | `token.test.ts` |
 | Generator ID: panjang 26, urut secara leksikografis, unik dalam 1 ms | `ids.test.ts` |
-| Skema Fase 1 ada, tabel Fase 2+ tidak ada | `db.integration.test.ts` |
+| Skema Fase 1 ada, tabel fase berikutnya tidak ada | `db.integration.test.ts` |
+| Lifecycle acara lengkap, `archived` final, `active → archived` ditolak | `event-status.test.ts`, `events.crud.test.ts` |
+| CRUD acara + otorisasi (superadmin/admin/petugas, lintas acara) | `events.crud.test.ts` |
+| Hapus acara hanya draf kosong; selain itu 422 | `events.crud.test.ts` |
+| Peserta: create/list/search/pagination/detail/edit/soft-delete/restore | `participants.crud.test.ts` |
+| Isolasi peserta antaracara (IDOR) → 404 | `participants.crud.test.ts` |
+| Ekspor CSV dapat diimpor ulang; template header-only; PII hanya admin | `participants.crud.test.ts` |
+| Impor: header/baris invalid, duplikasi file, `;`, JSON, idempoten, rate limit, archived | `participants.import.test.ts` |
+| Parser CSV dan normalisasi telepon/email | `csv.test.ts` |
+| Router web, query peserta, konversi zona waktu | `apps/web/src/lib/*.test.ts` |
 
 
 ### 4.2 Bentuk tes integrasi
@@ -212,9 +230,14 @@ Sumber kebenaran tunggal: `domain/permissions.ts`. Tes mengiterasi matriks ini, 
 | Aksi | superadmin | event_admin | officer | anonim |
 |---|---|---|---|---|
 | Buat acara | ✅ | ❌ | ❌ | ❌ |
+| Lihat acara | ✅ | ✅ (acara sendiri) | ✅ (acara sendiri) | ❌ |
 | Ubah acara | ✅ | ✅ (acara sendiri) | ❌ | ❌ |
+| Hapus acara (draf kosong) | ✅ | ❌ | ❌ | ❌ |
 | Undang petugas | ✅ | ✅ | ❌ | ❌ |
+| Lihat peserta | ✅ | ✅ | ✅ | ❌ |
+| Tambah/ubah/nonaktifkan peserta | ✅ | ✅ | ❌ | ❌ |
 | Import peserta | ✅ | ✅ | ❌ | ❌ |
+| Ekspor/template peserta | ✅ | ✅ | ❌ | ❌ |
 | Cetak label QR | ✅ | ✅ | ❌ | ❌ |
 | Scan | ✅ | ✅ | ✅ | ❌ |
 | Lihat rekap | ✅ | ✅ | ✅ (ringkas) | ❌ |
