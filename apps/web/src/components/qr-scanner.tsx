@@ -37,7 +37,7 @@ interface ScannerProps {
   onDetected: (value: string) => void;
 }
 
-const DETECTION_DEBOUNCE_MS = 1_500;
+const DETECTION_LOST_MS = 900;
 
 export function QrScanner({ paused, onDetected }: ScannerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -85,10 +85,22 @@ export function QrScanner({ paused, onDetected }: ScannerProps) {
 
     const now = performance.now();
     const last = detectedRef.current;
-    if (last && last.value === value && now - last.at < DETECTION_DEBOUNCE_MS) return;
+    if (last && last.value === value) {
+      // Keep an unchanged QR from generating another attendance request while
+      // it stays in frame. A different participant QR is accepted immediately.
+      detectedRef.current = { value, at: now };
+      return;
+    }
 
     detectedRef.current = { value, at: now };
     onDetectedRef.current(value);
+  }
+
+  function releaseAfterQrLeavesFrame(): void {
+    const last = detectedRef.current;
+    if (last && performance.now() - last.at >= DETECTION_LOST_MS) {
+      detectedRef.current = null;
+    }
   }
 
   async function start(): Promise<void> {
@@ -131,6 +143,7 @@ export function QrScanner({ paused, onDetected }: ScannerProps) {
             const codes = await detector.detect(videoRef.current);
             const value = codes[0]?.rawValue;
             if (value) emit(value);
+            else releaseAfterQrLeavesFrame();
           } catch {
             // A single failed frame is normal while the camera focuses.
           }
@@ -156,6 +169,7 @@ export function QrScanner({ paused, onDetected }: ScannerProps) {
         videoRef.current ?? undefined,
         (result) => {
           if (result) emit(result.getText());
+          else releaseAfterQrLeavesFrame();
         },
       );
       runningRef.current = true;

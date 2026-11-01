@@ -1,10 +1,11 @@
-import type { AttendanceRecord, ScanResultPayload } from "@absensi/shared";
-import { AlertCircle, CheckCircle2, History, ScanLine, XCircle } from "lucide-react";
+import type { AttendanceRecord } from "@absensi/shared";
+import { History, ScanLine } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { AppLink } from "@/components/app-link";
 import { AppShell } from "@/components/app-shell";
 import { QrScanner } from "@/components/qr-scanner";
+import { ScanToast, type ScanNotification } from "@/components/scan-toast";
 import { EmptyState, ErrorState, LoadingState, Notice } from "@/components/page-state";
 import { Button } from "@/components/ui/button";
 import { listStaffAttendance, scanQr } from "@/lib/attendance";
@@ -115,8 +116,8 @@ export function StaffScanPage() {
   const session = useSession();
   const memberships = session.status === "authenticated" ? session.memberships : [];
   const [eventId, setEventId] = useState(memberships[0]?.eventId ?? "");
-  const [result, setResult] = useState<ScanResultPayload | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [scanPending, setScanPending] = useState(false);
+  const [notification, setNotification] = useState<ScanNotification | null>(null);
   const inFlight = useRef(false);
 
   useEffect(() => {
@@ -126,16 +127,25 @@ export function StaffScanPage() {
   async function handleDetected(qr: string) {
     if (inFlight.current || !eventId) return;
     inFlight.current = true;
-    setResult(null);
-    setError(null);
+    setScanPending(true);
     try {
       const response = await scanQr(eventId, qr);
-      if (response.ok) setResult(response.data);
-      else setError(response.error.message);
+      if (response.ok) {
+        const copy = SCAN_RESULT_COPY[response.data.result];
+        setNotification({
+          tone: copy.tone,
+          title: response.data.result === "present" ? "Berhasil absen" : copy.title,
+          description: copy.description,
+          ...(response.data.participant ? { participantName: response.data.participant.fullName } : {}),
+        });
+      } else {
+        setNotification({ tone: "error", title: "Scan gagal", description: response.error.message });
+      }
     } catch {
-      setError("Tidak bisa menghubungi server. Periksa jaringan lalu coba pindai ulang.");
+      setNotification({ tone: "error", title: "Koneksi bermasalah", description: "Tidak bisa menghubungi server. Periksa jaringan." });
     } finally {
       inFlight.current = false;
+      setScanPending(false);
     }
   }
 
@@ -148,13 +158,11 @@ export function StaffScanPage() {
       {memberships.length > 0 && (
         <>
           <label className="block space-y-1 text-sm font-medium" htmlFor="scan-event">Acara</label>
-          <select id="scan-event" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={eventId} onChange={(event) => { setEventId(event.target.value); setResult(null); setError(null); }}>
+          <select id="scan-event" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={eventId} onChange={(event) => { setEventId(event.target.value); setNotification(null); }}>
             {memberships.map((membership) => <option key={membership.eventId} value={membership.eventId}>{membership.eventName}</option>)}
           </select>
-          <QrScanner paused={result !== null || error !== null} onDetected={(qr) => void handleDetected(qr)} />
-          {error && <ErrorState message={error} />}
-          {result && <ScanResultCard result={result} />}
-          {(result || error) && <Button variant="outline" onClick={() => { setResult(null); setError(null); }}>Pindai lagi</Button>}
+          <QrScanner paused={scanPending} onDetected={(qr) => void handleDetected(qr)} />
+          <ScanToast notification={notification} onDismiss={() => setNotification(null)} />
         </>
       )}
     </AppShell>
@@ -203,15 +211,5 @@ export function StaffHistoryPage() {
       {cursor && <Button variant="outline" disabled={loading} onClick={() => void loadMore()}>Muat lagi</Button>}
       {refresh > 0 && <span className="sr-only">Riwayat diperbarui</span>}
     </AppShell>
-  );
-}
-
-function ScanResultCard({ result }: { result: ScanResultPayload }) {
-  const copy = SCAN_RESULT_COPY[result.result];
-  const Icon = copy.tone === "success" ? CheckCircle2 : copy.tone === "warning" ? AlertCircle : XCircle;
-  return (
-    <section aria-live="polite" className="rounded-xl border p-4">
-      <div className="flex gap-3"><Icon aria-hidden="true" className="size-5 shrink-0" /><div><h2 className="font-semibold">{copy.title}</h2><p className="text-sm text-muted-foreground">{copy.description}</p>{result.participant && <p className="mt-2 text-sm font-medium">{result.participant.fullName}{result.participant.category ? ` · ${result.participant.category}` : ""}</p>}{result.attendance && <p className="mt-1 text-xs text-muted-foreground">{formatDateTime(result.attendance.checkedInAt, "Asia/Jakarta")}</p>}</div></div>
-    </section>
   );
 }

@@ -1,10 +1,11 @@
-import type { AttendanceRecord, AttendanceStatus, ScanResultPayload } from "@absensi/shared";
-import { AlertCircle, CheckCircle2, Search, XCircle } from "lucide-react";
+import type { AttendanceRecord, AttendanceStatus } from "@absensi/shared";
+import { Search } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { EmptyState, ErrorState, LoadingState, Notice } from "@/components/page-state";
 import { QrScanner } from "@/components/qr-scanner";
+import { ScanToast, type ScanNotification } from "@/components/scan-toast";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/field";
 import { correctAttendance, listAttendance, scanQr } from "@/lib/attendance";
@@ -25,7 +26,8 @@ export function EventAttendancePage({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0);
-  const [scanResult, setScanResult] = useState<ScanResultPayload | null>(null);
+  const [scanPending, setScanPending] = useState(false);
+  const [scanNotification, setScanNotification] = useState<ScanNotification | null>(null);
   const scanning = useRef(false);
   const [selected, setSelected] = useState<AttendanceRecord | null>(null);
   const [correctionStatus, setCorrectionStatus] = useState<AttendanceStatus>("present");
@@ -62,15 +64,33 @@ export function EventAttendancePage({ eventId }: { eventId: string }) {
   async function onDetected(qr: string) {
     if (scanning.current) return;
     scanning.current = true;
-    setError(null);
-    setScanResult(null);
+    setScanPending(true);
     try {
       const body = await scanQr(eventId, qr);
-      if (body.ok) { setScanResult(body.data); setRefresh((value) => value + 1); }
-      else setError(body.error.message);
+      if (body.ok) {
+        const copy = SCAN_RESULT_COPY[body.data.result];
+        setScanNotification({
+          tone: copy.tone,
+          title: body.data.result === "present"
+            ? "Berhasil absen"
+            : body.data.result === "duplicate"
+              ? "Peserta sudah diabsen"
+              : copy.title,
+          description: body.data.result === "duplicate"
+            ? "Absensi peserta ini sudah tercatat sebelumnya."
+            : copy.description,
+          ...(body.data.participant ? { participantName: body.data.participant.fullName } : {}),
+        });
+        setRefresh((value) => value + 1);
+      } else {
+        setScanNotification({ tone: "error", title: "Scan gagal", description: body.error.message });
+      }
     } catch {
-      setError("Tidak bisa menghubungi server. Periksa jaringan lalu coba lagi.");
-    } finally { scanning.current = false; }
+      setScanNotification({ tone: "error", title: "Koneksi bermasalah", description: "Tidak bisa menghubungi server. Periksa jaringan." });
+    } finally {
+      scanning.current = false;
+      setScanPending(false);
+    }
   }
 
   async function loadMore() {
@@ -104,9 +124,6 @@ export function EventAttendancePage({ eventId }: { eventId: string }) {
     finally { setSaving(false); }
   }
 
-  const resultCopy = scanResult ? SCAN_RESULT_COPY[scanResult.result] : null;
-  const ResultIcon = resultCopy?.tone === "success" ? CheckCircle2 : resultCopy?.tone === "warning" ? AlertCircle : XCircle;
-
   return (
     <AppShell title="Absensi" subtitle="Pindai QR, lihat kehadiran, dan koreksi catatan">
       {error && <ErrorState message={error} onRetry={() => setRefresh((value) => value + 1)} />}
@@ -114,10 +131,8 @@ export function EventAttendancePage({ eventId }: { eventId: string }) {
       {session.status === "anonymous" && <Notice tone="warning">Sesi berakhir. <a className="underline" href="/masuk">Masuk kembali</a>.</Notice>}
       <section className="space-y-3 rounded-xl border p-4">
         <h2 className="font-semibold">Pemindai QR</h2>
-        <QrScanner paused={scanResult !== null || error !== null} onDetected={(qr) => void onDetected(qr)} />
-        {scanResult && resultCopy && ResultIcon && <div aria-live="polite" className="flex gap-3 rounded-lg bg-muted/60 p-3"><ResultIcon className="size-5 shrink-0" /><div><p className="font-medium">{resultCopy.title}</p><p className="text-sm text-muted-foreground">{resultCopy.description}</p>{scanResult.participant && <p className="mt-1 text-sm">{scanResult.participant.fullName}</p>}</div></div>}
-        {scanResult && <Button variant="outline" onClick={() => setScanResult(null)}>Pindai lagi</Button>}
-        {error && <Button variant="outline" onClick={() => setError(null)}>Coba scan lagi</Button>}
+        <QrScanner paused={scanPending} onDetected={(qr) => void onDetected(qr)} />
+        <ScanToast notification={scanNotification} onDismiss={() => setScanNotification(null)} />
       </section>
 
       <section className="space-y-3">
