@@ -83,14 +83,16 @@ export function EventsPage() {
     }
   }
 
-  const isSuperadmin = session.status === "authenticated" && session.user.role === "superadmin";
+  const canCreateEvent =
+    session.status === "authenticated" &&
+    (session.user.role === "superadmin" || session.user.role === "event_admin");
 
   return (
     <AppShell
       title="Acara"
       subtitle="Kelola acara dan peserta yang terdaftar"
       actions={
-        isSuperadmin && !showCreate ? (
+        canCreateEvent && !showCreate ? (
           <Button size="sm" onClick={() => setShowCreate(true)}>
             <Plus aria-hidden="true" className="size-4" />
             Buat
@@ -110,7 +112,7 @@ export function EventsPage() {
 
       {session.status === "error" && <ErrorState message={session.message} />}
 
-      {showCreate && isSuperadmin && (
+      {showCreate && canCreateEvent && (
         <section className="space-y-2">
           <h2 className="text-sm font-semibold">Acara baru</h2>
           <EventForm
@@ -136,7 +138,7 @@ export function EventsPage() {
         <EmptyState>
           <CalendarDays aria-hidden="true" className="mx-auto mb-2 size-6" />
           Belum ada acara yang bisa Anda akses.
-          {isSuperadmin
+          {canCreateEvent
             ? " Buat acara pertama lewat tombol Buat."
             : " Minta admin menambahkan Anda ke acara."}
         </EmptyState>
