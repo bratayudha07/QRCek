@@ -55,9 +55,10 @@ Catatan: `superadmin` bersifat global (`users.role`), sedangkan `event_admin` da
 
 > ⚠️ **Ini desain TARGET, bukan keadaan database sekarang.** Per 31 Oktober 2026,
 > `migrations/0001_init.sql` hanya membuat satu tabel: `app_meta`. Semua tabel di
-> bawah dibuat pada fase yang membutuhkannya (Fase 1: `users`, `events`,
-> `event_memberships`; Fase 2: `participants`; Fase 3: `attendance`; Fase 4:
-> `audit_log`; Fase 5: `sync_state`, `sheet_rows`, `outbox`). Alasan pemangkasan:
+> bawah dibuat pada tahap yang membutuhkannya (Tahap 2: `users`, `events`,
+> `event_memberships`; Tahap 3: `participants`; Tahap 4: kolom QR, `event_label_config`,
+> `audit_log`; Tahap 5: `attendance`; Fase 5: `sync_state`, `sheet_rows`, `outbox`).
+> Alasan pemangkasan:
 > `docs/OPERASIONAL.md` §4.3. Pecah DDL ini menjadi migrasi per fase — **jangan**
 > menyalin seluruh blok ini ke satu file.
 
@@ -126,14 +127,22 @@ CREATE TABLE participants (
   email           TEXT,
   category        TEXT,                          -- kelas/kelompok/kelas anak
   note            TEXT,
-  qr_token_hash   TEXT NOT NULL UNIQUE,          -- HMAC-SHA256(QR_PEPPER, token)
-  qr_issued_at    INTEGER NOT NULL,
+  -- Kredensial QR (ADR-006). NULL sampai label pertama dicetak.
+  qr_token_hash       TEXT,                      -- HMAC-SHA256(QR_PEPPER, token), 43 char
+  qr_token_ciphertext TEXT,                      -- AES-256-GCM(token), 79 char
+  qr_token_nonce      TEXT,                      -- 96-bit GCM nonce, 16 char
+  qr_key_version      INTEGER,                    -- versi QR_ENCRYPTION_KEY
+  qr_issued_at        INTEGER,
   status          TEXT NOT NULL DEFAULT 'active'
                   CHECK (status IN ('active','inactive')),
   created_at      INTEGER NOT NULL,
   updated_at      INTEGER NOT NULL,
   CHECK (length(full_name) BETWEEN 1 AND 120),
-  CHECK (status = 'inactive' OR qr_token_hash IS NOT NULL)
+  CHECK (qr_token_hash IS NULL OR length(qr_token_hash) = 43),
+  CHECK (qr_token_ciphertext IS NULL OR length(qr_token_ciphertext) = 79),
+  CHECK (qr_token_nonce IS NULL OR length(qr_token_nonce) = 16),
+  CHECK (qr_key_version IS NULL OR qr_key_version >= 1),
+  CHECK (qr_issued_at IS NULL OR qr_issued_at > 0)
 );
 
 -- Idempotensi import CSV: ref yang sama di acara yang sama = peserta yang sama
@@ -142,7 +151,11 @@ CREATE UNIQUE INDEX uq_participant_ref
   WHERE external_ref IS NOT NULL;
 
 CREATE INDEX idx_participant_event_name ON participants(event_id, full_name);
-CREATE INDEX idx_participant_token      ON participants(qr_token_hash);
+
+-- Satu kredensial hanya boleh dipakai satu peserta. Partial karena NULL valid.
+CREATE UNIQUE INDEX uq_participant_qr_hash
+  ON participants(qr_token_hash)
+  WHERE qr_token_hash IS NOT NULL;
 
 -- ───────────────────────────────────────────── attendance
 CREATE TABLE attendance (
@@ -195,6 +208,16 @@ BEFORE DELETE ON audit_log
 BEGIN
   SELECT RAISE(ABORT, 'audit_log is append-only');
 END;
+
+-- ───────────────────────────────────────────── event_label_config
+-- Konfigurasi tampilan label per acara. Tidak adanya baris = default aplikasi.
+CREATE TABLE event_label_config (
+  event_id        TEXT PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE,
+  fields_json     TEXT NOT NULL CHECK (json_valid(fields_json)),
+  show_event_name INTEGER NOT NULL DEFAULT 1 CHECK (show_event_name IN (0,1)),
+  updated_at      INTEGER NOT NULL,
+  updated_by      TEXT REFERENCES users(id) ON DELETE SET NULL
+);
 ```
 
 File: `migrations/0002_auth.sql`
@@ -277,23 +300,33 @@ CREATE TABLE rate_limits (
 > jadi invariant lama tetap berlaku untuk seluruh jalur normal. Migrasi berikutnya tidak
 > boleh "merapikan" kolom ini tanpa memikirkan baris bootstrap yang mungkin belum dipakai.
 
-> **Deviasi implementasi (Tahap 3, `migrations/0003_participants.sql`).** Kolom QR pada
-> tabel `participants` **belum dibuat**. Blok DDL di atas adalah desain target; yang berjalan
-> sekarang:
+> **Deviasi implementasi (Tahap 3–4).** Blok DDL di atas adalah desain target; yang
+> berjalan sekarang, setelah `migrations/0003_participants.sql` dan `migrations/0004_qr.sql`:
 >
-> 1. Tanpa `qr_token_hash`, `qr_issued_at`, dan tanpa `CHECK (status = 'inactive' OR
->    qr_token_hash IS NOT NULL)`. QR milik fase QR; menambahkan kolom `NOT NULL` sekarang
->    akan menjadi data mati atau memaksa token yang tidak pernah dipakai.
-> 2. `CHECK` panjang untuk `external_ref`, `phone`, `email`, `category`, dan `note`
->    ditambahkan agar batas API juga ditegakkan database.
-> 3. Indeks: `uq_participant_ref` (partial), `idx_participant_event_name`, dan
+> 1. **Kolom QR nullable, bukan `NOT NULL`.** Kredensial dibuat *lazy* saat label pertama
+>    dicetak (Tahap 4). Peserta hasil import CSV dan peserta lama tetap valid tanpa QR, dan
+>    tidak ada token mati yang dibuat untuk orang yang tidak pernah dicetak. Karena itu
+>    `CHECK (status = 'inactive' OR qr_token_hash IS NOT NULL)` **tidak dipasang**; invariant
+>    "peserta aktif yang punya kredensial selalu punya kelima kolom" ditegakkan kode
+>    (`claimQrCredentialStatement` menulis kelimanya sekaligus) dan per-kolom `CHECK`.
+> 2. Kolom tambahan dibanding desain awal: `qr_token_ciphertext`, `qr_token_nonce`, dan
+>    `qr_key_version` (ADR-006). Tanpa ciphertext, cetak ulang harus merotasi token.
+> 3. `CHECK` panjang untuk `external_ref`, `phone`, `email`, `category`, `note`, dan kelima
+>    kolom QR ditambahkan agar batas API juga ditegakkan database.
+> 4. Indeks: `uq_participant_ref` (partial), `idx_participant_event_name`,
 >    `idx_participant_event_created (event_id, created_at DESC, id DESC)` untuk paginasi
->    kursor. `idx_participant_token` menyusul bersama kolom QR.
+>    kursor, dan `uq_participant_qr_hash` (partial unique). Tidak ada lagi indeks non-unik
+>    terpisah pada `qr_token_hash`: unique index memenuhi lookup sekaligus menjamin keunikan.
+> 5. `event_label_config` dan `audit_log` dibuat di `0004_qr.sql`, lebih awal dari Fase 4,
+>    karena keduanya dibutuhkan Tahap 4 (konfigurasi label dan jejak cetak).
 >
-> Migrasi fase QR wajib menambah kolom QR lewat file baru (bukan mengedit `0003`) dan
-> mengisi token untuk peserta yang sudah ada sebelum constraint `NOT NULL` dipasang.
+> Migrasi berikutnya tidak boleh mengedit `0003`/`0004`; perubahan skema selalu lewat file baru.
 
-File: `migrations/0004_sync.sql`
+> Nomor file aktual saat ini: `0001_init.sql`, `0002_auth.sql`, `0003_participants.sql`,
+> `0004_qr.sql`. Blok sinkronisasi di bawah tetap desain target; kalau dikerjakan pada
+> Tahap 5, filenya menjadi `0005_sync.sql` (nomor tidak boleh dipakai ulang).
+
+File: `migrations/0005_sync.sql`
 
 ```sql
 -- ───────────────────────────────────────────── konfigurasi sync per acara
@@ -354,7 +387,8 @@ Setiap indeks menambah baris tulis. Indeks di bawah dipilih karena setiap halama
 | `uq_participant_ref` (partial) | Idempotensi import CSV |
 | `idx_participant_event_name` | Daftar/pencarian peserta per acara |
 | `idx_participant_event_created` | Paginasi kursor `(created_at DESC, id DESC)` |
-| `idx_participant_token` | Lookup saat scan (belum ada — fase QR) |
+| `uq_participant_qr_hash` (partial unique) | Lookup scan + menjamin satu kredensial satu peserta |
+| `idx_audit_event_time` / `idx_audit_actor_time` / `idx_audit_action` | Riwayat audit per acara/pelaku/aksi |
 | `idx_attendance_event_time` | Rekap kronologis |
 | `idx_attendance_event_stat` | Hitungan per status |
 | `idx_membership_*` | Cek otorisasi (setiap request) |
@@ -378,7 +412,11 @@ Setiap indeks menambah baris tulis. Indeks di bawah dipilih karena setiap halama
 | Peserta tidak bisa diakses lintas acara | Semua query `WHERE event_id = ? AND id = ?` | `participants.crud.test.ts` |
 | Soft-delete tidak menghapus data | `UPDATE status = 'inactive'`, restore lewat PATCH | `participants.crud.test.ts` |
 | Tidak ada outbox duplikat | `uq_outbox_pending` (partial unique) | `outbox.coalesce.test.ts` |
-| Peserta tidak bisa aktif tanpa QR | `CHECK (status = 'inactive' OR qr_token_hash IS NOT NULL)` — **belum berlaku** karena kolom QR belum ada | fase QR |
+| Satu kredensial QR hanya milik satu peserta | `uq_participant_qr_hash` (partial unique) | `qr.db.test.ts` — hash yang sama pada peserta lain ditolak |
+| Kredensial tidak pernah ditimpa saat cetak ulang | `UPDATE ... WHERE qr_token_hash IS NULL` | `qr.db.test.ts` — klaim kedua `changes = 0`; `labels.api.test.ts` — QR sama pada cetak ulang |
+| Kredensial utuh (hash + ciphertext + nonce + versi) | Per-kolom `CHECK` + kode menulis kelimanya sekaligus | `qr.db.test.ts` — nilai cacat ditolak |
+| Import CSV tidak merotasi QR | `ON CONFLICT ... DO UPDATE` tidak menyentuh kolom QR | `qr.db.test.ts` — kredensial bertahan setelah upsert |
+| Audit tidak bisa diubah/dihapus | Trigger `RAISE(ABORT)` | `qr.db.test.ts` — `UPDATE`/`DELETE` gagal |
 
 ---
 
@@ -439,7 +477,8 @@ Error 4xx dari Google (kecuali 429 dan 403 rate-limit) menandakan masalah perman
 ### Aturan
 
 1. File di `migrations/` bernomor urut: `0001_init.sql`, `0002_auth.sql`,
-   `0003_participants.sql`, `0004_sync.sql`, dst.
+   `0003_participants.sql`, `0004_qr.sql`, `0005_sync.sql`, dst. Nomor yang sudah dipakai
+   tidak boleh dipakai ulang walau isinya dihapus dari rencana.
 2. **File yang sudah pernah diaplikasikan (termasuk di lokal) tidak boleh diedit.** Perubahan selalu file baru.
 3. Setiap migrasi harus **idempoten-sempurna** dalam arti: berhasil dijalankan pada database kosong.
 4. Migrasi tidak boleh bergantung pada data yang dibuat di luar migrasi.

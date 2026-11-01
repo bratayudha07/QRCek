@@ -5,9 +5,18 @@
 # `npm run seed:superadmin`. Changing it revokes every session, invite, and
 # recovery code at once — that is the emergency rotation, not a routine edit.
 #
+# QR_PEPPER hashes participant QR tokens (Tahap 4). QR_ENCRYPTION_KEY is a
+# base64-encoded 32-byte AES-256-GCM key that encrypts the token for reprints.
+# They are separate secrets on purpose: rotating one must not force the other.
+# Changing QR_PEPPER invalidates every printed QR. Changing QR_ENCRYPTION_KEY
+# without a key-version bump and a re-encryption migration makes reprints fail
+# loudly (never silently). See docs/OPERASIONAL.md.
+#
 # Production never reads this file: use `wrangler secret put <NAME>`.
 
 QR_PEPPER="ganti-dengan-32-byte-acak"
+QR_ENCRYPTION_KEY="ganti-dengan-base64-32-byte"
+QR_KEY_VERSION="1"
 SESSION_PEPPER="ganti-dengan-32-byte-acak"
 
 # Optional: extra browser origins trusted by the CSRF check, comma-separated.

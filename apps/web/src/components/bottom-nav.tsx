@@ -20,7 +20,7 @@ export function BottomNav({ mode, route }: { mode: NavMode; route: AppRoute }) {
   return (
     <nav
       aria-label="Navigasi utama"
-      className="fixed inset-x-0 bottom-0 z-30 border-t border-border/70 bg-background pb-[env(safe-area-inset-bottom)] lg:hidden"
+      className="app-chrome fixed inset-x-0 bottom-0 z-30 border-t border-border/70 bg-background pb-[env(safe-area-inset-bottom)] lg:hidden"
     >
       <div className="mx-auto grid max-w-lg grid-cols-4">
         {items.map((item) => {

@@ -30,7 +30,7 @@ export function AppShell({
 }) {
   return (
     <div className="flex min-h-full flex-col">
-      <header className="sticky top-0 z-20 border-b border-border/70 bg-background">
+      <header className="app-chrome sticky top-0 z-20 border-b border-border/70 bg-background">
         <div className="mx-auto flex w-full max-w-3xl items-start gap-3 px-4 py-3.5">
           {backTo && (
             <button

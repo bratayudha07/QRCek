@@ -13,7 +13,7 @@ import { errorResponse, failureJson, okJson, unexpectedErrorResponse } from "./r
  * the free-tier/simplicity rules in AGENTS.md.
  */
 
-export type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
+export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export interface RouteContext {
   request: Request;

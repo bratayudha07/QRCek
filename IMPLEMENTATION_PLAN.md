@@ -3,9 +3,9 @@
 Rencana implementasi bertahap untuk Multi-Event Parent Attendance Management System.
 
 **Status: Fase 0 selesai sebagian, Fase 1 (Tahap 2) selesai sebagian, Tahap 3 selesai
-(manajemen acara + peserta non-QR), Tahap 3.5 selesai (penyelarasan UI/UX dan navigasi).** Lihat
-blok status di tiap fase untuk butir yang belum terverifikasi. QR, pemindaian, rekap, dan Sheets
-belum dibuka.
+(manajemen acara + peserta non-QR), Tahap 3.5 selesai (penyelarasan UI/UX dan navigasi),
+Tahap 4 selesai (kredensial QR + cetak label).** Lihat blok status di tiap fase untuk butir yang
+belum terverifikasi. Pemindaian, rekap, dan Sheets belum dibuka.
 
 Dokumen pendukung: [`AGENTS.md`](./AGENTS.md), [`docs/ARSITEKTUR.md`](./docs/ARSITEKTUR.md), [`docs/DESAIN_DATABASE.md`](./docs/DESAIN_DATABASE.md), [`docs/DESAIN_API.md`](./docs/DESAIN_API.md), [`docs/RENCANA_PENGUJIAN.md`](./docs/RENCANA_PENGUJIAN.md), [`COSTS_AND_LIMITS.md`](./COSTS_AND_LIMITS.md).
 
@@ -200,18 +200,19 @@ diawasi di `docs/OPERASIONAL.md`, bukan jumlah statement per tabel.
 
 **Tujuan**: peserta masuk sistem dan punya QR yang bisa dicetak.
 
-> **Status: SELESAI SEBAGIAN (Tahap 3) — bagian non-QR selesai dan teruji.**
+> **Status: SELESAI (Tahap 3 non-QR + Tahap 4 QR/label).**
 > Yang hidup: CRUD acara lengkap dengan lifecycle, manajemen peserta terisolasi per acara,
 > impor CSV dua langkah (pratinjau → konfirmasi), pencarian, paginasi kursor, detail/edit,
-> soft-delete dengan konfirmasi, ekspor CSV, template CSV, dan UI-nya.
+> soft-delete dengan konfirmasi, ekspor CSV, template CSV, **kredensial QR terenkripsi**,
+> **konfigurasi field label per acara**, dan **halaman cetak label A4 + stiker 50 × 30 mm**.
 >
-> Verifikasi lokal: `typecheck`, `lint`, `test` **266/266** (26 file), `build`, dan
-> `db:migrate:local` pada database kosong. Gerbang produksi (CPU p95, CI hijau) tetap
-> **NOT RUN**.
+> Verifikasi lokal Tahap 4: `typecheck`, `lint`, `test`, `build` (angka final ada di ringkasan
+> penyerahan; jalankan ulang perintahnya untuk membuktikan). Gerbang produksi (CPU p95, CI hijau,
+> cetak fisik, kamera) tetap **NOT RUN**.
 >
-> **Yang belum dan mengapa**: QR peserta, token QR, halaman cetak label, dan `qr-labels`
-> **tidak** dibuat karena instruksi Tahap 3 melarang fitur QR. Kolom QR juga tidak ditambahkan
-> ke `participants`; migrasi fase QR akan menambahkannya. Lihat deviasi di bawah.
+> **Yang belum dan mengapa**: pemindaian QR dan pencatatan kehadiran adalah Tahap 5 / Fase 3,
+> dengan gerbangnya sendiri. Semua kolom QR sudah ada; tidak ada migrasi tambahan yang
+> dibutuhkan untuk scan.
 
 ### Pekerjaan (yang benar-benar dikerjakan di Tahap 3)
 
@@ -237,10 +238,11 @@ diawasi di `docs/OPERASIONAL.md`, bukan jumlah statement per tabel.
 - [x] `import.partial-invalid`: baris rusak dilaporkan dengan nomor baris fisik, baris valid
       tetap tersimpan. — `participants.import.test.ts`
 - [x] Batas keras: > 2 MB → 413; > 1.000 baris → 413 dengan pesan yang menyebut batasnya.
-- [ ] Setiap peserta punya `qr_token_hash` unik / 1.000 hash berbeda — **belum berlaku**:
-      kolom QR sengaja belum ada sampai fase QR dibuka.
-- [ ] Cetak label QR / keterbacaan `BarcodeDetector` — **belum dikerjakan** (fase QR).
-- [ ] `qr-labels` menulis audit `qr.labels_exported` — **belum dikerjakan** (fase QR).
+- [x] Setiap kredensial punya `qr_token_hash` unik; hash yang sama untuk peserta lain ditolak
+      database. — `qr.db.test.ts`, `qr-token.test.ts`
+- [x] Cetak label QR (A4 + stiker) tersedia; keterbacaan hasil cetak oleh kamera **belum diuji**
+      (butuh printer + HP). — `labels.api.test.ts`, `apps/web/src/lib/qr-labels.test.ts`
+- [x] `qr-labels` menulis audit `qr.labels_exported` tanpa token/PII. — `labels.api.test.ts`
 - [x] `officer` memanggil `import`, `export`, `template`, atau mutasi peserta → 403.
       — `participants.crud.test.ts`, `participants.import.test.ts`
 - [x] Isolasi antaracara: peserta acara B tidak bisa dibaca/diubah lewat id acara A → 404.
@@ -260,7 +262,7 @@ aman.
 | `delete` = hapus fisik | Soft-delete `status='inactive'`, wajib body `{confirm:true}`, bisa diaktifkan kembali lewat PATCH | Menjaga riwayat dan mencegah kehilangan data karena salah klik |
 | Import langsung menulis | Default `dry_run=true`; tulis hanya dengan `?dry_run=false` setelah pratinjau | Satu request yang salah tidak boleh mengubah data |
 | Batas 5.000 baris | **1.000 baris**, 2 MB | Angka sisa spike Fase 0; CPU platform belum terukur |
-| `qr-labels` + kolom QR | Tidak dibuat | Di luar cakupan Tahap 3; migrasi fase QR akan menambah kolom |
+| `qr-labels` + kolom QR | Tidak dibuat di Tahap 3; **dibuat di Tahap 4** (`migrations/0004_qr.sql`) | Tahap 3 sengaja berhenti sebelum QR; Tahap 4 membuka gerbangnya |
 | Status acara bebas | `draft → active → closed → active|archived`; `archived` final; `active → archived` ditolak | Mencegah acara diarsipkan tanpa ditutup dan dibuka lagi setelah final |
 | Hapus acara oleh admin acara | Hanya superadmin, hanya draf tanpa peserta | Hard delete adalah tindakan lintas acara; selain itu arahkan ke arsip |
 
@@ -327,6 +329,59 @@ Verifikasi: `typecheck`, `lint`, `test` **296/296** (27 file), `build` — PASS.
 
 ---
 
+## TAHAP 4 — Kredensial QR dan cetak label
+
+**Tujuan**: peserta punya QR yang aman dan bisa dicetak, tanpa membuka pemindaian (Tahap 5).
+
+### Yang dikerjakan
+
+1. `migrations/0004_qr.sql`: lima kolom QR nullable pada `participants` + `CHECK` per kolom,
+   `uq_participant_qr_hash` (partial unique), tabel `event_label_config`, tabel `audit_log`
+   lengkap dengan trigger append-only.
+2. `domain/qr-token.ts`: token 256-bit base64url, payload opaque `absensi:v1:<token>`,
+   `HMAC-SHA256(QR_PEPPER, token)`, AES-256-GCM dengan `QR_ENCRYPTION_KEY`, versi kunci,
+   rotasi tanpa mengubah token/hash, dan kegagalan keras tanpa fallback plaintext.
+3. `POST /api/events/:eventId/participants/qr-labels`: terbitkan atau baca ulang kredensial,
+   dua mode pemilihan (eksplisit / kursor), maksimal 50 per request, audit
+   `qr.labels_exported`.
+4. `GET`/`PUT /api/events/:eventId/label-config`: konfigurasi field per acara.
+5. Frontend: halaman `/admin/events/:id/participants/labels`, pemilihan peserta, urutan field,
+   pratinjau, `window.print()`, CSS A4 3 × 8 dan stiker 50 × 30 mm.
+6. Dependensi baru: `qrcode-generator@2.0.4` (MIT, tanpa dependensi runtime) — hanya encoder;
+   SVG dibangun sendiri agar ukuran/quiet zone eksplisit.
+
+### Kriteria penerimaan (terukur)
+
+- [x] Token ≥ 128 bit (dipakai 256 bit), opaque, tanpa PII/id peserta.
+- [x] D1 hanya menyimpan hash + ciphertext + nonce + versi; tidak ada plaintext.
+- [x] Hash unik di level database; kredensial tidak pernah ditimpa saat cetak ulang.
+- [x] Cetak ulang menghasilkan payload QR identik.
+- [x] Lintas acara dan peserta nonaktif ditolak/diabaikan.
+- [x] `audit_log` append-only (trigger) dan mencatat cetak tanpa token/PII.
+- [x] Konfigurasi field hanya memakai kolom peserta yang ada, maksimal 4, QR selalu ikut.
+- [x] Batas batch 50 setelah pengukuran CPU (100 ≈ 12 ms p50 crypto-only di lokal).
+- [ ] Cetak fisik A4/stiker, ukuran mm, dan pemindaian hasil cetak — **NOT RUN** (butuh printer
+      dan kamera HP).
+- [ ] Tampilan visual/keyboard/reduced-motion halaman label — **NOT RUN** (web test Node-only).
+- [ ] CPU produksi `wrangler tail` — **NOT RUN** (butuh akun Cloudflare).
+
+### Batasan yang disengaja
+
+| Rencana | Yang dikerjakan | Alasan |
+|---|---|---|
+| Kolom QR `NOT NULL` sejak awal | Nullable, dibuat lazy saat cetak pertama | Peserta import/lama tetap valid; tidak ada token mati |
+| Satu endpoint GET untuk label | `POST` karena panggilan pertama menerbitkan kredensial | GET tidak boleh punya efek samping |
+| Template label bebas | Katalog field tetap + urutan, maksimal 4 | Bukan page builder; menjaga validasi dan privasi |
+| PDF di server | `window.print()` saja | Tidak ada dependensi PDF dan tidak membebani Worker |
+| Rotasi token saat cetak ulang | Tidak pernah; hanya ciphertext yang bisa dirotasi | QR tercetak harus tetap sah |
+
+Verifikasi lokal (dijalankan ulang pada 1 November 2026): `typecheck` PASS, `lint` PASS,
+`test` **356/356** (33 file) PASS, `build` PASS. Spike label: 50 label halaman pertama
+~59 ms, cetak ulang p50 ~24 ms; crypto 100 kredensial p50 9–12 ms (dasar menurunkan batas
+menjadi 50). Cetak fisik, kamera, dan CPU produksi tetap **NOT RUN**.
+
+---
+
 ## FASE 3 — Pemindaian dan pencatatan kehadiran
 
 **Tujuan**: fitur inti bekerja di HP sungguhan. Ini fase dengan risiko teknis tertinggi.
@@ -339,9 +394,10 @@ Verifikasi: `typecheck`, `lint`, `test` **296/296** (27 file), `build` — PASS.
 4. Umpan balik hasil: `present` (hijau + nama), `duplicate` (kuning + jam pertama), `not_found`/`wrong_event` (merah), dengan bunyi berbeda per hasil.
 5. Antrean retry klien: bila request gagal karena jaringan, ulangi dengan `Idempotency-Key`; hasil `duplicate` ditampilkan sebagai "sudah tercatat", bukan error.
 6. PWA-lite: `manifest.json` + `display: standalone` agar terasa seperti aplikasi (tanpa service worker offline).
-7. Migrasi baru menambah `qr_token_hash` + `qr_issued_at` dan unique index
-   `idx_participant_token` ke `participants`; peserta yang sudah ada diisi tokennya lebih dulu
-   sebelum constraint `NOT NULL` dipasang. Jangan mengedit `0003_participants.sql`.
+7. **Sudah selesai di Tahap 4**, jangan diulang: `migrations/0004_qr.sql` menambah kelima kolom
+   QR (`qr_token_hash`, `qr_token_ciphertext`, `qr_token_nonce`, `qr_key_version`,
+   `qr_issued_at`) dan `uq_participant_qr_hash`. Fase 3 hanya membaca/menulis lewat kolom itu.
+   Jangan mengedit `0003_participants.sql` atau `0004_qr.sql`.
 
 ### Kriteria penerimaan (terukur)
 

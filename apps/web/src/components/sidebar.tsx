@@ -43,7 +43,7 @@ export function Sidebar({
     <aside
       id="app-sidebar"
       className={cn(
-        "fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-border/70 bg-background transition-[width] duration-200 ease-out motion-reduce:transition-none lg:flex",
+        "app-chrome fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-border/70 bg-background transition-[width] duration-200 ease-out motion-reduce:transition-none lg:flex",
         collapsed ? "w-[76px]" : "w-[248px]",
       )}
     >

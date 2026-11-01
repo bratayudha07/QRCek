@@ -1,6 +1,7 @@
 export * from "./types";
 export * from "./auth";
 export * from "./events";
+export * from "./labels";
 export * from "./participants";
 export * from "./schemas/auth";
 export * from "./schemas/events";

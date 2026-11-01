@@ -12,6 +12,9 @@
   // Test-only pepper. Never reuse this value outside `vitest`.
   "vars": {
     "SESSION_PEPPER": "test-only-pepper-0123456789abcdef",
+    "QR_PEPPER": "test-only-qr-pepper-0123456789abcdef",
+    "QR_ENCRYPTION_KEY": "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+    "QR_KEY_VERSION": "1",
     "ALLOWED_ORIGINS": "https://absensi.test"
   },
   "d1_databases": [

@@ -20,6 +20,7 @@ const participant: AppRoute = {
   participantId: "P1",
 };
 const importRoute: AppRoute = { name: "import", eventId: "EVT" };
+const labelsRoute: AppRoute = { name: "labels", eventId: "EVT" };
 
 describe("navMode", () => {
   it("gives officers the staff set and everyone else the admin set", () => {
@@ -77,6 +78,7 @@ describe("isGlobalNavActive", () => {
     expect(isGlobalNavActive("events", participants)).toBe(true);
     expect(isGlobalNavActive("events", participant)).toBe(true);
     expect(isGlobalNavActive("events", importRoute)).toBe(true);
+    expect(isGlobalNavActive("events", labelsRoute)).toBe(true);
     expect(isGlobalNavActive("events", { name: "dashboard" })).toBe(false);
   });
 
@@ -86,6 +88,7 @@ describe("isGlobalNavActive", () => {
     expect(isGlobalNavActive("settings", { name: "settings" })).toBe(true);
     expect(isGlobalNavActive("staffHome", { name: "staffHome" })).toBe(true);
     expect(isGlobalNavActive("staffHome", overview)).toBe(true);
+    expect(isGlobalNavActive("staffHome", labelsRoute)).toBe(true);
     expect(isGlobalNavActive("staffHome", { name: "events" })).toBe(false);
     expect(isGlobalNavActive("staffScan", { name: "staffScan" })).toBe(true);
     expect(isGlobalNavActive("staffHistory", { name: "staffHistory" })).toBe(true);
@@ -98,6 +101,7 @@ describe("event context", () => {
     expect(eventIdOf(overview)).toBe("EVT");
     expect(eventIdOf(participant)).toBe("EVT");
     expect(eventIdOf(importRoute)).toBe("EVT");
+    expect(eventIdOf(labelsRoute)).toBe("EVT");
     expect(eventIdOf({ name: "events" })).toBeNull();
     expect(eventIdOf({ name: "dashboard" })).toBeNull();
   });
@@ -107,6 +111,7 @@ describe("event context", () => {
     expect(eventTabForRoute(participants)).toBe("participants");
     expect(eventTabForRoute(participant)).toBe("participants");
     expect(eventTabForRoute(importRoute)).toBe("participants");
+    expect(eventTabForRoute(labelsRoute)).toBe("participants");
     expect(eventTabForRoute({ name: "events" })).toBeNull();
   });
 

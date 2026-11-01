@@ -87,7 +87,7 @@ Dua lapis, dipisah tegas: **secret Worker tidak pernah masuk bundle frontend**.
 
 | Lapis | File | Isi | Git |
 |---|---|---|---|
-| Worker (secret) | `apps/api/.dev.vars` | `QR_PEPPER`, `SESSION_PEPPER`, `GOOGLE_SA_KEY` | **tidak** di-commit |
+| Worker (secret) | `apps/api/.dev.vars` | `SESSION_PEPPER`, `QR_PEPPER`, `QR_ENCRYPTION_KEY`, `QR_KEY_VERSION`, `GOOGLE_SA_KEY` | **tidak** di-commit |
 | Worker (contoh) | `.dev.vars.example` | daftar kunci dengan nilai kosong | di-commit |
 | Web (publik) | `apps/web/.env.local` | `VITE_API_BASE_URL` | **tidak** di-commit |
 | Web (contoh) | `apps/web/.env.example` | dokumentasi variabel | di-commit |
@@ -231,6 +231,8 @@ npx wrangler d1 create absensi-db            # isi database_id di wrangler.jsonc
 npx wrangler d1 migrations apply absensi-db --remote
 npx wrangler secret put SESSION_PEPPER
 npx wrangler secret put QR_PEPPER
+npx wrangler secret put QR_ENCRYPTION_KEY   # openssl rand -base64 32
+npx wrangler secret put QR_KEY_VERSION      # 1 selama belum ada rotasi
 cd ../.. && npm run build
 cd apps/api && npx wrangler deploy
 
@@ -239,7 +241,7 @@ cd ../.. && export SESSION_PEPPER='<secret produksi>'
 npm run seed:superadmin -- --remote --yes --base-url https://<domain-anda>
 ```
 
-`wrangler.jsonc` masih memakai `database_id` placeholder (`00000000-…`) dan **wajib** diganti sebelum deploy. `SESSION_PEPPER` adalah secret, bukan `vars`; jangan pernah menaruhnya di `wrangler.jsonc` atau bundle frontend.
+`wrangler.jsonc` masih memakai `database_id` placeholder (`00000000-…`) dan **wajib** diganti sebelum deploy. Semua pepper/kunci adalah secret, bukan `vars`; jangan pernah menaruhnya di `wrangler.jsonc` atau bundle frontend.
 
 ## Dokumen
 

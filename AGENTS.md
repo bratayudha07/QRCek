@@ -10,7 +10,7 @@ Multi-Event Parent Attendance Management System — platform absensi berbasis QR
 2. **Jangan tambah dependensi tanpa alasan tertulis.** Setiap dependency baru wajib disertai 1 baris justifikasi di deskripsi PR/commit: masalah apa yang diselesaikan dan kenapa tidak bisa pakai Web API/`node:`/kode sendiri. Perhatikan batasan #1.
 3. **Jangan implementasi fitur sebelum fase-nya dibuka.** Ikuti *Roadmap*. Kalau user minta fitur fase lanjut, kerjakan fondasinya dulu atau tanyakan.
 4. **Aturan integritas data dan keamanan di bawah bersifat permanen.** Jangan dilemahkan demi kecepatan, jangan dipindah ke level UI saja.
-5. **Jangan commit secret.** Token Google, `QR_SIGNING_SECRET`, `SESSION_SECRET` hanya lewat `.dev.vars` (gitignored) dan `wrangler secret put`.
+5. **Jangan commit secret.** Token Google, `SESSION_PEPPER`, `QR_PEPPER`, `QR_ENCRYPTION_KEY` hanya lewat `.dev.vars` (gitignored) dan `wrangler secret put`.
 
 ## Target layout (monorepo, npm workspaces)
 
@@ -55,7 +55,7 @@ Urutan verifikasi sebelum menyatakan selesai: **`typecheck` → `lint` → `test
 
 ## Quirk Cloudflare (baca ini sebelum menulis kode)
 
-- **Worker bukan Node.** Tidak ada `fs`, `path`, `process.env`, `Buffer` default, atau `crypto` dari Node. Baca config lewat parameter `env` (`env.DB`, `env.QR_SIGNING_SECRET`). Web Crypto tersedia sebagai `globalThis.crypto`.
+- **Worker bukan Node.** Tidak ada `fs`, `path`, `process.env`, `Buffer` default, atau `crypto` dari Node. Baca config lewat parameter `env` (`env.DB`, `env.SESSION_PEPPER`, `env.QR_PEPPER`). Web Crypto tersedia sebagai `globalThis.crypto`.
 - **D1 adalah SQLite**, bukan Postgres. Tidak ada stored procedure, tidak ada transaksi interaktif. Untuk operasi atomik multi-statement gunakan `env.DB.batch([...])`, dan `ALTER TABLE` sangat terbatas — rencanakan skema dengan hati-hati karena mengubahnya setelah migrasi berjalan itu mahal.
 - **Auth passwordless berbasis token — tidak ada password, tidak ada PBKDF2/bcrypt.** Berlaku `docs/ARSITEKTUR.md` ADR-002. Aturan:
   - Kredensial (token aktivasi, token sesi, kode pemulihan) dibuat dari `crypto.getRandomValues` dengan entropi ≥ 100 bit (sesi 256-bit).
@@ -72,7 +72,7 @@ Urutan verifikasi sebelum menyatakan selesai: **`typecheck` → `lint` → `test
 ## Integritas data (permanen)
 
 - **Absensi ganda dicegah di database, bukan di kode aplikasi.** Wajib ada unique index `(event_id, participant_id)` pada tabel kehadiran. Tangani error unique-constraint sebagai hasil "sudah absen", bukan error 500.
-- **QR peserta bersifat opaque + bertanda tangan.** Payload = id/token acak + HMAC-SHA256, bukan NIK/email/nama. QR harus bisa dicabut/dirotasi tanpa mengubah data peserta.
+- **QR peserta bersifat opaque.** Payload = `absensi:v1:<token 256-bit acak>`, tanpa NIK/email/nama. D1 menyimpan `HMAC-SHA256(QR_PEPPER, token)` untuk lookup **dan** ciphertext AES-256-GCM (`QR_ENCRYPTION_KEY`) agar cetak ulang memakai token yang sama; tidak ada plaintext. QR harus bisa dicabut/dirotasi tanpa mengubah data peserta (ADR-003, ADR-006).
 - **Tidak ada pemindaian lintas acara.** Setiap scan wajib memvalidasi bahwa peserta, petugas, dan sesi acara berada di `event_id` yang sama.
 - **Audit log append-only.** Tidak ada klien yang boleh `UPDATE`/`DELETE` baris audit. Koreksi absensi = operasi baru yang tercatat (siapa, kapan, alasan, nilai lama → nilai baru), bukan penimpaan diam-diam.
 - **Koreksi absensi butuh otorisasi server-side** (admin acara, bukan petugas), dan tercatat di audit log pada request yang sama.
@@ -126,9 +126,9 @@ Urutan verifikasi sebelum menyatakan selesai: **`typecheck` → `lint` → `test
 
 **Fase 1 — Identitas & acara.** Skema DB (users, events, memberships). Auth + sesi. CRUD acara oleh superadmin, penugasan admin/petugas. *Gate: tes otorisasi lintas acara lulus.* Catatan: undangan/aktivasi petugas via QR sudah dikerjakan di fase ini (lebih awal dari Fase 3); Fase 3 tinggal bagian scan.
 
-**Fase 2 — Peserta & QR.** Import CSV, pembuatan peserta, QR bertanda tangan, halaman cetak/unduh QR. *Gate: tes HMAC + tes parsing CSV lulus.*
+**Fase 2 — Peserta & QR.** Import CSV, pembuatan peserta, kredensial QR opaque, halaman cetak label. Bagian non-QR selesai di Tahap 3; kolom QR, kredensial, dan cetak label selesai di Tahap 4 (`migrations/0004_qr.sql`). *Gate: tes HMAC + tes parsing CSV lulus.*
 
-**Fase 3 — Scan & kehadiran.** Endpoint scan, pemindai kamera di mobile, pencegahan ganda di DB (undangan/aktivasi sudah ada di Fase 1). *Gate: tes scan ganda & lintas acara lulus.*
+**Fase 3 — Scan & kehadiran.** Endpoint scan, pemindai kamera di mobile, pencegahan ganda di DB (undangan/aktivasi sudah ada di Fase 1; kolom QR sudah ada sejak Tahap 4, tidak perlu migrasi baru). *Gate: tes scan ganda & lintas acara lulus.*
 
 **Fase 4 — Rekap & audit.** Dashboard rekap per acara, audit log, koreksi absensi ber-otorisasi. *Gate: tes koreksi tanpa otorisasi ditolak.*
 

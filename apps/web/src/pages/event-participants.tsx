@@ -1,5 +1,5 @@
 import type { EventSummary, ParticipantSummary } from "@absensi/shared";
-import { ChevronRight, Download, FileDown, FileUp, LoaderCircle, Plus, Search } from "lucide-react";
+import { ChevronRight, Download, FileDown, FileUp, LoaderCircle, Plus, QrCode as QrCodeIcon, Search } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { AppLink } from "@/components/app-link";
@@ -18,7 +18,7 @@ import {
   participantTemplateUrl,
   type ParticipantListParams,
 } from "@/lib/participants";
-import { importPath, participantPath } from "@/lib/router";
+import { importPath, labelsPath, participantPath } from "@/lib/router";
 
 const PAGE_SIZE = 25;
 
@@ -202,6 +202,18 @@ export function EventParticipantsPage({ eventId }: { eventId: string }) {
       )}
 
       <section className="space-y-3">
+        {canWrite && (
+          <div className="flex flex-wrap gap-2">
+            <AppLink
+              href={labelsPath(eventId)}
+              className="inline-flex h-8 items-center gap-2 rounded-md border border-border px-3 text-sm font-medium transition-colors duration-150 hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2"
+            >
+              <QrCodeIcon aria-hidden="true" className="size-4" />
+              Label QR
+            </AppLink>
+          </div>
+        )}
+
         {canWrite && !isArchived && (
           <div className="flex flex-wrap gap-2">
             <AppLink

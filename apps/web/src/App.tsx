@@ -7,6 +7,7 @@ import { ActivationPage } from "@/pages/activation";
 import { AccountPage } from "@/pages/account";
 import { ActivityPage } from "@/pages/activity";
 import { DashboardPage } from "@/pages/dashboard";
+import { EventLabelsPage } from "@/pages/event-labels";
 import { EventWorkspacePage } from "@/pages/event-workspace";
 import { EventsPage } from "@/pages/events";
 import { HomeRedirectPage } from "@/pages/home-redirect";
@@ -52,6 +53,8 @@ function renderPage(route: AppRoute): ReactNode {
       );
     case "import":
       return <ImportPage eventId={route.eventId} />;
+    case "labels":
+      return <EventLabelsPage eventId={route.eventId} />;
     case "activity":
       return <ActivityPage />;
     case "settings":

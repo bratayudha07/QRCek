@@ -14,6 +14,12 @@ export interface ParticipantRow {
   status: ParticipantStatus;
   created_at: number;
   updated_at: number;
+  /** QR credential columns from `0004_qr.sql`; NULL until the first print. */
+  qr_token_hash: string | null;
+  qr_token_ciphertext: string | null;
+  qr_token_nonce: string | null;
+  qr_key_version: number | null;
+  qr_issued_at: number | null;
 }
 
 export interface ParticipantFilters {
@@ -119,6 +125,117 @@ export async function findParticipant(
     .prepare("SELECT * FROM participants WHERE event_id = ? AND id = ?")
     .bind(eventId, participantId)
     .first<ParticipantRow>();
+}
+
+/**
+ * Label printing pages through active participants with the same keyset as the
+ * list endpoint: `(created_at DESC, id DESC)`. Active-only is a WHERE clause,
+ * not a client-side filter, so an inactive participant can never receive a
+ * fresh credential by being printed.
+ */
+export async function listParticipantsForLabels(
+  db: D1Database,
+  eventId: string,
+  cursor: CursorFilter | null,
+  limit: number,
+): Promise<ParticipantRow[]> {
+  const clauses = ["event_id = ?", "status = 'active'"];
+  const bindings: Array<string | number> = [eventId];
+
+  if (cursor) {
+    clauses.push("(created_at < ? OR (created_at = ? AND id < ?))");
+    bindings.push(cursor.createdAt, cursor.createdAt, cursor.id);
+  }
+
+  bindings.push(limit + 1);
+
+  const { results } = await db
+    .prepare(
+      `SELECT * FROM participants
+        WHERE ${clauses.join(" AND ")}
+        ORDER BY created_at DESC, id DESC
+        LIMIT ?`,
+    )
+    .bind(...bindings)
+    .all<ParticipantRow>();
+
+  return results;
+}
+
+/**
+ * Explicit selection mode. Chunked defensively because D1 caps bound parameters
+ * per query at 100; the API currently allows at most 50 ids. Ordering is applied
+ * here so the caller gets the same stable order as the cursor path.
+ */
+export async function listParticipantsByIdsForLabels(
+  db: D1Database,
+  eventId: string,
+  participantIds: readonly string[],
+): Promise<ParticipantRow[]> {
+  const rows: ParticipantRow[] = [];
+  const unique = [...new Set(participantIds)];
+  const chunkSize = 90;
+
+  for (let offset = 0; offset < unique.length; offset += chunkSize) {
+    const chunk = unique.slice(offset, offset + chunkSize);
+    const placeholders = chunk.map(() => "?").join(", ");
+
+    const { results } = await db
+      .prepare(
+        `SELECT * FROM participants
+          WHERE event_id = ? AND status = 'active' AND id IN (${placeholders})`,
+      )
+      .bind(eventId, ...chunk)
+      .all<ParticipantRow>();
+
+    rows.push(...results);
+  }
+
+  rows.sort((a, b) => {
+    if (a.created_at !== b.created_at) return b.created_at - a.created_at;
+    if (a.id === b.id) return 0;
+    return a.id < b.id ? 1 : -1;
+  });
+
+  return rows;
+}
+
+/**
+ * Writes the five credential columns only when no credential exists yet.
+ *
+ * The `qr_token_hash IS NULL` guard is the concurrency contract: two printers
+ * racing on the same participant produce one winner and one `changes = 0`
+ * result. The loser must re-read and reuse the winner's credential instead of
+ * rotating it (see `routes/labels.ts`).
+ */
+export function claimQrCredentialStatement(
+  db: D1Database,
+  eventId: string,
+  participantId: string,
+  credential: {
+    tokenHash: string;
+    ciphertext: string;
+    nonce: string;
+    keyVersion: number;
+  },
+  now: number,
+): D1PreparedStatement {
+  return db
+    .prepare(
+      `UPDATE participants
+          SET qr_token_hash = ?, qr_token_ciphertext = ?, qr_token_nonce = ?,
+              qr_key_version = ?, qr_issued_at = ?
+        WHERE event_id = ? AND id = ? AND qr_token_hash IS NULL`,
+    )
+    .bind(
+      credential.tokenHash,
+      credential.ciphertext,
+      credential.nonce,
+      credential.keyVersion,
+      now,
+      eventId,
+      participantId,
+    );
 }
 
 export async function findParticipantByRef(

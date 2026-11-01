@@ -224,7 +224,7 @@ npx wrangler d1 execute absensi-db --local \
 
 ---
 
-## 7. Autentikasi: secret, akun pertama, dan perilaku sesi (Tahap 2)
+## 7. Autentikasi dan kredensial QR: secret, akun pertama, dan perilaku sesi (Tahap 2–4)
 
 ### 7.1 Secret
 
@@ -294,6 +294,81 @@ IP di-hash dengan `SESSION_PEPPER`, jadi tidak ada IP mentah di D1. Pembersihan 
 `rate_limits` lama belum dijadwalkan (butuh cron Fase 6); tabel ini tumbuh satu baris per
 (bucket, jendela), jadi volumenya kecil untuk skala saat ini.
 
+### 7.5 Secret QR (Tahap 4)
+
+| Nama | Dipakai untuk | Cara memasang |
+|---|---|---|
+| `QR_PEPPER` | `HMAC-SHA256(QR_PEPPER, token)` → `qr_token_hash`, kunci lookup saat scan | lokal: `apps/api/.dev.vars`; produksi: `wrangler secret put QR_PEPPER` |
+| `QR_ENCRYPTION_KEY` | AES-256-GCM atas token, agar cetak ulang memakai QR yang sama | `wrangler secret put QR_ENCRYPTION_KEY` (nilai base64 dari 32 byte) |
+| `QR_KEY_VERSION` | Generasi kunci enkripsi; boleh berupa `vars`/secret, default `1` | `wrangler secret put QR_KEY_VERSION` atau`vars` |
+
+```bash
+# Generate kunci AES-256 (base64, tepat 32 byte setelah decode)
+openssl rand -base64 32
+
+# Lokal: tambahkan ke apps/api/.dev.vars (gitignored)
+QR_PEPPER="$(openssl rand -base64 32)"
+QR_ENCRYPTION_KEY="$(openssl rand -base64 32)"
+QR_KEY_VERSION="1"
+
+# Produksi
+cd apps/api
+npx wrangler secret put QR_PEPPER
+npx wrangler secret put QR_ENCRYPTION_KEY
+npx wrangler secret put QR_KEY_VERSION
+```
+
+Aturan:
+
+- **Tidak ada fallback plaintext.** Kalau `QR_PEPPER` kosong/terlalu pendek atau
+  `QR_ENCRYPTION_KEY` hilang/bukan base64 32 byte, endpoint label mengembalikan
+  `500 INTERNAL` dengan pesan "Periksa konfigurasi server". Itu perilaku yang benar.
+- **Mengganti `QR_PEPPER` membatalkan semua QR yang sudah dicetak.** Hash lama tidak cocok
+  lagi saat scan. Ini tombol darurat bila pepper bocor; setelahnya semua peserta harus
+  dicetak ulang dengan kredensial baru.
+- **Mengganti `QR_ENCRYPTION_KEY` tanpa rotasi membuat cetak ulang gagal keras** dengan pesan
+  versi kunci tidak cocok. Jangan pernah "memperbaikinya" dengan kembali ke plaintext.
+- `QR_KEY_VERSION` harus bilangan bulat ≥ 1. Nilai tidak valid adalah kesalahan konfigurasi,
+  bukan default diam-diam.
+
+#### Rotasi kunci enkripsi (tanpa membatalkan QR tercetak)
+
+Tujuan: token dan `qr_token_hash` **tidak berubah**; hanya ciphertext, nonce, dan versi yang
+diperbarui. QR yang sudah dicetak tetap sah.
+
+1. Siapkan kunci baru: `NEW_KEY="$(openssl rand -base64 32)"`, `NEW_VERSION=<versi+1>`.
+2. Jalankan skrip satu kali (Worker/Node dengan akses D1) yang membaca baris
+   `WHERE qr_key_version = <versi lama>`, memanggil `reencryptQrCredential(configLama,
+   configBaru, row)`, lalu `UPDATE participants SET qr_token_ciphertext = ?, qr_token_nonce = ?,
+   qr_key_version = ? WHERE id = ?`. Skrip harus memproses per batch dan berhenti pada error
+   pertama; jangan pernah menulis plaintext.
+3. Setelah **semua** baris versi lama selesai, pasang `QR_ENCRYPTION_KEY` baru dan
+   `QR_KEY_VERSION` baru sebagai secret Worker.
+4. Verifikasi: cetak ulang satu label lama → QR harus identik dengan hasil sebelumnya, dan scan
+   (Tahap 5) harus menemukan peserta yang sama.
+
+Jangan membalik urutan langkah 2 dan 3: Worker dengan kunci baru tidak bisa mendekripsi baris
+lama, dan itu akan terlihat sebagai `500` pada cetak ulang (bukan kerusakan data).
+
+### 7.6 Mencetak dan mencetak ulang label QR
+
+- Kredensial dibuat **saat label pertama dicetak**, bukan saat peserta dibuat/diimpor. Peserta
+  yang belum pernah dicetak tidak punya baris QR dan tidak bisa dipakai untuk scan (Tahap 5).
+- **Cetak ulang tidak pernah merotasi token.** Halaman label memanggil endpoint yang sama;
+  hasilnya `qr` identik. Kalau hasilnya berbeda, itu bug, bukan fitur.
+- Dua admin yang mencetak bersamaan untuk peserta yang sama menghasilkan satu kredensial:
+  `UPDATE ... WHERE qr_token_hash IS NULL` menentukan pemenang, yang kalah membaca ulang.
+- Batas satu request adalah **50 label**. Halaman label memilih maksimal 50 peserta; untuk
+  acara besar, cetak per batch. Angka ini diturunkan dari 100 setelah pengukuran CPU lokal
+  (lihat §2 dan `docs/RENCANA_PENGUJIAN.md`).
+- Format: A4 3 × 8 (24 label/halaman, margin 8 mm) dan stiker 50 × 30 mm (satu label/halaman).
+  Cetak lewat dialog browser (`window.print()`); tidak ada PDF di server. Di dialog cetak,
+  matikan "Headers and footers" dan set skala 100% agar ukuran mm tidak berubah.
+- Label hanya memuat field yang tidak kosong. QR selalu ada; nama acara opsional. Field yang
+  diizinkan: nama, referensi eksternal, kategori, telepon, email, catatan (maksimal 4).
+- Setiap cetak sukses menulis `audit_log` `qr.labels_exported` (jumlah, terbit/daur ulang,
+  format, field) tanpa token atau PII.
+
 ---
 
 ## 8. Yang belum diverifikasi dan kapan akan diverifikasi
@@ -308,6 +383,9 @@ IP di-hash dengan `SESSION_PEPPER`, jadi tidak ada IP mentah di D1. Pembersihan 
 | Rate limit di balik NAT bersama | Setelah ada pengguna nyata | Amati 429 pada petugas yang berbagi IP; naikkan batas bila perlu |
 | CI hijau | Setelah repo di-push ke GitHub | Workflow `.github/workflows/ci.yml` sudah ada, belum pernah dijalankan |
 | Batas baris import final | Setelah pengukuran CPU | Naikkan `MAX_IMPORT_ROWS` bertahap sambil memantau CPU |
+| Batas batch label 50 | Setelah deploy pertama | Ukur CPU `wrangler tail` saat cetak 50 label; angka lokal (crypto 100 ≈ 12 ms p50) adalah proksi, bukan CPU tertagih |
+| Ukuran dan keterbacaan QR hasil cetak | Uji manual sebelum rilis | Cetak A4 + stiker, ukur dengan penggaris, pindai dengan kamera HP |
+| Rotasi kunci QR | Sebelum rotasi produksi pertama | Uji prosedur §7.5 di database salinan; pastikan QR lama tetap identik |
 
 **Repo ini punya remote** (`git@github.com:bratayudha07/QRCek.git`, SSH), tetapi commit
 `e8699f6` serta pekerjaan Tahap 2 dan Tahap 3 belum ter-push karena kunci SSH di mesin ini

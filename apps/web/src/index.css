@@ -76,3 +76,133 @@
     animation: none;
   }
 }
+
+/*
+ * QR label printing (Tahap 4).
+ *
+ * The same DOM is used for the on-screen preview and for `window.print()`.
+ * Physical sizes are expressed in millimetres, never pixels, so the printed
+ * result does not depend on the screen DPI. `@page` rules are injected by the
+ * label page because they differ per format.
+ */
+.label-sheet {
+  background: #fff;
+  color: #000;
+}
+
+.label-page {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3mm;
+  break-after: page;
+  page-break-after: always;
+}
+
+.label-page:last-child {
+  break-after: auto;
+  page-break-after: auto;
+}
+
+.label-sheet-sticker {
+  display: block;
+}
+
+.label-cell {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 2.5mm;
+  overflow: hidden;
+  padding: 1.5mm;
+  background: #fff;
+  color: #000;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.label-sheet-a4 .label-cell {
+  height: 32mm;
+}
+
+.label-sheet-sticker .label-cell {
+  width: 50mm;
+  height: 30mm;
+  break-after: page;
+  page-break-after: always;
+}
+
+.label-sheet-sticker .label-cell:last-child {
+  break-after: auto;
+  page-break-after: auto;
+}
+
+.label-text {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.6mm;
+}
+
+.label-event {
+  margin: 0;
+  overflow: hidden;
+  font-size: 6.5pt;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.label-primary {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  font-size: 9.5pt;
+  font-weight: 700;
+  line-height: 1.15;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.label-line {
+  margin: 0;
+  overflow: hidden;
+  font-size: 7.5pt;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Screen-only cut guide; never printed. */
+@media screen {
+  .label-cell {
+    border: 0.25mm dashed #d4d4d4;
+  }
+}
+
+@media print {
+  html,
+  body {
+    background: #fff !important;
+  }
+
+  /* Navigation, headers, and the control panels are not part of the sheet. */
+  .app-chrome,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  main {
+    padding: 0 !important;
+  }
+
+  .page-enter {
+    animation: none !important;
+  }
+
+  .label-cell {
+    border: 0 !important;
+  }
+}

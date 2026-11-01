@@ -4,6 +4,7 @@ import {
   EVENT_TAB_KEYS,
   eventTabPath,
   importPath,
+  labelsPath,
   parseRoute,
   participantPath,
   participantsPath,
@@ -57,6 +58,11 @@ describe("parseRoute", () => {
 
     expect(parseRoute("/admin/events/01JEVENT/participants/import")).toEqual({
       name: "import",
+      eventId: "01JEVENT",
+    });
+
+    expect(parseRoute("/admin/events/01JEVENT/participants/labels")).toEqual({
+      name: "labels",
       eventId: "01JEVENT",
     });
   });
@@ -125,6 +131,7 @@ describe("routePath", () => {
     expect(participantsPath("EVT")).toBe("/admin/events/EVT/participants");
     expect(participantPath("EVT", "P1")).toBe("/admin/events/EVT/participants/P1");
     expect(importPath("EVT")).toBe("/admin/events/EVT/participants/import");
+    expect(labelsPath("EVT")).toBe("/admin/events/EVT/participants/labels");
   });
 
   it("encodes ids in generated paths", () => {

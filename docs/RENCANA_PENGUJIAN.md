@@ -82,10 +82,12 @@ Target: setiap fungsi murni punya tes tanpa I/O. Daftar minimum:
 | `domain/backoff.ts` | Urutan delay; batas maksimum 30 menit; jitter dalam rentang; `attempts = 8` → `dead` |
 | `domain/attendance-status.ts` | Koreksi `present → excused` sah; `absent → present` sah; nilai tak dikenal ditolak; `reason` < 10 karakter ditolak |
 | `domain/permissions.ts` | Matriks peran → aksi (lihat §5) |
+| `domain/qr-token.ts` | Token 256-bit base64url (43 char); payload opaque `absensi:v1:` ditolak untuk versi/panjang lain; hash bergantung pepper; AES-GCM round-trip; nonce unik; ciphertext/nonce cacat ditolak; versi kunci berbeda gagal keras; re-enkripsi rotasi mempertahankan token + hash; konfigurasi secret hilang/invalid gagal, tidak pernah fallback plaintext |
 | `web/lib/format.ts` | Konversi datetime-local ↔ UTC memakai zona waktu acara; DST; nilai kosong |
 | `web/lib/router.ts` | Semua path kanonis, semua tab acara, path lama (`/acara…`, `/akun`) tetap diparse lalu dipetakan ke URL kanonis, id ter-encode, trailing slash, path tak dikenal |
 | `web/lib/navigation.ts` | Navigasi admin vs petugas, label sidebar/bottom, item aktif per route, route → tab acara, id acara hanya di dalam workspace |
 | `web/lib/participants.ts` | Query list/ekspor: trim, encoding, cursor, `query=` kosong tidak dikirim |
+| `web/lib/qr-labels.ts` | Toggle field menjaga minimal 1/maksimal 4; reorder tidak memutasi input; nilai kosong dibuang; paginasi A4 24/halaman; CSS cetak A4 vs stiker 50 × 30 mm |
 | `shared/schemas/*` | Batas atas/bawah setiap field; field tak dikenal; tipe salah |
 
 Contoh bentuk tes yang baik:
@@ -156,6 +158,30 @@ Nama tes di bawah adalah file nyata di `apps/api/src/test/`, bukan rencana.
 | I-27 | **PASS** | `health.test.ts` → "does not leak stack traces on unknown routes" |
 | I-28 | **PASS** | `participants.crud.test.ts` → "paginates with an opaque cursor without duplicates" |
 | I-01…I-07, I-17…I-23 | **NOT IMPLEMENTED** | Fase 3+ (scan, audit, outbox). Sengaja belum ada |
+
+#### Status implementasi per akhir Tahap 4
+
+Kredensial QR dan label menambah tes berikut (semua **PASS**):
+
+| Area | Tes | File |
+|---|---|---|
+| Domain | Format token/payload, hash, AES-GCM, nonce, versi kunci, rotasi, konfigurasi secret | `qr-token.test.ts` |
+| API | Terbit untuk semua peserta aktif; hanya kolom terenkripsi yang tersimpan | `labels.api.test.ts` |
+| API | 401 tanpa sesi, 403 untuk `officer`, 404 lintas acara, id acara lain diabaikan | `labels.api.test.ts` |
+| API | Peserta nonaktif tidak pernah menerima kredensial | `labels.api.test.ts` |
+| API | **Cetak ulang menghasilkan `qr` identik** dan tidak menulis ulang kredensial | `labels.api.test.ts` |
+| API | CSRF header + `Origin` wajib pada `POST` | `labels.api.test.ts` |
+| API | Paginasi kursor tanpa duplikat/kehilangan; batas 50; cursor rusak → 400 | `labels.api.test.ts` |
+| API | Audit `qr.labels_exported` tanpa token/hash/ciphertext | `labels.api.test.ts` |
+| API | Konfigurasi: default, simpan urutan, sembunyikan nilai kosong, tolak field asing/duplikat/>4, `officer` read-only, `archived` → 422 | `labels.api.test.ts` |
+| DB | Kolom QR nullable; unique hash; `CHECK` panjang/versi; klaim sekali; import tidak merotasi; audit append-only | `qr.db.test.ts` |
+| DB | Daftar migrasi memuat `0004_qr.sql`; `event_label_config` + `audit_log` ada; tabel fase lanjut tetap tidak ada | `db.integration.test.ts` |
+| Web | Helper field/paginasi/CSS cetak | `apps/web/src/lib/qr-labels.test.ts` |
+
+**NOT RUN (butuh browser/perangkat):** tampilan visual halaman label, perilaku `window.print()`,
+page break fisik, ukuran QR di kertas, pembacaan QR hasil cetak oleh kamera HP, serta keyboard
+dan reduced-motion pada halaman label. Tidak ada jsdom/testing-library/Playwright di proyek ini
+(AGENTS.md: E2E belum dibuka), jadi semua itu masuk checklist manual §8, bukan tes otomatis.
 
 Tambahan yang tidak ada di daftar awal tetapi diuji karena Tahap 2 dan 3:
 
@@ -307,7 +333,9 @@ Ambang tambahan yang dicek manual sebelum merge:
 | Tampilan kamera nyata di HP | Tidak bisa direproduksi di CI; diuji manual per rilis dengan checklist perangkat |
 | `getUserMedia` di iOS Safari | Butuh perangkat fisik |
 | Google Sheets sungguhan | Kuota + tidak deterministik; diuji dengan fake, verifikasi manual di staging |
-| `window.print()` | Perilaku browser |
+| `window.print()` dan page break fisik | Perilaku browser + printer; diverifikasi manual |
+| Ukuran QR di kertas dan hasil pindainya | Butuh printer dan kamera fisik |
+| Tampilan visual halaman label / screenshot | Belum ada jsdom/testing-library; dibuka di Fase 6 bila perlu |
 | Tampilan visual / screenshot | Belum ada kebutuhan; dibuka di Fase 6 bila perlu |
 
 ---
@@ -336,3 +364,13 @@ Checklist singkat yang dijalankan pada staging sebelum deploy produksi:
 12. Reduced motion: aktifkan preferensi sistem → transisi halaman dan indikator tab berhenti.
 13. Navigasi antar halaman: scroll kembali ke atas, fokus pindah ke area konten (Tab berikutnya
     masuk ke konten, bukan tertinggal di sidebar), dan `#main-content` tetap jadi target skip link.
+14. Label A4: pilih 30 peserta → pratinjau → cetak. Periksa 24 label di halaman pertama, 6 di
+    halaman kedua, tidak ada label terpotong di batas halaman, dan margin 8 mm konsisten.
+15. Label stiker 50 × 30 mm: cetak satu halaman per label; ukur dengan penggaris (lebar 50 mm,
+    tinggi 30 mm) dan pastikan QR + quiet zone tidak terpotong.
+16. Cetak ulang label yang sama dari halaman label → QR identik dengan hasil pertama (bandingkan
+    dengan pemindai, bukan dengan mata).
+17. Halaman label di HP: daftar peserta, pemilihan, dan tombol cetak tetap bisa dipakai; tidak
+    ada kontrol yang tertutup bottom nav.
+18. Secret QR sengaja dikosongkan di lokal → pratinjau menampilkan pesan konfigurasi server,
+    bukan halaman kosong atau QR rusak.

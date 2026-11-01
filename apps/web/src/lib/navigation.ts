@@ -77,7 +77,8 @@ export function isGlobalNavActive(key: GlobalNavKey, route: AppRoute): boolean {
         route.name === "events" ||
         route.name === "event" ||
         route.name === "participant" ||
-        route.name === "import"
+        route.name === "import" ||
+        route.name === "labels"
       );
     case "activity":
       return route.name === "activity";
@@ -88,7 +89,8 @@ export function isGlobalNavActive(key: GlobalNavKey, route: AppRoute): boolean {
         route.name === "staffHome" ||
         route.name === "event" ||
         route.name === "participant" ||
-        route.name === "import"
+        route.name === "import" ||
+        route.name === "labels"
       );
     case "staffScan":
       return route.name === "staffScan";
@@ -118,6 +120,7 @@ export function eventIdOf(route: AppRoute): string | null {
     case "event":
     case "participant":
     case "import":
+    case "labels":
       return route.eventId;
     default:
       return null;
@@ -131,6 +134,7 @@ export function eventTabForRoute(route: AppRoute): EventTab | null {
       return route.tab;
     case "participant":
     case "import":
+    case "labels":
       return "participants";
     default:
       return null;

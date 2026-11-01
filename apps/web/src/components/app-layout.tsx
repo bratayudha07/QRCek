@@ -74,7 +74,7 @@ export function AppLayout({ route, children }: { route: AppRoute; children: Reac
     <div className="min-h-dvh bg-background">
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground focus:outline-2 focus:outline-offset-2"
+        className="app-chrome sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground focus:outline-2 focus:outline-offset-2"
       >
         Lewati ke konten
       </a>
@@ -94,12 +94,12 @@ export function AppLayout({ route, children }: { route: AppRoute; children: Reac
         id="main-content"
         tabIndex={-1}
         className={cn(
-          "min-h-dvh pb-[calc(4.5rem+env(safe-area-inset-bottom))] outline-none transition-[padding-left] duration-200 ease-out motion-reduce:transition-none lg:pb-0",
+          "min-h-dvh pb-[calc(4.5rem+env(safe-area-inset-bottom))] outline-none transition-[padding-left] duration-200 ease-out motion-reduce:transition-none lg:pb-0 print:pb-0 print:pl-0",
           collapsed ? "lg:pl-[76px]" : "lg:pl-[248px]",
         )}
       >
         {showSwitcher && eventId !== null && (
-          <div className="border-b border-border/70 bg-background px-4 py-2 lg:hidden">
+          <div className="app-chrome border-b border-border/70 bg-background px-4 py-2 lg:hidden">
             <div className="mx-auto w-full max-w-3xl">
               <EventSwitcher
                 id="event-switcher-mobile"
@@ -112,7 +112,7 @@ export function AppLayout({ route, children }: { route: AppRoute; children: Reac
         )}
 
         {eventId !== null && activeTab !== null && (
-          <div className="border-b border-border/70 bg-background">
+          <div className="app-chrome border-b border-border/70 bg-background">
             <div className="mx-auto w-full max-w-3xl px-4 py-2.5">
               <EventTabs eventId={eventId} active={activeTab} />
             </div>

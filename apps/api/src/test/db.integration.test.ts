@@ -30,6 +30,7 @@ describe("D1 integration", () => {
       "0001_init.sql",
       "0002_auth.sql",
       "0003_participants.sql",
+      "0004_qr.sql",
     ]);
   });
 
@@ -77,8 +78,9 @@ describe("D1 integration", () => {
    * before its gate was opened (AGENTS.md "Roadmap bertahap"). Adding a table is
    * exactly when you want a failing test, not a silent scope creep.
    *
-   * Tahap 3 (Fase 2, non-QR) owns participants. Attendance, audit, and the sync
-   * outbox still belong to later phases.
+   * Tahap 3 (Fase 2, non-QR) owns participants. Tahap 4 (Fase 2, QR) adds the
+   * QR credential columns, `event_label_config`, and `audit_log`. Attendance and
+   * the sync outbox still belong to later phases.
    */
   it("ships Fase 2 participant tables and nothing from later phases", async () => {
     const { results } = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
@@ -87,7 +89,9 @@ describe("D1 integration", () => {
     const tables = results.map((r) => r.name);
 
     for (const expected of [
+      "audit_log",
       "device_credentials",
+      "event_label_config",
       "event_memberships",
       "events",
       "invites",
@@ -100,7 +104,7 @@ describe("D1 integration", () => {
       expect(tables).toContain(expected);
     }
 
-    for (const forbidden of ["attendance", "audit_log", "audit_logs", "outbox", "sheet_rows"]) {
+    for (const forbidden of ["attendance", "outbox", "sheet_rows", "sync_state"]) {
       expect(tables).not.toContain(forbidden);
     }
   });

@@ -38,6 +38,7 @@ export type AppRoute =
   | { name: "event"; eventId: string; tab: EventTab }
   | { name: "participant"; eventId: string; participantId: string }
   | { name: "import"; eventId: string }
+  | { name: "labels"; eventId: string }
   | { name: "activity" }
   | { name: "settings" }
   | { name: "staffHome" }
@@ -122,9 +123,9 @@ export function parseRoute(pathname: string): AppRoute {
       }
 
       if (segments.length === 5 && fourth === "participants" && fifth !== undefined) {
-        return fifth === "import"
-          ? { name: "import", eventId }
-          : { name: "participant", eventId, participantId: decodeSegment(fifth) };
+        if (fifth === "import") return { name: "import", eventId };
+        if (fifth === "labels") return { name: "labels", eventId };
+        return { name: "participant", eventId, participantId: decodeSegment(fifth) };
       }
 
       return { name: "notFound" };
@@ -166,6 +167,11 @@ export function importPath(eventId: string): string {
   return `${participantsPath(eventId)}/import`;
 }
 
+/** `/admin/events/:id/participants/labels` — QR label management and printing. */
+export function labelsPath(eventId: string): string {
+  return `${participantsPath(eventId)}/labels`;
+}
+
 /**
  * Canonical path for a route, or `null` when the route has no address (404).
  *
@@ -188,6 +194,8 @@ export function routePath(route: AppRoute): string | null {
       return participantPath(route.eventId, route.participantId);
     case "import":
       return importPath(route.eventId);
+    case "labels":
+      return labelsPath(route.eventId);
     case "activity":
       return paths.activity;
     case "settings":

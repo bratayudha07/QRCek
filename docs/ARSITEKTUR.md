@@ -80,7 +80,7 @@ Karena entropi sumbernya tinggi, hash cepat (HMAC) sudah memadai secara kriptogr
 
 ### ADR-003 — QR peserta: **token opaque, hash di server** (bukan payload bertanda tangan)
 
-QR berisi `absensi:v1:<base64url(128-bit random)>`. Yang disimpan di DB adalah `HMAC-SHA256(QR_PEPPER, token)` dengan indeks unik.
+QR berisi `absensi:v1:<base64url(256-bit random)>`. Yang disimpan di DB adalah `HMAC-SHA256(QR_PEPPER, token)` dengan indeks unik (Tahap 4 memakai 256 bit, di atas ambang 128 bit yang disyaratkan).
 
 - Alasan memilih ini dibanding payload berisi data + HMAC: tidak ada PII di QR (kalau difoto orang lain, tidak ada yang bocor); rotasi/revokasi cukup mengganti satu baris; ukuran QR tetap kecil sehingga mudah dipindai kamera HP murah dan tetap terbaca saat dicetak kecil.
 - **Konsekuensi**: pemindaian **butuh jaringan** (harus lookup ke DB). Tidak ada mode offline. Ini non-goal yang disengaja; lihat §9.
@@ -96,6 +96,21 @@ Setiap peserta menempati **satu baris tetap** di spreadsheet. Absensi = satu sel
 ### ADR-005 — Outbox persisten di D1, digerakkan **Cron Trigger**
 
 Tidak ada queue berbayar. Penulisan ke Google Sheets dilakukan oleh cron yang mengambil sejumlah kecil item dari tabel `outbox` (detail di §7).
+
+### ADR-006 — Kredensial QR: **hash untuk lookup + ciphertext untuk cetak ulang**
+
+Token peserta adalah 32 byte acak (256 bit). Dua secret dengan tugas terpisah:
+
+| Secret | Fungsi | Efek jika berubah |
+|---|---|---|
+| `QR_PEPPER` | `HMAC-SHA256` → `qr_token_hash` (43 karakter), yang dicari saat scan | Semua QR tercetak berhenti valid |
+| `QR_ENCRYPTION_KEY` | AES-256-GCM → `qr_token_ciphertext` (79 karakter) + `qr_token_nonce` (16 karakter) | Cetak ulang gagal sampai kunci versi itu tersedia |
+
+- **Kenapa dua secret**: hash tidak bisa dibalik, jadi tanpa ciphertext cetak ulang harus merotasi QR. Ciphertext memungkinkan token yang sama dipulihkan tanpa menyimpan plaintext di D1. Memisahkan pepper dari kunci enkripsi berarti merotasi salah satunya tidak memaksa merotasi yang lain.
+- **Kenapa bukan payload bertanda tangan**: sama seperti ADR-003 — QR tidak memuat PII, dan lookup tetap satu indeks unik. Tanda tangan tidak diperlukan karena penerbitan kredensial terjadi di server yang sama dengan verifikasi.
+- **Versi kunci**: `qr_key_version` disimpan per baris. Dekripsi dengan versi berbeda **gagal keras** (tidak ada fallback plaintext). Rotasi = dekripsi dengan kunci lama, enkripsi ulang dengan kunci baru, hash dan token tidak berubah sehingga QR yang sudah dicetak tetap sah. Prosedurnya di `docs/OPERASIONAL.md` §7.5.
+- **Cetak ulang**: kredensial dibuat hanya saat `qr_token_hash IS NULL`; `UPDATE ... WHERE qr_token_hash IS NULL` membuat dua printer yang balapan menghasilkan satu pemenang, dan yang kalah membaca ulang kredensial pemenang. Mencetak ulang **tidak pernah** merotasi token.
+- **Konsekuensi**: setiap cetak ulang melakukan dekripsi AES-GCM untuk setiap label. Batch dibatasi 50 label/request (`QR_LABEL_BATCH_MAX`) setelah pengukuran menunjukkan 100 label melewati budget CPU ±10 ms.
 
 ---
 
@@ -223,9 +238,9 @@ Ringkasan di sini; detail lengkap di [`DESAIN_DATABASE.md`](./DESAIN_DATABASE.md
 Entitas inti: `events`, `users`, `event_memberships`, `participants`, `attendance`, `audit_log`, `outbox`, `sheet_rows`, `sessions`, `device_credentials`, `invites`, `recovery_codes`, `rate_limits`.
 
 Sudah ada di database (migrasi terkini): `app_meta`, `users`, `events`, `event_memberships`,
-`device_credentials`, `sessions`, `invites`, `recovery_codes`, `rate_limits`, `participants`.
-`attendance`, `audit_log`, `outbox`, dan `sheet_rows` menyusul pada fasenya; kolom QR pada
-`participants` juga belum ada (lihat deviasi di `DESAIN_DATABASE.md` §3).
+`device_credentials`, `sessions`, `invites`, `recovery_codes`, `rate_limits`, `participants`
+(termasuk kolom QR sejak `0004_qr.sql`), `event_label_config`, dan `audit_log`.
+`attendance`, `outbox`, `sheet_rows`, dan `sync_state` menyusul pada fasenya.
 
 Prinsip yang tidak boleh dilanggar:
 
@@ -290,12 +305,40 @@ Prinsip yang tidak boleh dilanggar:
    sehingga impor ulang idempoten.
 5. Duplikasi di dalam file (`external_ref` sama, atau nama + kontak sama) dilaporkan dan
    dilewati; baris valid lain tetap disimpan (partial import).
-6. Setiap peserta baru akan mendapat `qr_token_hash` unik pada fase QR; kolom itu belum ada
-   di Tahap 3.
+6. Import tidak menyentuh kolom QR. Kredensial dibuat **lazy** saat label pertama kali
+   dicetak (Tahap 4); import ulang tidak merotasi QR dan tidak menghapus kredensial yang ada.
 7. Import ditolak jika acara sudah `archived` (`422`) atau konfirmasi melebihi 10/jam per
    acara (`429` + `Retry-After`).
 
-### 6.4 Pemindaian QR dan pencatatan absensi
+### 6.4 Mencetak label QR
+
+```
+POST /api/events/:eventId/participants/qr-labels
+body: { format: "a4" | "sticker", participantIds?: string[], limit?: number, cursor?: string }
+```
+
+1. Otorisasi `qr:print` (event_admin/superadmin) dan scope `event_id`; peserta dari acara lain
+   tidak pernah masuk hasil.
+2. Hanya peserta `status = 'active'`. Dua mode: `participantIds` (pilihan eksplisit, maksimal
+   50) atau tanpa itu = semua peserta aktif dengan paginasi kursor `(created_at, id)`.
+3. Untuk peserta tanpa kredensial: buat token 256-bit, hash HMAC, enkripsi AES-GCM, lalu
+   `UPDATE ... WHERE qr_token_hash IS NULL` dalam batch. Untuk yang sudah punya: dekripsi
+   ciphertext. Token yang sama selalu menghasilkan QR yang sama.
+4. Respons hanya memuat `participantId`, `qr` (`absensi:v1:<token>`), dan `values` (field
+   terpilih yang tidak kosong), plus info acara dan `nextCursor`. Tidak ada hash, ciphertext,
+   nonce, atau kunci.
+5. Satu baris `audit_log` (`qr.labels_exported`) mencatat jumlah, jumlah terbit/daur ulang,
+   format, dan pilihan field — tanpa token.
+
+Konfigurasi field disimpan per acara di `event_label_config` (`GET`/`PUT
+/api/events/:eventId/label-config`). Isinya hanya subset kolom peserta yang sudah ada
+(`fullName`, `externalRef`, `category`, `phone`, `email`, `note`), maksimal 4 field, berurutan.
+QR selalu dicetak; nama acara opsional. Tidak ada template engine.
+
+Format cetak: A4 3 × 8 (24 label/halaman, margin 8 mm) dan stiker 50 × 30 mm (satu label per
+halaman). Keduanya memakai `window.print()`; tidak ada PDF di server.
+
+### 6.5 Pemindaian QR dan pencatatan absensi
 
 ```
 POST /api/events/:eventId/scan   body: { qr: "absensi:v1:<token>" }
@@ -312,7 +355,7 @@ Urutan di Worker (target ≤ 5 statement):
 
 Kontrak respons selalu HTTP 200 untuk hasil bisnis (`present`, `duplicate`, `not_found`, `wrong_event`, `event_closed`, `participant_inactive`); 4xx/5xx hanya untuk kesalahan autentikasi/validasi/sistem. Ini membuat UI scanner sederhana: satu jalur sukses, satu jalur error.
 
-### 6.5 Koreksi absensi
+### 6.6 Koreksi absensi
 
 1. `event_admin` (bukan `officer`) → `POST /api/attendance/:id/correction` dengan `{ status, reason }`; `reason` wajib ≥ 10 karakter.
 2. Satu `db.batch()`: `UPDATE attendance`, `INSERT audit_log` (`attendance.corrected`, berisi `before`/`after`), `INSERT/UPDATE outbox`.
@@ -392,7 +435,7 @@ Detail status, kolom, dan algoritma ada di [`DESAIN_DATABASE.md`](./DESAIN_DATAB
 | Riwayat absensi per-scan di Sheets | Sheet hanya proyeksi keadaan terkini; riwayat di `audit_log` |
 | Notifikasi email/WhatsApp | Butuh layanan pihak ketiga |
 | Multi-bahasa | UI Bahasa Indonesia saja |
-| QR peserta & pemindaian di Tahap 3 | Ditunda ke fase QR; kolom QR tidak dibuat lebih awal agar tidak ada token mati |
+| Pemindaian QR di Tahap 4 | Cetak label selesai di Tahap 4; endpoint scan dan UI kamera dibuka di Tahap 5 agar tiap fase punya gerbang sendiri |
 | Dashboard rekap penuh di Tahap 3 | Tahap 3 hanya menampilkan hitungan peserta; rekap kehadiran butuh tabel `attendance` |
 
 ---
@@ -401,7 +444,7 @@ Detail status, kolom, dan algoritma ada di [`DESAIN_DATABASE.md`](./DESAIN_DATAB
 
 | # | Risiko | Dampak | Mitigasi |
 |---|---|---|---|
-| R1 | **CPU 10 ms** terlampaui pada request berat (import CSV besar, verifikasi token) | Error 1102 | Batas 1.000 baris/import (diturunkan dari 5.000 setelah spike Fase 0); semua kripto memakai HMAC/SHA-256; CPU produksi belum terukur |
+| R1 | **CPU 10 ms** terlampaui pada request berat (import CSV besar, batch label) | Error 1102 | Batas 1.000 baris/import dan 50 label/request (diturunkan dari 100 setelah spike Tahap 4: 100 kredensial ≈ 12 ms p50 di lokal); semua kripto memakai HMAC/SHA-256/AES-GCM native; CPU produksi belum terukur |
 | R2 | **50 query/invokasi** (free) terlampaui saat N+1 | Request gagal | Aturan: satu endpoint ≤ 6 statement; agregasi rekap dilakukan dalam satu `GROUP BY`, bukan loop |
 | R3 | **D1 500 MB** penuh karena audit log | Write ditolak → sistem mati | Retensi audit dapat dikonfigurasi; export arsip sebelum purge; dashboard menampilkan ukuran DB |
 | R4 | **100k baris tulis/hari** habis (indeks ikut dihitung sebagai baris tulis) | Import massal gagal | Import dipecah per hari; estimasi ditulis di `COSTS_AND_LIMITS.md` |

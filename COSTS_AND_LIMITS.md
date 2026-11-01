@@ -214,20 +214,22 @@ Tidak ada langkah berbayar, tetapi ada langkah **manual** yang harus dilakukan s
 | 4 | Google Cloud project + aktifkan **Google Sheets API** | console.cloud.google.com | Gratis |
 | 5 | Buat **service account**, unduh kunci JSON | Google Cloud | Gratis |
 | 6 | Share spreadsheet ke email service account sebagai **Editor** | Google Sheets | Gratis |
-| 7 | Simpan `GOOGLE_SA_KEY`, `QR_PEPPER`, `SESSION_PEPPER` sebagai secret Worker | `wrangler secret put` | Gratis |
+| 7 | Simpan `GOOGLE_SA_KEY`, `QR_PEPPER`, `QR_ENCRYPTION_KEY`, `QR_KEY_VERSION`, `SESSION_PEPPER` sebagai secret Worker | `wrangler secret put` | Gratis |
 | 8 | Repo GitHub + Actions | github.com | Gratis (repo publik/privat dalam kuota free) |
 
 **Secret yang dibutuhkan** (semuanya dibuat sendiri, tidak ada yang dibeli):
 
 | Nama | Isi | Cara membuat |
 |---|---|---|
-| `QR_PEPPER` | 32 byte acak base64 | `openssl rand -base64 32` |
+| `QR_PEPPER` | 32 byte acak base64 (HMAC token QR) | `openssl rand -base64 32` |
+| `QR_ENCRYPTION_KEY` | base64 dari tepat 32 byte (AES-256-GCM) | `openssl rand -base64 32` |
+| `QR_KEY_VERSION` | bilangan bulat ≥ 1; default `1` | Tetapkan `1` sampai ada rotasi |
 | `SESSION_PEPPER` | 32 byte acak base64 | `openssl rand -base64 32` |
 | `GOOGLE_SA_KEY` | isi `private_key` dari JSON service account | Unduh dari Google Cloud |
 
 `IP_HASH_PEPPER` dapat memakai `SESSION_PEPPER` (domain terpisah via prefix), atau dibuat terpisah bila diinginkan.
 
-**Ketiga secret ini tidak boleh berubah setelah produksi berjalan.** Mengganti `QR_PEPPER` akan membuat seluruh QR peserta yang sudah dicetak tidak valid; mengganti `SESSION_PEPPER` akan mengeluarkan semua pengguna.
+**Secret ini tidak boleh berubah sembarangan setelah produksi berjalan.** Mengganti `QR_PEPPER` membuat seluruh QR peserta yang sudah dicetak tidak valid; mengganti `SESSION_PEPPER` mengeluarkan semua pengguna. Mengganti `QR_ENCRYPTION_KEY` hanya aman lewat prosedur rotasi di `docs/OPERASIONAL.md` §7.5 (token dan hash tidak berubah).
 
 ---
 

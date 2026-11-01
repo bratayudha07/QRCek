@@ -217,6 +217,9 @@ bocor).
 | `POST` | `/api/events/:eventId/participants/import` | event_admin, superadmin | Import CSV (pratinjau + konfirmasi) |
 | `GET` | `/api/events/:eventId/participants/export` | event_admin, superadmin | Unduh CSV (PII) |
 | `GET` | `/api/events/:eventId/participants/template` | event_admin, superadmin | Template header-only |
+| `POST` | `/api/events/:eventId/participants/qr-labels` | event_admin, superadmin | Terbitkan/baca kredensial QR untuk label (POST karena bisa menulis) |
+| `GET` | `/api/events/:eventId/label-config` | officer+ | Konfigurasi field label acara |
+| `PUT` | `/api/events/:eventId/label-config` | event_admin, superadmin | Simpan field + urutan + nama acara |
 
 ### Daftar, pencarian, dan paginasi
 
@@ -318,10 +321,84 @@ CRLF agar aman dibuka di Excel, dan menetralkan formula injection (`=`, `@`).
 - ekspor: `attachment; filename="peserta-<slug-acara>.csv"`
 - template: `attachment; filename="template-peserta.csv"`
 
-### QR (belum tersedia)
+### Label QR
 
-`GET /api/events/:id/qr-labels`, rotasi token QR, dan kolom QR pada `participants` **tidak
-ada** di Tahap 3. Semua itu milik fase QR dan akan ditambahkan lewat migrasi baru.
+```
+POST /api/events/:eventId/participants/qr-labels
+```
+
+Memakai **POST**, bukan GET, karena panggilan pertama menerbitkan kredensial (efek samping).
+Otorisasi `qr:print` (event_admin/superadmin) + scope `event_id`; acara `archived` tetap boleh
+dicetak karena penerbitan kredensial bukan perubahan data bisnis.
+
+```jsonc
+// request
+{
+  "format": "a4" | "sticker",        // default "a4"
+  "participantIds": ["01J…"],        // opsional, maks 50, tanpa duplikat
+  "fields": ["fullName", "category"], // opsional; default = konfigurasi acara
+  "showEventName": true,              // opsional; default = konfigurasi acara
+  "limit": 50,                        // 1–50, default 50 (hanya mode kursor)
+  "cursor": "<opaque>"                // hanya mode "semua peserta aktif"
+}
+```
+
+Dua mode:
+
+| Mode | Kapan | Urutan | `nextCursor` |
+|---|---|---|---|
+| Pilihan eksplisit | `participantIds` diisi | `created_at DESC, id DESC` | selalu `null` |
+| Semua peserta aktif | `participantIds` tidak diisi | `created_at DESC, id DESC` | kursor halaman berikutnya |
+
+`participantIds` dan `cursor` tidak boleh dikirim bersamaan (`400`). `limit` > 50, lebih dari
+50 id, id duplikat, atau cursor rusak → `400 VALIDATION_ERROR`.
+
+```jsonc
+// 200
+{
+  "ok": true,
+  "data": {
+    "event": { "id": "01J…", "name": "Wisuda 2026" },
+    "format": "a4",
+    "fields": ["fullName", "category"],
+    "showEventName": true,
+    "labels": [
+      {
+        "participantId": "01J…",
+        "qr": "absensi:v1:<43 karakter base64url>",
+        "values": { "fullName": "Siti", "category": "Kelas 7" }
+      }
+    ],
+    "nextCursor": null
+  }
+}
+```
+
+- Hanya peserta `status = 'active'`; id nonaktif atau milik acara lain diabaikan (tidak ada
+  kebocoran lintas acara).
+- `values` hanya berisi field terpilih yang **tidak kosong**, mengikuti urutan `fields`.
+- Respons **tidak pernah** memuat `qr_token_hash`, ciphertext, nonce, `qr_key_version`, atau
+  kunci. `qr` adalah payload scan, bukan token mentah tersendiri.
+- Cetak ulang selalu menghasilkan `qr` yang sama; kredensial tidak pernah dirotasi oleh cetak.
+- Kegagalan konfigurasi secret atau dekripsi → `500 INTERNAL` dengan pesan yang menyuruh
+  memeriksa konfigurasi server (tidak ada fallback plaintext).
+- Setiap respons sukses non-kosong menulis satu baris `audit_log` `qr.labels_exported`
+  (jumlah, terbit/daur ulang, format, pilihan field; tanpa token atau PII).
+
+Konfigurasi label:
+
+```
+GET /api/events/:eventId/label-config
+PUT /api/events/:eventId/label-config   body: { fields: [...], showEventName: boolean }
+```
+
+- Field yang diizinkan hanya kolom peserta yang sudah ada: `fullName`, `externalRef`,
+  `category`, `phone`, `email`, `note`; maksimal 4, tidak boleh duplikat, minimal 1.
+- Default bila belum pernah disimpan: `["fullName", "externalRef", "category"]`,
+  `showEventName: true`.
+- `PUT` ditolak `422 BUSINESS_RULE` untuk acara `archived`; `officer` boleh `GET` tetapi
+  `403` untuk `PUT`.
+- QR selalu dicetak; konfigurasi tidak pernah memengaruhi penerbitan kredensial.
 
 ---
 
