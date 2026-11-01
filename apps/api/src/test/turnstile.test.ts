@@ -59,6 +59,20 @@ describe("verifyTurnstile", () => {
     expect(result.errorCodes).toEqual(["http-500"]);
   });
 
+  it("preserves structured provider errors from non-2xx responses", async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({ success: false, "error-codes": ["bad-request"] }, 400),
+    );
+
+    const result = await verifyTurnstile({
+      secret: "secret",
+      token: "token",
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    expect(result).toEqual({ success: false, errorCodes: ["bad-request"] });
+  });
+
   it("fails closed when the request itself throws", async () => {
     const fetchImpl = vi.fn(async () => {
       throw new Error("network down");
@@ -161,6 +175,9 @@ describe("registration with Turnstile enabled", () => {
     });
 
     const sent = new URLSearchParams(String(fetchMock.mock.calls[0]?.[1]?.body));
+    expect(new Headers(fetchMock.mock.calls[0]?.[1]?.headers).get("content-type")).toBe(
+      "application/x-www-form-urlencoded",
+    );
     expect(sent.get("secret")).toBe("test-turnstile-secret");
     expect(sent.get("response")).toBe("tok-ok");
   });

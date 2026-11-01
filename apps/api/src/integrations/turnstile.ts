@@ -42,12 +42,14 @@ export async function verifyTurnstile(options: VerifyTurnstileOptions): Promise<
     const response = await doFetch(SITEVERIFY_URL, {
       method: "POST",
       body,
+      headers: { "content-type": "application/x-www-form-urlencoded" },
       signal: controller.signal,
     });
 
-    if (!response.ok) return { success: false, errorCodes: [`http-${response.status}`] };
-
-    const payload = (await response.json()) as {
+    // Read structured error codes even for non-2xx responses. This makes
+    // provider-side request errors actionable without logging response bodies,
+    // which could contain sensitive values if the upstream ever changes shape.
+    const payload = (await response.json().catch(() => ({}))) as {
       success?: unknown;
       "error-codes"?: unknown;
     };
@@ -55,6 +57,13 @@ export async function verifyTurnstile(options: VerifyTurnstileOptions): Promise<
     const errorCodes = Array.isArray(payload["error-codes"])
       ? payload["error-codes"].filter((code): code is string => typeof code === "string")
       : [];
+
+    if (!response.ok) {
+      return {
+        success: false,
+        errorCodes: errorCodes.length > 0 ? errorCodes : [`http-${response.status}`],
+      };
+    }
 
     return { success: payload.success === true, errorCodes };
   } catch {
