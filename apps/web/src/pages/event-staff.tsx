@@ -99,13 +99,17 @@ export function EventStaffPage({ eventId }: { eventId: string }) {
   async function shareInvite() {
     if (!createdInvite) return;
     const url = `${window.location.origin}${createdInvite.activatePath}`;
+    setNotice("Membuka opsi berbagi undangan…");
     if (typeof navigator.share === "function") {
       try {
         await navigator.share({ title: "Undangan petugas Absensi", text: "Buka tautan ini untuk mengaktifkan akun petugas.", url });
         setNotice("Undangan berhasil dibagikan.");
         return;
       } catch (error) {
-        if (error instanceof Error && error.name === "AbortError") return;
+        if (error instanceof Error && error.name === "AbortError") {
+          setNotice("Menu berbagi ditutup. QR dan tautan undangan tetap tersedia di bawah.");
+          return;
+        }
       }
     }
     await copyInvite();
