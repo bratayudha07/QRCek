@@ -5,9 +5,13 @@ import type { Env } from "./env";
 import { apiNotFound, dispatchRoutes } from "./http/router";
 import type { RouteContext, RouteDefinition, RouteResult } from "./http/router";
 import { authRoutes } from "./routes/auth";
+import { attendanceRoutes } from "./routes/attendance";
+import { dashboardRoutes } from "./routes/dashboard";
 import { eventRoutes } from "./routes/events";
 import { labelRoutes } from "./routes/labels";
 import { participantRoutes } from "./routes/participants";
+import { scanRoutes } from "./routes/scan";
+import { syncRoutes } from "./routes/sync";
 
 /**
  * Route table.
@@ -33,6 +37,10 @@ export const ROUTES: readonly RouteDefinition[] = [
   ...eventRoutes,
   ...participantRoutes,
   ...labelRoutes,
+  ...scanRoutes,
+  ...attendanceRoutes,
+  ...dashboardRoutes,
+  ...syncRoutes,
 ];
 
 export interface HandleOptions {

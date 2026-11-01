@@ -128,6 +128,21 @@ export async function findParticipant(
 }
 
 /**
+ * Scan lookup (ADR-006). The hash is unique across the database, so this is one
+ * indexed query. The caller compares `event_id` afterwards to distinguish
+ * `wrong_event` — that comparison happens inside the Worker, never in the UI.
+ */
+export async function findParticipantByQrHash(
+  db: D1Database,
+  tokenHash: string,
+): Promise<ParticipantRow | null> {
+  return db
+    .prepare("SELECT * FROM participants WHERE qr_token_hash = ?")
+    .bind(tokenHash)
+    .first<ParticipantRow>();
+}
+
+/**
  * Label printing pages through active participants with the same keyset as the
  * list endpoint: `(created_at DESC, id DESC)`. Active-only is a WHERE clause,
  * not a client-side filter, so an inactive participant can never receive a

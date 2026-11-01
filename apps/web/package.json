@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@absensi/shared": "*",
+    "@zxing/browser": "0.1.5",
     "lucide-react": "^1.65.0",
     "qrcode-generator": "^2.0.4",
     "react": "^19.3.1",

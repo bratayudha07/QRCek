@@ -16,6 +16,10 @@ import { testEnv } from "./env";
  * mysteriously green authorization test.
  */
 const TABLES_CHILDREN_FIRST = [
+  "attendance",
+  "outbox",
+  "sheet_rows",
+  "sync_state",
   "sessions",
   "device_credentials",
   "recovery_codes",

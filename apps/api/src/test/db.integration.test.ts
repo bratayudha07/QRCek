@@ -31,6 +31,7 @@ describe("D1 integration", () => {
       "0002_auth.sql",
       "0003_participants.sql",
       "0004_qr.sql",
+      "0005_attendance_sync.sql",
     ]);
   });
 
@@ -39,7 +40,7 @@ describe("D1 integration", () => {
       .bind("schema_version")
       .first<{ value: string }>();
 
-    expect(row?.value).toBe("1");
+    expect(row?.value).toBe("5");
   });
 
   it("stores and updates a key", async () => {
@@ -79,33 +80,33 @@ describe("D1 integration", () => {
    * exactly when you want a failing test, not a silent scope creep.
    *
    * Tahap 3 (Fase 2, non-QR) owns participants. Tahap 4 (Fase 2, QR) adds the
-   * QR credential columns, `event_label_config`, and `audit_log`. Attendance and
-   * the sync outbox still belong to later phases.
+   * QR credential columns, `event_label_config`, and `audit_log`. Tahap 5
+   * (Fase 3–4) adds attendance, the sync outbox, `sheet_rows`, and `sync_state`.
    */
-  it("ships Fase 2 participant tables and nothing from later phases", async () => {
+  it("ships every table through Tahap 5 and nothing later", async () => {
     const { results } = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
       .all<{ name: string }>();
 
     const tables = results.map((r) => r.name);
 
     for (const expected of [
+      "attendance",
       "audit_log",
       "device_credentials",
       "event_label_config",
       "event_memberships",
       "events",
       "invites",
+      "outbox",
       "participants",
       "rate_limits",
       "recovery_codes",
       "sessions",
+      "sheet_rows",
+      "sync_state",
       "users",
     ]) {
       expect(tables).toContain(expected);
-    }
-
-    for (const forbidden of ["attendance", "outbox", "sheet_rows", "sync_state"]) {
-      expect(tables).not.toContain(forbidden);
     }
   });
 

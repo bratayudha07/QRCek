@@ -109,10 +109,7 @@ export function parseQrKeyVersion(raw: string | undefined): number {
  * weaker mode: a missing key must break printing, not silently store plaintext.
  */
 export async function qrKeyConfig(env: Env): Promise<QrKeyConfig> {
-  const pepper = (env.QR_PEPPER ?? "").trim();
-  if (pepper.length < 16) {
-    throw new QrConfigError("QR_PEPPER belum diatur dengan benar");
-  }
+  const pepper = qrPepper(env);
 
   const rawKey = (env.QR_ENCRYPTION_KEY ?? "").trim();
   if (rawKey === "") {
@@ -139,6 +136,21 @@ export async function qrKeyConfig(env: Env): Promise<QrKeyConfig> {
 
 export function generateQrToken(): string {
   return toBase64Url(randomBytes(QR_TOKEN_BYTES));
+}
+
+/**
+ * Validates and returns the scan pepper.
+ *
+ * Scanning only needs this value; requiring the encryption key here would make
+ * a lost `QR_ENCRYPTION_KEY` break attendance as well as reprinting.
+ */
+export function qrPepper(env: Env): string {
+  const pepper = (env.QR_PEPPER ?? "").trim();
+  if (pepper.length < 16) {
+    throw new QrConfigError("QR_PEPPER belum diatur dengan benar");
+  }
+
+  return pepper;
 }
 
 export function isQrToken(value: string): boolean {

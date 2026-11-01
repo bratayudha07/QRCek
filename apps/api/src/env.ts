@@ -41,4 +41,14 @@ export interface Env {
    * development sets it to the Vite origin.
    */
   ALLOWED_ORIGINS?: string;
+
+  /**
+   * Google service-account key for Sheets sync. Either the full service
+   * account JSON or the raw PKCS#8 private key. Server-side only: this value
+   * must never reach the frontend bundle or an API response.
+   */
+  GOOGLE_SA_KEY?: string;
+
+  /** Service account email when `GOOGLE_SA_KEY` contains only the key. */
+  GOOGLE_SA_EMAIL?: string;
 }

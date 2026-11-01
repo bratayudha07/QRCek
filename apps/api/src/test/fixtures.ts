@@ -1,6 +1,7 @@
 import type { EventRole, Role } from "@absensi/shared";
 
 import { newId } from "../domain/ids";
+import { issueQrCredential, qrKeyConfig } from "../domain/qr-token";
 import { hmacSha256, randomToken } from "../domain/token";
 import { testEnv } from "./env";
 import { DAY_MS, callApi, TEST_NOW } from "./http";
@@ -212,8 +213,39 @@ export async function createParticipant(
   return { id, externalRef, fullName };
 }
 
-/** Full passwordless login through the real endpoint, returning the cookie. */
-export async function loginViaInvite(
+/** Issues the same credential shape the label endpoint writes, for scan tests. */
+export async function issueParticipantQr(
+  eventId: string,
+  participantId: string,
+): Promise<string> {
+  const config = await qrKeyConfig(testEnv);
+  const { token, credential } = await issueQrCredential(config);
+
+  const result = await testEnv.DB.prepare(
+    `UPDATE participants
+        SET qr_token_hash = ?, qr_token_ciphertext = ?, qr_token_nonce = ?,
+            qr_key_version = ?, qr_issued_at = ?
+      WHERE event_id = ? AND id = ?`,
+  )
+    .bind(
+      credential.tokenHash,
+      credential.ciphertext,
+      credential.nonce,
+      credential.keyVersion,
+      TEST_NOW,
+      eventId,
+      participantId,
+    )
+    .run();
+
+  if ((result.meta.changes ?? 0) === 0) {
+    throw new Error("issueParticipantQr: participant not found");
+  }
+
+  return `absensi:v1:${token}`;
+}
+
+/** Full passwordless login through the real endpoint, returning the cookie. */export async function loginViaInvite(
   role: Role,
   eventId: string | null,
   now = TEST_NOW,
