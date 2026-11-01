@@ -13,13 +13,15 @@ export function QrCode({
   value,
   sizeMm,
   label = "Kode QR peserta",
+  centerLogo = false,
 }: {
   value: string;
   sizeMm: number;
   label?: string;
+  centerLogo?: boolean;
 }) {
   const { path, viewSize } = useMemo(() => {
-    const qr = qrcode(0, "M");
+    const qr = qrcode(0, centerLogo ? "H" : "M");
     qr.addData(value);
     qr.make();
 
@@ -36,7 +38,11 @@ export function QrCode({
     }
 
     return { path: segments.join(""), viewSize: count + quiet * 2 };
-  }, [value]);
+  }, [centerLogo, value]);
+
+  const logoSize = viewSize * 0.19;
+  const logoX = (viewSize - logoSize) / 2;
+  const logoInset = logoSize * 0.12;
 
   return (
     <svg
@@ -50,6 +56,26 @@ export function QrCode({
     >
       <rect width={viewSize} height={viewSize} fill="#ffffff" />
       <path d={path} fill="#000000" />
+      {centerLogo && (
+        <>
+          <rect
+            x={logoX - logoInset}
+            y={logoX - logoInset}
+            width={logoSize + logoInset * 2}
+            height={logoSize + logoInset * 2}
+            rx={viewSize * 0.035}
+            fill="#ffffff"
+          />
+          <image
+            href="/brand-mark.svg"
+            x={logoX}
+            y={logoX}
+            width={logoSize}
+            height={logoSize}
+            preserveAspectRatio="xMidYMid meet"
+          />
+        </>
+      )}
     </svg>
   );
 }

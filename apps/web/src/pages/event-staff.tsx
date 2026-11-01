@@ -1,8 +1,9 @@
 import type { InviteCreatedPayload, InviteSummary, MemberSummary } from "@absensi/shared";
-import { Copy, UserCog, UserMinus, UserPlus } from "lucide-react";
+import { Copy, QrCode as QrCodeIcon, Share2, UserCog, UserMinus, UserPlus } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { AppShell } from "@/components/app-shell";
+import { QrCode } from "@/components/qr-code";
 import { EmptyState, ErrorState, LoadingState, Notice } from "@/components/page-state";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/field";
@@ -82,8 +83,32 @@ export function EventStaffPage({ eventId }: { eventId: string }) {
       await navigator.clipboard.writeText(url);
       setNotice("Tautan aktivasi disalin. Tautan hanya ditampilkan kali ini.");
     } catch {
-      setNotice(`Salin tautan ini secara manual: ${url}`);
+      const temporaryInput = document.createElement("textarea");
+      temporaryInput.value = url;
+      temporaryInput.setAttribute("readonly", "");
+      temporaryInput.style.position = "fixed";
+      temporaryInput.style.opacity = "0";
+      document.body.append(temporaryInput);
+      temporaryInput.select();
+      const copied = document.execCommand("copy");
+      temporaryInput.remove();
+      setNotice(copied ? "Tautan aktivasi disalin." : "Salin tautan secara manual dari kotak tautan.");
     }
+  }
+
+  async function shareInvite() {
+    if (!createdInvite) return;
+    const url = `${window.location.origin}${createdInvite.activatePath}`;
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: "Undangan petugas Absensi", text: "Buka tautan ini untuk mengaktifkan akun petugas.", url });
+        setNotice("Undangan berhasil dibagikan.");
+        return;
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") return;
+      }
+    }
+    await copyInvite();
   }
 
   async function revoke(userId: string, displayName: string) {
@@ -142,11 +167,21 @@ export function EventStaffPage({ eventId }: { eventId: string }) {
           <Button className="sm:col-span-3" disabled={busy}>Buat tautan undangan</Button>
         </form>
         {createdInvite && (
-          <div className="space-y-2 rounded-lg bg-muted/60 p-3 text-sm">
-            <p className="font-medium">Kirim tautan ini kepada penerima. Tautan aktivasi hanya ditampilkan sekali.</p>
-            <div className="flex flex-wrap items-center gap-2">
-              <code className="min-w-0 flex-1 break-all">{window.location.origin}{createdInvite.activatePath}</code>
-              <Button type="button" variant="outline" size="sm" onClick={copyInvite}><Copy className="size-4" />Salin</Button>
+          <div className="grid gap-4 rounded-lg bg-muted/60 p-4 sm:grid-cols-[1fr_auto] sm:items-center">
+            <div className="space-y-3 text-sm">
+              <div>
+                <p className="font-medium">Bagikan undangan kepada petugas</p>
+                <p className="mt-1 text-muted-foreground">Tautan dan QR ini hanya tersedia saat ini, berlaku sampai {formatDateTime(createdInvite.expiresAt, "UTC")} UTC, dan hanya dapat dipakai sekali.</p>
+              </div>
+              <code className="block max-h-20 overflow-auto break-all rounded-md border bg-background p-2 text-xs">{window.location.origin}{createdInvite.activatePath}</code>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" onClick={() => void shareInvite()}><Share2 className="size-4" />Bagikan tautan</Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => void copyInvite()}><Copy className="size-4" />Salin tautan</Button>
+              </div>
+            </div>
+            <div className="flex flex-col items-center gap-2 rounded-lg border bg-white p-3">
+              <QrCode value={`${window.location.origin}${createdInvite.activatePath}`} sizeMm={38} label="QR undangan aktivasi petugas" centerLogo />
+              <span className="flex items-center gap-1 text-xs text-muted-foreground"><QrCodeIcon className="size-3.5" />QR undangan</span>
             </div>
           </div>
         )}

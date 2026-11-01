@@ -1,5 +1,5 @@
 import type { EventSummary } from "@absensi/shared";
-import { CalendarCheck2, ChevronsUpDown, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ChevronsUpDown, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 import { AppLink } from "./app-link";
 import { EventSwitcher } from "./event-switcher";
@@ -53,9 +53,7 @@ export function Sidebar({
           collapsed && "justify-center px-0",
         )}
       >
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <CalendarCheck2 aria-hidden="true" className="size-5" />
-        </span>
+        <img src="/brand-mark.svg" alt="" className="size-9 shrink-0 rounded-lg" />
         <span className={cn("truncate text-sm font-semibold tracking-tight", collapsed && "sr-only")}>
           Absensi
         </span>
