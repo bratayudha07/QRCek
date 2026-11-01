@@ -101,26 +101,27 @@ export async function dispatchRoutes(
   const { pathname } = new URL(request.url);
   const method = request.method.toUpperCase();
 
-  let params: Record<string, string> | null = null;
-  let matched: RouteDefinition | null = null;
-
-  for (const route of routes) {
-    if (route.method !== method) continue;
-
-    const candidate = matchPattern(route.pattern, pathname);
-    if (candidate) {
-      matched = route;
-      params = candidate;
-      break;
-    }
-  }
-
-  if (!matched || !params) return null;
-
   try {
-    if (!matched.public) {
-      assertCsrf(request, { allowedOrigins: allowedOrigins(env) });
+    // CSRF applies to every unsafe request, *including* public routes such as
+    // `/api/auth/activate` and `/api/auth/recover`. Skipping it there leaves a
+    // login-CSRF hole. Safe methods return early inside `assertCsrf`.
+    assertCsrf(request, { allowedOrigins: allowedOrigins(env) });
+
+    let params: Record<string, string> | null = null;
+    let matched: RouteDefinition | null = null;
+
+    for (const route of routes) {
+      if (route.method !== method) continue;
+
+      const candidate = matchPattern(route.pattern, pathname);
+      if (candidate) {
+        matched = route;
+        params = candidate;
+        break;
+      }
     }
+
+    if (!matched || !params) return null;
 
     const auth = matched.public ? null : await authenticate(request, env, now);
     if (!matched.public && !auth) {

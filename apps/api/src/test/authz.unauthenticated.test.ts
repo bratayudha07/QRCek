@@ -154,4 +154,34 @@ describe("CSRF protection", () => {
 
     expect(response.status).toBe(403);
   });
+
+  /**
+   * Regression: `assertCsrf` used to run only for non-public routes, so
+   * `/api/auth/activate` and `/api/auth/recover` accepted cross-site POSTs
+   * (login-CSRF). AGENTS.md and docs/ARSITEKTUR.md require every non-GET
+   * request to carry the header and a matching Origin, public route or not.
+   */
+  it.each([["/api/auth/activate"], ["/api/auth/recover"]])(
+    "rejects %s without the CSRF header, even though the route is public",
+    async (path) => {
+      const response = await callApi(path, { method: "POST", csrf: false, body: {} });
+
+      expect(response.status).toBe(403);
+      expect(errorCode(response)).toBe("CSRF_FAILED");
+    },
+  );
+
+  it.each([["/api/auth/activate"], ["/api/auth/recover"]])(
+    "rejects %s when Origin does not match the host",
+    async (path) => {
+      const response = await callApi(path, {
+        method: "POST",
+        body: {},
+        origin: "https://evil.example",
+      });
+
+      expect(response.status).toBe(403);
+      expect(errorCode(response)).toBe("CSRF_FAILED");
+    },
+  );
 });
