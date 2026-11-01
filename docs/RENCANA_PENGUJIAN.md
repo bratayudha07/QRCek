@@ -2,6 +2,16 @@
 
 Tujuan pengujian di proyek ini **bukan** mengejar angka coverage, tetapi membuktikan bahwa aturan yang mudah dilanggar tetap ditegakkan. Setiap aturan di `AGENTS.md` §"Integritas data" dan §"Keamanan" harus punya tes yang **gagal bila aturannya dihapus**.
 
+## Snapshot verifikasi terkini (1 November 2026)
+
+- Gerbang kode lokal terakhir yang tercatat: `typecheck` PASS, `lint` PASS, `test` PASS.
+- Suite terakhir berisi **423 tes di 41 file**. Angka ini adalah snapshot; hitung ulang saat
+  suite berubah dengan `npm run test`.
+- Integrasi Worker mencakup scan/duplikasi/lintas acara, koreksi dan audit, serta alur Sheets
+  dengan fake client. Klien web memiliki tes pemetaan prefix `/api/calendar`.
+- Pengujian kamera fisik, UI browser end-to-end, dan sinkronisasi ke Google Sheet sungguhan
+  belum dibuktikan. Lihat checklist manual §8.
+
 ---
 
 ## 1. Perkakas
@@ -10,7 +20,7 @@ Tujuan pengujian di proyek ini **bukan** mengejar angka coverage, tetapi membukt
 |---|---|---|
 | Unit | Vitest (environment `node`) | Fungsi murni di `apps/api/src/domain/`, helper di `packages/shared` |
 | Integrasi Worker | `@cloudflare/vitest-plugin` + `cloudflareTest()` | Menjalankan kode di `workerd` dengan binding D1 asli |
-| Integrasi SPA | Vitest + Testing Library | Hanya untuk logika non-visual (format tanggal, mapping error) |
+| Integrasi SPA | Vitest (environment `node`) | Tes helper/logika murni; tidak ada DOM Testing Library |
 | E2E | **Belum ada** | Dibuka di Fase 6 bila diperlukan |
 
 ⚠️ **Koreksi terhadap `AGENTS.md`**: nama paket yang benar saat ini adalah **`@cloudflare/vitest-plugin`** (bukan `@cloudflare/vitest-pool-workers`, yang merupakan nama lama), dan memerlukan **Vitest ≥ 4.1**. `AGENTS.md` sudah diperbarui pada bagian Pengujian.
@@ -142,7 +152,7 @@ it("menolak koreksi tanpa alasan yang memadai", () => {
 | I-32 | `register.creates-owner` | Admin baru membuat acara → baris acara + keanggotaan `event_admin` dalam satu batch | |
 | I-33 | **`turnstile.fail-closed`** | Token kosong / HTTP error / fetch throw → registrasi ditolak; tidak ada penulisan | |
 
-#### Status implementasi per akhir Tahap 3
+#### Status historis per akhir Tahap 3
 
 Nama tes di bawah adalah file nyata di `apps/api/src/test/`, bukan rencana.
 
@@ -162,9 +172,9 @@ Nama tes di bawah adalah file nyata di `apps/api/src/test/`, bukan rencana.
 | I-26 | **PASS** | `auth.activate.test.ts` → "rate limits repeated attempts per client" (11 → 429 + `Retry-After`) |
 | I-27 | **PASS** | `health.test.ts` → "does not leak stack traces on unknown routes" |
 | I-28 | **PASS** | `participants.crud.test.ts` → "paginates with an opaque cursor without duplicates" |
-| I-01…I-07, I-17…I-23 | **NOT IMPLEMENTED** | Fase 3+ (scan, audit, outbox). Sengaja belum ada |
+| I-01…I-07, I-17…I-23 | **Sudah memiliki cakupan pada implementasi saat ini** | Tabel ini merekam keadaan akhir Tahap 3; lihat tes terkini di `apps/api/src/test/` dan snapshot di atas. |
 
-#### Status implementasi per akhir Tahap 4
+#### Status historis per akhir Tahap 4
 
 Kredensial QR dan label menambah tes berikut (semua **PASS**):
 
@@ -180,7 +190,7 @@ Kredensial QR dan label menambah tes berikut (semua **PASS**):
 | API | Audit `qr.labels_exported` tanpa token/hash/ciphertext | `labels.api.test.ts` |
 | API | Konfigurasi: default, simpan urutan, sembunyikan nilai kosong, tolak field asing/duplikat/>4, `officer` read-only, `archived` → 422 | `labels.api.test.ts` |
 | DB | Kolom QR nullable; unique hash; `CHECK` panjang/versi; klaim sekali; import tidak merotasi; audit append-only | `qr.db.test.ts` |
-| DB | Daftar migrasi memuat `0004_qr.sql`; `event_label_config` + `audit_log` ada; tabel fase lanjut tetap tidak ada | `db.integration.test.ts` |
+| DB | Daftar migrasi memuat QR, attendance, sync, audit, dan self-signup | `db.integration.test.ts`, `qr.db.test.ts` |
 | Web | Helper field/paginasi/CSS cetak | `apps/web/src/lib/qr-labels.test.ts` |
 
 **NOT RUN (butuh browser/perangkat):** tampilan visual halaman label, perilaku `window.print()`,

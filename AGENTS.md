@@ -2,7 +2,7 @@
 
 Multi-Event Parent Attendance Management System — platform absensi berbasis QR untuk banyak acara, dengan admin per acara, petugas lapangan, dan sinkronisasi laporan ke Google Sheets.
 
-**Status: greenfield.** Repo ini belum punya kode. Bagian *Layout*, *Commands*, dan *Roadmap* di bawah adalah **spesifikasi yang mengikat**, bukan deskripsi kondisi saat ini. Agent yang menulis kode wajib membuatnya sesuai ini.
+**Status: implementasi berjalan.** Aturan, layout target, commands, dan roadmap di bawah adalah spesifikasi yang mengikat; status implementasi aktual dicatat di `IMPLEMENTATION_PLAN.md` dan dokumen kanonik pada `docs/`.
 
 ## Aturan yang tidak bisa dinegosiasikan
 

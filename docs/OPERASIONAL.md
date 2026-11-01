@@ -1,6 +1,13 @@
-# OPERASIONAL — Hasil Spike Fase 0 dan Catatan Lingkungan
+# OPERASIONAL — Hasil pengukuran dan Catatan Lingkungan
 
-Dokumen ini mencatat **hasil pengukuran nyata** Fase 0 dan quirk lingkungan yang tidak terlihat dari kode.
+Dokumen ini mencatat hasil pengukuran, instruksi operasi, status deployment, dan quirk lingkungan yang tidak terlihat dari kode.
+
+## Status operasi saat ini (1 November 2026)
+
+- Worker produksi tersedia di `https://qrcek.hamdirobbi5.workers.dev`; auth/session dan endpoint API merespons. Tail juga menunjukkan request cron terjadwal.
+- Migrasi remote sampai `0006_self_signup.sql` telah digunakan oleh aplikasi produksi.
+- Secret Turnstile harus cocok dengan **Secret Key** widget yang sama dengan site key publik frontend. `invalid-input-secret` berarti secret tidak cocok atau tidak aktif. Unggah Secret Key yang benar memakai `npx wrangler secret put TURNSTILE_SECRET_KEY` dari `apps/api`. Jangan mencetak nilainya.
+- Browser terbaru mengarahkan request daftar acara ke `/api/calendar` untuk menghindari pemblokiran content blocker yang terlihat pada `/api/events` (Network menampilkan “Blocked By uBlock Origin”). Perubahan ini masih perlu dibuild dan deploy sebelum diverifikasi di domain produksi.
 
 Lingkungan pengukuran:
 
@@ -26,8 +33,8 @@ Tanggal pengukuran: 30 Oktober 2026.
 | 2 | `RETURNING` pada `INSERT ... ON CONFLICT` | ✅ **terverifikasi** | Didukung, termasuk di dalam `db.batch()` |
 | 3 | Partial unique index | ✅ **terverifikasi** | Didukung dan ditegakkan |
 | 4 | `EXPLAIN QUERY PLAN` query panas | ✅ **terverifikasi** | 10/10 query memakai `SEARCH ... USING INDEX` |
-| 5 | Migrasi D1 pada database kosong | ✅ **terverifikasi** | 3 file (`0001`, `0002`, `0003`), 10 tabel aplikasi |
-| 6 | `Set-Cookie` lewat Static Assets | ❌ **belum dapat diverifikasi** | Tidak ada endpoint penerbit cookie di Fase 0 |
+| 5 | Migrasi D1 pada database kosong | ✅ **terverifikasi** | Migrasi `0001`–`0006`; auth, peserta, QR, attendance, sync, self-signup |
+| 6 | `Set-Cookie` lewat Static Assets | ✅ **terverifikasi pada penggunaan** | Auth/session produksi bekerja dengan cookie |
 | 7 | CPU p95 ≤ 5 ms | ⚠️ **hanya proksi** | Wall-clock lokal terukur; CPU platform butuh `wrangler tail` pada Worker ter-deploy |
 
 ---
@@ -162,7 +169,7 @@ Hasil verifikasi nyata:
 
 ---
 
-## 4.3 Skema dipangkas jadi minimal (31 Okt)
+## 4.3 Riwayat pemangkasan skema awal (31 Okt)
 
 Keputusan pemilik proyek: Fase 0 **tidak** memuat tabel bisnis. `AGENTS.md` poin 5
 aslinya meminta "skema penuh", tetapi itu bertabrakan dengan aturan roadmap
@@ -177,23 +184,20 @@ Yang berubah:
 | 15 tabel + 2 trigger | 1 tabel: `app_meta` |
 | 4 tes bergantung pada tabel bisnis | tes memakai tabel sekali-pakai berindeks sama |
 
-> **Pembaruan setelah Tahap 3.** Keputusan di atas kini sudah berkembang wajar: `0002_auth.sql`
-> (Fase 1) dan `0003_participants.sql` (Tahap 3) sudah ada. Penjaga batas di
-> `db.integration.test.ts` sengaja hanya mengizinkan tabel yang fasenya sudah dibuka, sehingga
-> tabel `attendance`/`audit_log`/`outbox` tetap membuat tes merah sampai fasenya benar-benar
-> dikerjakan.
+> **Status sekarang:** migrasi `0002`–`0006` telah menambahkan skema auth, peserta, QR,
+> kehadiran, audit, dan sinkronisasi. Tabel `attendance`, `audit_log`, dan `outbox` bukan lagi
+> cakupan tertunda; referensi di atas merekam keputusan historis pada awal proyek.
 
 `app_meta` (key/value + `updated_at`) dipilih supaya pipeline migrasi punya sesuatu
 yang nyata untuk diterapkan, dan supaya migrasi fase berikutnya punya jangkar versi.
 
 Konsekuensi yang disengaja:
 
-- Tes `db.integration.test.ts` punya penjaga batas: **gagal** kalau `events`,
-  `participants`, `attendance`, `audit_log`, `outbox`, `users`, `staff` muncul.
-  Menambah tabel tanpa membuka fasenya kini menghasilkan tes merah, bukan scope creep diam-diam.
+- Tes integrasi saat ini menerapkan seluruh migrasi yang sudah dibuka. Daftar skema aktual
+  harus diselaraskan dengan file `migrations/`, bukan dengan penjaga fase awal.
 - Temuan spike tetap sah karena diuji pada tabel sekali-pakai dengan bentuk dan
   indeks yang identik; yang berubah hanya nama tabelnya.
-- `docs/DESAIN_DATABASE.md` §3 tetap menjadi **desain target**, bukan keadaan sekarang.
+- `docs/DESAIN_DATABASE.md` §3 dan file migrasi mendokumentasikan skema yang telah diterapkan.
 
 ---
 
@@ -201,20 +205,24 @@ Konsekuensi yang disengaja:
 
 ```bash
 npm run db:reset:local    # hapus apps/api/.wrangler/state
-npm run db:migrate:local  # terapkan 0001_init.sql + 0002_auth.sql + 0003_participants.sql
+npm run db:migrate:local  # terapkan semua migrasi yang belum diterapkan (0001–0006)
 npm run db:migrate:local  # "✅ No migrations to apply!" (idempoten)
 ```
 
-Hasil per Tahap 3: 3 migrasi, 10 tabel aplikasi.
+Riwayat awal per Tahap 3: 3 migrasi, 10 tabel aplikasi. Skema saat ini sudah berkembang
+melalui migrasi `0004`–`0006`.
 
 | Migrasi | Tabel |
 |---|---|
 | `0001_init.sql` | `app_meta` |
 | `0002_auth.sql` | `users`, `events`, `event_memberships`, `device_credentials`, `sessions`, `invites`, `recovery_codes`, `rate_limits` |
 | `0003_participants.sql` | `participants` (+ unique partial index `(event_id, external_ref)`) |
+| `0004_qr.sql` | kolom QR peserta, `event_label_config`, `audit_log` |
+| `0005_attendance_sync.sql` | `attendance`, `sync_state`, `sheet_rows`, `outbox` |
+| `0006_self_signup.sql` | metadata jalur pembuatan akun |
 
-> `participants` **belum** punya kolom `qr_token_hash`/`qr_issued_at`. Migrasi fase QR akan
-> menambahkannya lewat file baru, bukan dengan mengedit `0003`.
+> `participants` kini memiliki kolom kredensial QR dari `0004_qr.sql`. Migrasi yang sudah
+> diterapkan tidak boleh diedit.
 
 ```bash
 # bukti dari database lokal
@@ -376,17 +384,15 @@ lama, dan itu akan terlihat sebagai `500` pada cetak ulang (bukan kerusakan data
 | Item | Kapan | Cara |
 |---|---|---|
 | CPU p95 ≤ 5 ms | Setelah deploy pertama (butuh akun Cloudflare) | `wrangler tail`, lihat §2 |
-| `Set-Cookie` di deployment nyata | Deploy pertama | **Lokal sudah terverifikasi** lewat `wrangler dev`; sisanya memastikan Static Assets tidak memotong header di domain asli |
+| Atribut cookie pada deployment nyata | Saat rilis auth berikutnya | Auth/session produksi berfungsi; inspeksi atribut `Secure`, `SameSite`, dan `HttpOnly` secara eksplisit masih diperlukan |
 | `Origin`/`Host` di balik custom domain | Deploy pertama | `curl -i -X POST` dengan `Origin` domain asli; kalau proxy mengubah host, set `ALLOWED_ORIGINS` |
 | Cookie `Secure` di HTTPS | Deploy pertama | Periksa `Set-Cookie` memuat `Secure` |
 | Token undangan tidak muncul di log | Deploy pertama | `wrangler tail` saat 20 aktivasi; kode tidak pernah me-log token, ini verifikasi silang |
 | Rate limit di balik NAT bersama | Setelah ada pengguna nyata | Amati 429 pada petugas yang berbagi IP; naikkan batas bila perlu |
-| CI hijau | Setelah repo di-push ke GitHub | Workflow `.github/workflows/ci.yml` sudah ada, belum pernah dijalankan |
+| CI hijau | Periksa workflow GitHub | Workflow `.github/workflows/ci.yml` ada; hasil remote belum dicatat di sesi ini |
 | Batas baris import final | Setelah pengukuran CPU | Naikkan `MAX_IMPORT_ROWS` bertahap sambil memantau CPU |
 | Batas batch label 50 | Setelah deploy pertama | Ukur CPU `wrangler tail` saat cetak 50 label; angka lokal (crypto 100 ≈ 12 ms p50) adalah proksi, bukan CPU tertagih |
 | Ukuran dan keterbacaan QR hasil cetak | Uji manual sebelum rilis | Cetak A4 + stiker, ukur dengan penggaris, pindai dengan kamera HP |
 | Rotasi kunci QR | Sebelum rotasi produksi pertama | Uji prosedur §7.5 di database salinan; pastikan QR lama tetap identik |
 
-**Repo ini punya remote** (`git@github.com:bratayudha07/QRCek.git`, SSH), tetapi commit
-`e8699f6` serta pekerjaan Tahap 2 dan Tahap 3 belum ter-push karena kunci SSH di mesin ini
-ber-passphrase dan agent tidak berjalan. CI tetap belum pernah dijalankan.
+CI workflow tersedia di `.github/workflows/ci.yml`; status eksekusi GitHub perlu diperiksa ketika akses repo tersedia. Jangan menyimpulkan CI hijau hanya dari hasil lokal.

@@ -1,8 +1,6 @@
 # ARSITEKTUR — Multi-Event Parent Attendance Management System
 
-Status: **sebagian sudah diimplementasikan.** Fase 0, Fase 1 (Tahap 2), dan Tahap 3
-(manajemen acara + peserta non-QR) sudah berjalan. QR, pemindaian, rekap, dan Sheets masih
-rencana. Lihat [`../IMPLEMENTATION_PLAN.md`](../IMPLEMENTATION_PLAN.md) untuk status per butir.
+Status: **fondasi dan sebagian API Fase 0–5 tersedia; alur UI petugas, absensi, laporan, aktivitas, dan sinkronisasi belum selesai.** API scan, daftar/koreksi absensi, ringkasan dashboard, undangan anggota, dan sync tersedia di Worker. Namun tab Petugas/Absensi/Laporan dan halaman Scan/Riwayat/Aktivitas adalah placeholder; dashboard web belum memuat endpoint rekap; route baca audit dan ekspor laporan kehadiran belum ada. Uji perangkat, Google Sheet nyata, CPU produksi, dan deploy alias `/api/calendar` juga masih terbuka. Rincian ada di [`../IMPLEMENTATION_PLAN.md`](../IMPLEMENTATION_PLAN.md) dan [`OPERASIONAL.md`](./OPERASIONAL.md).
 
 Dokumen terkait: [`DESAIN_DATABASE.md`](./DESAIN_DATABASE.md), [`DESAIN_API.md`](./DESAIN_API.md), [`RENCANA_PENGUJIAN.md`](./RENCANA_PENGUJIAN.md), [`../COSTS_AND_LIMITS.md`](../COSTS_AND_LIMITS.md), [`../IMPLEMENTATION_PLAN.md`](../IMPLEMENTATION_PLAN.md).
 
@@ -25,11 +23,11 @@ Batasan yang membentuk seluruh desain (dari [`AGENTS.md`](../AGENTS.md)):
 
 ---
 
-## 2. Keputusan arsitektur (menunggu persetujuan)
+## 2. Keputusan arsitektur
 
-Setiap keputusan di bawah akan diekstrak menjadi `docs/adr/NNNN-*.md` saat implementasi dimulai.
+Keputusan yang sudah diterapkan dicatat di bawah; keputusan terbuka tetap dicatat di bagian akhir dokumen.
 
-### ADR-001 — Topologi origin: **satu Worker, same-origin** (Diusulkan)
+### ADR-001 — Topologi origin: **satu Worker, same-origin** (Diputuskan)
 
 Satu Worker menyajikan SPA (via Workers Static Assets) **dan** API di `/api/*`.
 
@@ -49,7 +47,7 @@ Satu Worker menyajikan SPA (via Workers Static Assets) **dan** API di `/api/*`.
 - **Konsekuensi**: SPA dan API selalu deploy bersamaan (versi terkunci). Kuota Workers berlaku untuk request API saja — request aset statis yang cocok disajikan tanpa menjalankan Worker (didokumentasikan Cloudflare).
 - **Dev**: `vite dev` di `:5173` dengan proxy `/api` → `wrangler dev` di `:8787`. Dari sisi browser tetap same-origin, jadi perilaku cookie identik dengan produksi.
 
-### ADR-002 — Autentikasi **passwordless berbasis token** (Diusulkan, menggantikan aturan PBKDF2 di AGENTS.md)
+### ADR-002 — Autentikasi **passwordless berbasis token** (Diputuskan; menggantikan aturan PBKDF2 di AGENTS.md)
 
 **Temuan yang memaksa keputusan ini**: Workers Free memberi **10 ms CPU per request**. PBKDF2-SHA256 pada jumlah iterasi yang layak (ratusan ribu) memakan CPU puluhan hingga ratusan milidetik. Login akan gagal dengan error 1102 di paket gratis. Menurunkan iterasi sampai muat 10 ms membuat hash praktis tidak berguna.
 
@@ -404,7 +402,7 @@ Kontrak respons selalu HTTP 200 untuk hasil bisnis (`present`, `duplicate`, `not
 
 ### 6.6 Koreksi absensi
 
-1. `event_admin` (bukan `officer`) → `POST /api/attendance/:id/correction` dengan `{ status, reason }`; `reason` wajib ≥ 10 karakter.
+1. `event_admin` (bukan `officer`) → `POST /api/events/:eventId/attendance/:attendanceId/correction` dengan `{ status, reason }`; `reason` wajib ≥ 10 karakter. Prefix browser `/api/calendar` juga didukung.
 2. Satu `db.batch()`: `UPDATE attendance`, `INSERT audit_log` (`attendance.corrected`, berisi `before`/`after`), `INSERT/UPDATE outbox`.
 3. `officer` yang mencoba → 403 + baris audit `authz.denied`.
 

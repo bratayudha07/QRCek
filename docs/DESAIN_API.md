@@ -50,7 +50,7 @@ Sumber kebenaran kontrak: skema zod di `packages/shared/src/schemas/`. Dokumen i
 Kursor, bukan offset:
 
 ```
-GET /api/events/:eventId/participants?limit=25&cursor=<opaque>
+GET /api/calendar/:eventId/participants?limit=25&cursor=<opaque>
 → { ok: true, data: { items: [...], nextCursor: "..." | null } }
 ```
 
@@ -157,20 +157,17 @@ Perilaku (ADR-007):
 
 ## 3. Acara
 
-Untuk request dari browser, gunakan prefix `/api/calendar` (mis. `GET /api/calendar`);
-Worker memetakannya ke route `/api/events` yang terdokumentasi di bawah. Alias ini
-mencegah content blocker memblokir request XHR berdasarkan nama path. Prefix lama tetap
-didukung untuk klien yang sudah ada.
+Untuk request dari browser, gunakan prefix `/api/calendar` (mis. `GET /api/calendar`). Worker mengarahkannya ke handler acara yang sama. Prefix lama `/api/events` tetap tersedia sebagai alias kompatibilitas. Penggantian nama path browser menghindari filter content blocker yang pada browser pengguna memblokir `/api/events` (terlihat sebagai “Blocked By uBlock Origin” di Network), sehingga kegagalan tersebut tidak menghasilkan request di Worker tail.
 
 | Method | Path | Peran | Keterangan |
 |---|---|---|---|
-| `GET` | `/api/events` | semua | Hanya acara yang boleh diakses pemanggil |
-| `POST` | `/api/events` | event_admin, superadmin | Buat acara (status awal `draft`); pembuat otomatis jadi `event_admin` acara itu |
-| `GET` | `/api/events/:eventId` | anggota acara | Detail |
-| `PATCH` | `/api/events/:eventId` | event_admin, superadmin | Nama, deskripsi, jadwal, timezone, `allow_manual` |
-| `POST` | `/api/events/:eventId/status` | event_admin, superadmin | Transisi lifecycle |
-| `GET` | `/api/events/:eventId/summary` | anggota acara | Hitungan peserta total/aktif/nonaktif |
-| `DELETE` | `/api/events/:eventId` | superadmin | **Hanya** draf tanpa peserta; selain itu `422` |
+| `GET` | `/api/calendar` | semua | Hanya acara yang boleh diakses pemanggil |
+| `POST` | `/api/calendar` | event_admin, superadmin | Buat acara (status awal `draft`); pembuat otomatis jadi `event_admin` acara itu |
+| `GET` | `/api/calendar/:eventId` | anggota acara | Detail |
+| `PATCH` | `/api/calendar/:eventId` | event_admin, superadmin | Nama, deskripsi, jadwal, timezone, `allow_manual` |
+| `POST` | `/api/calendar/:eventId/status` | event_admin, superadmin | Transisi lifecycle |
+| `GET` | `/api/calendar/:eventId/summary` | anggota acara | Hitungan peserta total/aktif/nonaktif |
+| `DELETE` | `/api/calendar/:eventId` | superadmin | **Hanya** draf tanpa peserta; selain itu `422` |
 
 `DELETE` sengaja sempit: hard delete hanya untuk draf kosong. Draf yang sudah punya peserta,
 acara aktif, tertutup, dan terarsip ditolak dengan pesan yang mengarahkan ke arsip.
@@ -198,13 +195,13 @@ Slug dibuat server: `slugify(name)` + 6 karakter terakhir id, sehingga unik tanp
 
 | Method | Path | Peran | Keterangan |
 |---|---|---|---|
-| `GET` | `/api/events/:id/members` | event_admin, superadmin | Daftar admin/petugas |
-| `POST` | `/api/events/:id/invites` | event_admin, superadmin | Terbitkan undangan |
-| `GET` | `/api/events/:id/invites` | event_admin, superadmin | Riwayat + status |
-| `DELETE` | `/api/events/:id/invites/:inviteId` | event_admin, superadmin | Batalkan undangan yang belum dipakai |
-| `POST` | `/api/events/:id/members/:userId/revoke` | event_admin, superadmin | Cabut akses (sesi + kredensial dicabut) |
+| `GET` | `/api/calendar/:id/members` | event_admin, superadmin | Daftar admin/petugas |
+| `POST` | `/api/calendar/:id/invites` | event_admin, superadmin | Terbitkan undangan |
+| `GET` | `/api/calendar/:id/invites` | event_admin, superadmin | Riwayat + status |
+| `DELETE` | `/api/calendar/:id/invites/:inviteId` | event_admin, superadmin | Batalkan undangan yang belum dipakai |
+| `POST` | `/api/calendar/:id/members/:userId/revoke` | event_admin, superadmin | Cabut akses (sesi + kredensial dicabut) |
 
-### `POST /api/events/:id/invites`
+### `POST /api/calendar/:id/invites`
 
 ```jsonc
 // request
@@ -241,22 +238,22 @@ bocor).
 
 | Method | Path | Peran | Keterangan |
 |---|---|---|---|
-| `GET` | `/api/events/:eventId/participants` | officer, event_admin, superadmin | Cari + filter + paginasi kursor |
-| `POST` | `/api/events/:eventId/participants` | event_admin, superadmin | Tambah satu peserta |
-| `GET` | `/api/events/:eventId/participants/:participantId` | officer+ | Detail |
-| `PATCH` | `/api/events/:eventId/participants/:participantId` | event_admin, superadmin | Ubah data, termasuk mengaktifkan kembali |
-| `DELETE` | `/api/events/:eventId/participants/:participantId` | event_admin, superadmin | Soft-delete, wajib `{ "confirm": true }` |
-| `POST` | `/api/events/:eventId/participants/import` | event_admin, superadmin | Import CSV (pratinjau + konfirmasi) |
-| `GET` | `/api/events/:eventId/participants/export` | event_admin, superadmin | Unduh CSV (PII) |
-| `GET` | `/api/events/:eventId/participants/template` | event_admin, superadmin | Template header-only |
-| `POST` | `/api/events/:eventId/participants/qr-labels` | event_admin, superadmin | Terbitkan/baca kredensial QR untuk label (POST karena bisa menulis) |
-| `GET` | `/api/events/:eventId/label-config` | officer+ | Konfigurasi field label acara |
-| `PUT` | `/api/events/:eventId/label-config` | event_admin, superadmin | Simpan field + urutan + nama acara |
+| `GET` | `/api/calendar/:eventId/participants` | officer, event_admin, superadmin | Cari + filter + paginasi kursor |
+| `POST` | `/api/calendar/:eventId/participants` | event_admin, superadmin | Tambah satu peserta |
+| `GET` | `/api/calendar/:eventId/participants/:participantId` | officer+ | Detail |
+| `PATCH` | `/api/calendar/:eventId/participants/:participantId` | event_admin, superadmin | Ubah data, termasuk mengaktifkan kembali |
+| `DELETE` | `/api/calendar/:eventId/participants/:participantId` | event_admin, superadmin | Soft-delete, wajib `{ "confirm": true }` |
+| `POST` | `/api/calendar/:eventId/participants/import` | event_admin, superadmin | Import CSV (pratinjau + konfirmasi) |
+| `GET` | `/api/calendar/:eventId/participants/export` | event_admin, superadmin | Unduh CSV (PII) |
+| `GET` | `/api/calendar/:eventId/participants/template` | event_admin, superadmin | Template header-only |
+| `POST` | `/api/calendar/:eventId/participants/qr-labels` | event_admin, superadmin | Terbitkan/baca kredensial QR untuk label (POST karena bisa menulis) |
+| `GET` | `/api/calendar/:eventId/label-config` | officer+ | Konfigurasi field label acara |
+| `PUT` | `/api/calendar/:eventId/label-config` | event_admin, superadmin | Simpan field + urutan + nama acara |
 
 ### Daftar, pencarian, dan paginasi
 
 ```
-GET /api/events/:eventId/participants?query=budi&status=active&limit=25&cursor=<opaque>
+GET /api/calendar/:eventId/participants?query=budi&status=active&limit=25&cursor=<opaque>
 ```
 
 - `query` dicocokkan ke nama, `external_ref`, telepon, email, dan kategori (case-insensitive,
@@ -274,7 +271,7 @@ Body wajib `{ "confirm": true }`. Baris **tidak** dihapus fisik: `status` menjad
 `updated_at` diperbarui. Peserta dapat diaktifkan kembali dengan
 `PATCH { "status": "active" }`. Respons: `{ "deleted": true, "status": "inactive" }`.
 
-### `POST /api/events/:eventId/participants/import`
+### `POST /api/calendar/:eventId/participants/import`
 
 Content-Type: `text/csv` (body mentah) atau `application/json` dengan `{ "csv": "..." }`.
 
@@ -356,7 +353,7 @@ CRLF agar aman dibuka di Excel, dan menetralkan formula injection (`=`, `@`).
 ### Label QR
 
 ```
-POST /api/events/:eventId/participants/qr-labels
+POST /api/calendar/:eventId/participants/qr-labels
 ```
 
 Memakai **POST**, bukan GET, karena panggilan pertama menerbitkan kredensial (efek samping).
@@ -420,8 +417,8 @@ Dua mode:
 Konfigurasi label:
 
 ```
-GET /api/events/:eventId/label-config
-PUT /api/events/:eventId/label-config   body: { fields: [...], showEventName: boolean }
+GET /api/calendar/:eventId/label-config
+PUT /api/calendar/:eventId/label-config   body: { fields: [...], showEventName: boolean }
 ```
 
 - Field yang diizinkan hanya kolom peserta yang sudah ada: `fullName`, `externalRef`,
@@ -436,7 +433,7 @@ PUT /api/events/:eventId/label-config   body: { fields: [...], showEventName: bo
 
 ## 6. Pemindaian dan absensi
 
-### `POST /api/events/:id/scan`
+### `POST /api/calendar/:id/scan`
 
 Peran: `officer`, `event_admin`, `superadmin` (anggota acara).
 
@@ -471,19 +468,33 @@ Batas laju: 120 scan/menit per sesi, 600/menit per acara. Kelebihan → `429` de
 
 Biaya query: 1 (sesi+membership) + 1 (peserta) + 1 batch (insert/outbox/audit) + 1 (baca ulang absensi saat `duplicate`) = **≤ 4 statement**, jauh di bawah batas 50 per invokasi.
 
-### `GET /api/events/:id/attendance`
+### `GET /api/calendar/:id/attendance`
 
 Query: `?status=&query=&limit=&cursor=`
 
 ```jsonc
 { "ok": true, "data": { "items": [
-  { "attendanceId": "01J...", "participantId": "01J...", "fullName": "Budi",
-    "category": "Kelas 5A", "status": "present",
-    "checkedInAt": 1730000000123, "method": "qr_scan", "recordedBy": "01J..." }
+  { "id": "01J...", "eventId": "01J...", "eventName": "Wisuda",
+    "participantId": "01J...", "participantName": "Budi",
+    "participantExternalRef": "P-001", "category": "Kelas 5A",
+    "status": "present", "checkedInAt": 1730000000123,
+    "recordedBy": "01J...", "recordedByName": "Petugas",
+    "method": "qr_scan", "note": null, "updatedAt": 1730000000123 }
 ], "nextCursor": null } }
 ```
 
-### `POST /api/attendance/:id/correction`
+### Rekap dashboard
+
+| Method | Path | Peran | Keterangan |
+|---|---|---|---|
+| `GET` | `/api/dashboard` | semua pengguna terautentikasi | Ringkasan acara yang dapat diakses pengguna |
+| `GET` | `/api/calendar/:eventId/dashboard` | anggota acara | Hitungan peserta, kehadiran per status, persentase, kehadiran terbaru |
+| `GET` | `/api/staff/attendance` | petugas/admin | Riwayat scan milik pengguna, opsional difilter per acara |
+
+Endpoint data rekap sudah tersedia, tetapi UI Dashboard saat ini belum mengambil datanya dan
+tab Laporan belum dibuat. Belum ada endpoint ekspor laporan kehadiran CSV.
+
+### `POST /api/calendar/:eventId/attendance/:attendanceId/correction`
 
 Peran: `event_admin`, `superadmin`. **`officer` selalu ditolak.**
 
@@ -499,9 +510,9 @@ Peran: `event_admin`, `superadmin`. **`officer` selalu ditolak.**
 - Satu `db.batch()`: `UPDATE attendance`, `INSERT audit_log` (`attendance.corrected` dengan `before`/`after`), upsert `outbox`.
 - Jika baris berubah bersamaan (optimistic check via `updated_at`), kembalikan `409 CONFLICT` agar admin memuat ulang — lebih baik gagal terang-terangan daripada menimpa koreksi orang lain.
 
-### `POST /api/events/:id/attendance/manual`
+### `POST /api/calendar/:id/attendance/manual`
 
-Peran: `event_admin`. Hanya jika `events.allow_manual = 1`.
+Peran: `event_admin`, `superadmin`. Hanya jika `events.allow_manual = 1`.
 
 Dipakai sebagai fallback saat HP petugas tidak bisa memindai (mis. QR rusak). Tetap memakai constraint unik yang sama.
 
@@ -509,12 +520,10 @@ Dipakai sebagai fallback saat HP petugas tidak bisa memindai (mis. QR rusak). Te
 
 ## 7. Audit
 
-| Method | Path | Peran | Keterangan |
-|---|---|---|---|
-| `GET` | `/api/events/:id/audit` | event_admin, superadmin | Filter `action`, `actorId`, rentang waktu |
-| `GET` | `/api/events/:id/audit/:auditId` | event_admin, superadmin | Detail `before`/`after` |
-
-Tidak ada endpoint `PATCH`/`DELETE`. Permintaan semacam itu tidak didaftarkan sama sekali di router, sehingga dijawab `404` oleh router default.
+Worker menulis audit untuk pemindaian, koreksi, dan pencetakan label. Tabel `audit_log`
+append-only dan dilindungi trigger database. **Belum ada route untuk membaca atau mencari
+audit log**, dan halaman Aktivitas masih placeholder. Karena itu endpoint audit read tidak
+dicantumkan sebagai tersedia.
 
 ---
 
@@ -522,16 +531,16 @@ Tidak ada endpoint `PATCH`/`DELETE`. Permintaan semacam itu tidak didaftarkan sa
 
 | Method | Path | Peran | Keterangan |
 |---|---|---|---|
-| `GET` | `/api/events/:id/sync` | event_admin | Konfigurasi + status |
-| `PUT` | `/api/events/:id/sync` | event_admin | Set `spreadsheetId`, `sheetTab`, `syncEnabled` |
-| `POST` | `/api/events/:id/sync/test` | event_admin | Uji kredensial & akses tulis (menulis 1 sel metadata) |
-| `POST` | `/api/events/:id/sync/full` | event_admin | Full resync (bangun ulang `sheet_rows`) |
-| `POST` | `/api/events/:id/sync/run` | event_admin | Dorong antrean sekarang (tanpa menunggu cron) |
-| `GET` | `/api/events/:id/sync/outbox` | event_admin | Item `failed`/`dead` + error terakhir |
-| `POST` | `/api/events/:id/sync/outbox/:outboxId/retry` | event_admin | Reset ke `pending` |
+| `GET` | `/api/calendar/:id/sync` | event_admin | Konfigurasi + status |
+| `PUT` | `/api/calendar/:id/sync` | event_admin | Set `spreadsheetId`, `sheetTab`, `syncEnabled` |
+| `POST` | `/api/calendar/:id/sync/test` | event_admin | Uji kredensial & akses tulis (menulis 1 sel metadata) |
+| `POST` | `/api/calendar/:id/sync/full` | event_admin | Full resync (bangun ulang `sheet_rows`) |
+| `POST` | `/api/calendar/:id/sync/run` | event_admin | Dorong antrean sekarang (tanpa menunggu cron) |
+| `GET` | `/api/calendar/:id/sync/outbox` | event_admin | Item `failed`/`dead` + error terakhir |
+| `POST` | `/api/calendar/:id/sync/outbox/:outboxId/retry` | event_admin | Reset ke `pending` |
 
 ```jsonc
-// GET /api/events/:id/sync → 200
+// GET /api/calendar/:id/sync → 200
 {
   "ok": true,
   "data": {
@@ -611,14 +620,14 @@ Cron harus **selalu selesai** walaupun salah satu tugas gagal; kegagalan dicatat
 
 ## 12. Hal yang perlu diverifikasi
 
-Status per akhir Tahap 3.
+Status verifikasi diperbarui 1 November 2026; item manual dan deployment dicatat terpisah.
 
 | ⚠️ | Yang perlu dibuktikan | Status |
 |---|---|---|
 | 1 | `RETURNING` didukung D1 untuk `INSERT ... ON CONFLICT` (dipakai di counter rate limit) | **TERVERIFIKASI** — `spike.returning.test.ts`, dipakai `db/rate-limit.ts` |
-| 2 | Perilaku `Set-Cookie` pada respons Worker dengan Static Assets tidak terpotong | **TERVERIFIKASI LOKAL** — `wrangler dev` mengembalikan `Set-Cookie: absensi_session=…; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`. Belum diuji di deployment nyata |
-| 3 | Middleware `Origin`/`Host` benar untuk request di balik custom domain | **BELUM** — butuh deployment. `ALLOWED_ORIGINS` disediakan sebagai jalan keluar bila origin browser ≠ URL Worker |
+| 2 | Perilaku `Set-Cookie` pada respons Worker dengan Static Assets tidak terpotong | **TERVERIFIKASI** — alur login produksi telah digunakan; atribut cookie dan perilaku proxy perlu dipantau saat perubahan deployment |
+| 3 | Middleware `Origin`/`Host` benar untuk request di balik custom domain | **TERVERIFIKASI SEBAGIAN** — request same-origin produksi berhasil; konfigurasi custom domain tambahan belum diuji |
 | 4 | Content-Type `text/csv` terbaca dengan benar oleh `request.text()` pada Worker | **TERVERIFIKASI** — `participants.import.test.ts` mengirim body `text/csv` mentah di `workerd` dan baris tersimpan |
 | 5 | Token di fragment (`#`) tidak terkirim ke server pada navigasi pertama | **TERVERIFIKASI (sifat browser)** — halaman `/aktivasi` membaca `location.hash`, dan `readInviteToken` hanya menerima fragmen. Tidak ada request yang membawa token |
 | 6 | Rate limit tidak memblokir pengguna sah di balik NAT bersama | **BELUM** — batas 10/15 menit per IP-hash; perlu diamati di produksi |
-| 7 | Cookie `Secure` benar-benar dipasang di HTTPS | **BELUM** — kode menambahkan `Secure` saat `request.url` https; hanya teruji di `workerd` lokal |
+| 7 | Cookie `Secure` benar-benar dipasang di HTTPS | **TERVERIFIKASI SEBAGIAN** — situs produksi HTTPS dan sesi berfungsi; audit atribut cookie khusus belum dicatat |

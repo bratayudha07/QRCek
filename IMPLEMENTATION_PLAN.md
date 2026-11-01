@@ -2,16 +2,26 @@
 
 Rencana implementasi bertahap untuk Multi-Event Parent Attendance Management System.
 
-**Status: Fase 0 selesai sebagian, Fase 1 (Tahap 2) selesai sebagian, Tahap 3 selesai
-(manajemen acara + peserta non-QR), Tahap 3.5 selesai (penyelarasan UI/UX dan navigasi),
-Tahap 4 selesai (kredensial QR + cetak label).** Lihat blok status di tiap fase untuk butir yang
-belum terverifikasi. Pemindaian, rekap, dan Sheets belum dibuka.
+**Status diperbarui 1 November 2026:** fondasi dan fitur backend Fase 0–5 sudah banyak
+terimplementasi. Auth/acara/peserta/QR, API scan, kehadiran/koreksi, ringkasan/audit write,
+dan sinkronisasi Sheets berbasis outbox tersedia. UI scan dan beberapa halaman rekap/audit/
+sync masih parsial. Fase 6 belum selesai: observabilitas, audit operasional, perangkat fisik,
+uji Google Sheet nyata, dan pengukuran CPU produksi belum lengkap. Worker produksi tersedia;
+perubahan browser API ke `/api/calendar` masih menunggu deploy. Status rinci per area di bawah.
 
 Dokumen pendukung: [`AGENTS.md`](./AGENTS.md), [`docs/ARSITEKTUR.md`](./docs/ARSITEKTUR.md), [`docs/DESAIN_DATABASE.md`](./docs/DESAIN_DATABASE.md), [`docs/DESAIN_API.md`](./docs/DESAIN_API.md), [`docs/RENCANA_PENGUJIAN.md`](./docs/RENCANA_PENGUJIAN.md), [`COSTS_AND_LIMITS.md`](./COSTS_AND_LIMITS.md).
 
 ---
 
 ## Prinsip pelaksanaan
+
+> **Snapshot implementasi terkini (1 November 2026).** Tabel fase dan kriteria di bawah
+> awalnya ditulis sebagai rencana; sebagian status checkbox di fase 3–5 sekarang sudah
+> terpenuhi oleh kode dan tes meskipun halaman/UI terkait belum lengkap. Backend scan,
+> attendance/koreksi, dashboard, audit write, dan Sheets/outbox telah dibuat. `staff-scan.tsx`
+> masih belum mengirim hasil pindai ke endpoint; `event-workspace`, aktivitas, staff, dan
+> pengaturan sinkronisasi memuat placeholder. Karena itu fase 3–5 dinilai **parsial**, bukan
+> selesai end-to-end. Verifikasi visual/perangkat/Google nyata tetap belum dilakukan.
 
 1. **Satu fase = satu PR yang bisa direview habis.** Tidak ada fase yang digabung.
 2. **Gerbang fase bersifat keras.** Fase berikutnya tidak dimulai sebelum semua kriteria penerimaan fase sebelumnya terpenuhi dan dibuktikan dengan perintah yang bisa dijalankan ulang.
@@ -41,11 +51,9 @@ Total: ~20–26 hari kerja efektif. Perkiraan ini mengasumsikan satu orang; tida
 
 **Tujuan**: membuktikan bahwa platform free tier sanggup menjalankan sistem ini **sebelum** membangun fitur di atasnya. Ini fase yang mencegah seluruh proyek dibangun di atas asumsi yang salah.
 
-> **Status: SELESAI SEBAGIAN — 3 butir belum terverifikasi.** Semua gerbang lokal hijau
-> (`typecheck`, `lint`, `test` 44/44, `build`, migrasi lokal, dev loop). Yang **belum**:
-> gerbang CPU p95 ≤ 5 ms (butuh akun Cloudflare + `wrangler tail`), perilaku `Set-Cookie`
-> lewat Static Assets (belum ada endpoint penerbit cookie — Fase 1), dan CI hijau
-> (repo sudah punya commit tetapi belum punya remote, workflow belum pernah dijalankan).
+> **Status: selesai sebagian.** Build, migrasi lokal, dev loop, typecheck, lint, dan suite tes
+> telah diverifikasi pada iterasi sebelumnya. Belum terverifikasi: CPU p95 di Cloudflare dan
+> hasil CI GitHub. Auth/session sudah berjalan pada Worker produksi.
 > Hasil lengkap: `docs/OPERASIONAL.md`.
 
 ### Catatan deviasi dari rencana
@@ -82,7 +90,7 @@ Buat modul `apps/api/src/test/bench.test.ts` atau skrip `npm run bench` yang men
 | `RETURNING` pada `INSERT ... ON CONFLICT` | Query langsung | Didukung / tidak (menentukan desain rate limit) | ✅ Didukung, termasuk di dalam `batch()` (`spike.returning.test.ts`) |
 | Partial unique index | Migrasi + insert duplikat | Didukung | ✅ Didukung. **Temuan**: `ON CONFLICT` wajib mengulang predikat indeks (`spike.index.test.ts`) |
 | `EXPLAIN QUERY PLAN` | Semua query utama | `SEARCH`, bukan `SCAN` | ✅ 10/10 `SEARCH ... USING INDEX` (`spike.explain.test.ts`) |
-| Perilaku `Set-Cookie` dengan Static Assets | Request ke `/api/*` | Cookie tidak terpotong | ⚠️ **Belum dapat diuji.** Belum ada endpoint yang menerbitkan cookie; ditunda ke Fase 1 |
+| Perilaku `Set-Cookie` dengan Static Assets | Request ke `/api/*` | Cookie tidak terpotong | ✅ **Berfungsi pada produksi** — alur auth/session digunakan; audit atribut cookie tetap dicatat di `docs/OPERASIONAL.md` |
 | Batas ukuran import | Kirim CSV 500 / 1.000 / 2.000 baris | Menemukan titik di mana CPU > 5 ms | ⚠️ **Sebagian.** Wall-clock run 2: 82 / 149 / 301 ms. Titik CPU belum diketahui → batas sementara **1.000 baris/request** |
 
 **Hasil spike menjadi keputusan konkret**: berapa baris maksimum per import, apakah rate limit memakai `RETURNING`, apakah `batch()` boleh diandalkan untuk atomisitas.
@@ -98,7 +106,7 @@ Keputusan yang sudah diambil: rate limit memakai `RETURNING`; absensi + outbox +
 - [x] `npm run dev:web` + `npm run dev:api` → `/api/health` merespons `{"ok":true}` dari `http://localhost:5173/api/health`.
 - [x] `npm run db:migrate:local` pada database kosong → `0001_init.sql` diterapkan (1 tabel `app_meta`, 1 baris `schema_version`); migrasi kedua kali → `No migrations to apply`.
 - [x] Semua 7 item spike punya angka/kesimpulan tertulis di `docs/ARSITEKTUR.md` §11 atau `docs/OPERASIONAL.md`. *(3 di antaranya tercatat sebagai **belum terverifikasi**, bukan lulus)*
-- [ ] CI hijau pada PR fase ini. **Belum terverifikasi** — commit ada, remote belum, workflow belum pernah dijalankan.
+- [ ] CI hijau pada PR fase ini. Workflow tersedia; hasil eksekusi GitHub belum dicatat.
 
 ### Risiko fase ini
 
@@ -177,7 +185,7 @@ kredensial per perangkat (ADR-002), bukan query yang bisa digabung: tabelnya ber
 Keduanya tetap **satu round trip** karena memakai `env.DB.batch()`. Angka ini yang perlu
 diawasi di `docs/OPERASIONAL.md`, bukan jumlah statement per tabel.
 
-### Yang sengaja belum dikerjakan
+### Yang sengaja belum dikerjakan saat Tahap 3
 
 - CRUD acara dan seluruh UI acara (dilarang pada Tahap 2). Endpoint `summary` tidak ada.
 - `domain/event-status.ts` dan tes transisinya.
@@ -270,7 +278,7 @@ aman.
 
 ## TAHAP 3.5 — Penyelarasan UI/UX dan sistem navigasi
 
-**Status: SELESAI (belum di-commit, menunggu review).** Lapisan UI saja; tidak ada endpoint,
+**Status historis: penyelarasan UI dikerjakan.** Lapisan UI ini tidak menambah endpoint,
 migrasi, atau dependensi baru.
 
 Tujuan: dua tingkat navigasi yang terpisah — global (sidebar desktop / bottom nav mobile) dan
@@ -375,8 +383,8 @@ Verifikasi: `typecheck`, `lint`, `test` **296/296** (27 file), `build` — PASS.
 | PDF di server | `window.print()` saja | Tidak ada dependensi PDF dan tidak membebani Worker |
 | Rotasi token saat cetak ulang | Tidak pernah; hanya ciphertext yang bisa dirotasi | QR tercetak harus tetap sah |
 
-Verifikasi lokal (dijalankan ulang pada 1 November 2026): `typecheck` PASS, `lint` PASS,
-`test` **356/356** (33 file) PASS, `build` PASS. Spike label: 50 label halaman pertama
+Snapshot verifikasi lokal saat pekerjaan label (sebelum tes scan dan sync ditambahkan):
+`typecheck` PASS, `lint` PASS, `test` **356/356** (33 file) PASS, `build` PASS. Spike label: 50 label halaman pertama
 ~59 ms, cetak ulang p50 ~24 ms; crypto 100 kredensial p50 9–12 ms (dasar menurunkan batas
 menjadi 50). Cetak fisik, kamera, dan CPU produksi tetap **NOT RUN**.
 
@@ -385,6 +393,12 @@ menjadi 50). Cetak fisik, kamera, dan CPU produksi tetap **NOT RUN**.
 ## FASE 3 — Pemindaian dan pencatatan kehadiran
 
 **Tujuan**: fitur inti bekerja di HP sungguhan. Ini fase dengan risiko teknis tertinggi.
+
+> **Status saat ini: backend tersedia, belum end-to-end.** Route scan dan attendance ada di
+> `apps/api/src/routes/scan.ts` dan `attendance.ts`, dengan tes integritas di suite API.
+> `apps/web/src/pages/staff-scan.tsx` saat ini belum mengirim QR ke Worker; alur kamera,
+> feedback server, antrean retry, dan uji perangkat masih menjadi pekerjaan terbuka. Kriteria
+> di bawah tetap menjadi gerbang penerimaan fase.
 
 ### Pekerjaan
 
@@ -420,14 +434,19 @@ Bila `scan.concurrent` tidak bisa dibuat deterministik setelah 2 hari kerja, hen
 
 ## FASE 4 — Rekap, audit, dan koreksi
 
+> **Status saat ini: API inti parsial, UI belum tersedia.** API event dashboard, daftar
+> absensi, riwayat petugas, pencatatan manual, koreksi dan penulisan audit tersedia. Dashboard
+> web belum mengambil API tersebut; tab Absensi/Laporan, halaman Aktivitas, dan route baca
+> audit belum dibuat. Ekspor laporan kehadiran dan prosedur arsip audit juga belum selesai.
+
 ### Pekerjaan
 
-1. `GET /api/events/:id/attendance` (paginasi + filter status + pencarian).
-2. `GET /api/events/:id/summary` (perluas yang sudah ada di Tahap 3 dengan agregat nyata: per status, per kategori).
-3. `POST /api/attendance/:id/correction` dengan optimistic check.
-4. `GET /api/events/:id/audit` + detail.
-5. UI dashboard: kartu angka, grafik sederhana (tanpa library chart — pakai bar CSS), tabel kehadiran, dialog koreksi (wajib alasan), halaman audit.
-6. Modul arsip audit (`domain/audit-retention.ts`) — desain, belum diaktifkan.
+1. ✅ `GET /api/events/:id/attendance` (paginasi + filter status + pencarian).
+2. ✅ Dashboard API global dan per acara. ⬜ Agregat per kategori belum tersedia.
+3. ✅ `POST /api/events/:eventId/attendance/:attendanceId/correction` dengan optimistic check.
+4. ⬜ `GET /api/events/:id/audit` + detail (belum ada di route table).
+5. ⬜ UI dashboard dengan data API, tabel kehadiran, dialog koreksi, dan halaman audit.
+6. ⬜ Modul/prosedur arsip audit (`domain/audit-retention.ts`) belum diaktifkan.
 
 ### Kriteria penerimaan (terukur)
 
@@ -444,16 +463,19 @@ Bila `scan.concurrent` tidak bisa dibuat deterministik setelah 2 hari kerja, hen
 
 ## FASE 5 — Sinkronisasi Google Sheets (outbox)
 
+> **Status saat ini: backend parsial.** Worker memiliki `domain/sheets.ts`, route sync, tabel
+> outbox, dan tes memakai fake client. Uji koneksi ke Google Sheet nyata belum dilakukan dan
+> UI konfigurasi/status sync belum tersedia. Kriteria di bawah belum seluruhnya dibuktikan.
+
 ### Pekerjaan
 
-1. `migrations/0004_sync.sql` (nomor menyesuaikan migrasi yang sudah ada: `0001_init`,
-   `0002_auth`, `0003_participants`).
-2. `integrations/sheets/`: `SheetsClient` interface (`getAccessToken`, `batchUpdateValues`, `ensureTab`, `getHeader`), implementasi nyata + fake untuk tes.
-3. Pembuatan JWT service account (`crypto.subtle` RS256) + penukaran token + cache di memori modul.
-4. Penulisan `outbox` disisipkan ke batch scan/koreksi (mengubah Fase 3 & 4 — perubahan ini memang direncanakan).
-5. Cron `scheduled()`: sync, reklaim item macet, housekeeping.
-6. Endpoint sync: `GET`, `PUT`, `test`, `full`, `run`, `outbox`, `retry`.
-7. UI: halaman konfigurasi sync (menampilkan email service account), status antrean, tombol full resync.
+1. ✅ Migrasi `0005_attendance_sync.sql` membuat skema attendance dan sinkronisasi.
+2. ✅ `domain/sheets.ts` menyediakan gateway Sheets; implementasi Worker dan fake tes tersedia.
+3. ✅ JWT service account, penukaran token, dan cache token diimplementasikan.
+4. ✅ Mutasi scan/koreksi memasukkan outbox secara atomik.
+5. ✅ Cron `scheduled()` menjalankan sync, reklain item macet, dan housekeeping.
+6. ✅ Route sync mencakup konfigurasi, tes koneksi, full resync, eksekusi, daftar kegagalan, dan retry.
+7. ⬜ UI konfigurasi/status sync belum tersedia.
 
 ### Kriteria penerimaan (terukur)
 
@@ -471,6 +493,10 @@ Bila `scan.concurrent` tidak bisa dibuat deterministik setelah 2 hari kerja, hen
 ---
 
 ## FASE 6 — Hardening, observability, dan deploy
+
+> **Status saat ini: belum selesai.** Worker sudah di-deploy ke `qrcek.hamdirobbi5.workers.dev`
+> dan auth digunakan. Perubahan `/api/calendar` masih lokal; pengukuran CPU, pemeriksaan
+> keamanan/retensi, backup prosedural, dan smoke test lengkap masih terbuka.
 
 ### Pekerjaan
 

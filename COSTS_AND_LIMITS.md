@@ -137,7 +137,7 @@ Aturan:
 
 **Kesimpulan**: sekitar **160 MB untuk 20.000 peserta + 200.000 baris audit**. Batas 500 MB memberi ruang untuk ~600.000 baris audit.
 
-`audit_log` adalah penentu umur database. Kebijakan retensi + arsip (lihat `docs/DESAIN_DATABASE.md` §8) **wajib** ada sebelum pemakaian produksi pertama, bukan fitur "nanti".
+`audit_log` adalah penentu umur database. Kebijakan retensi + arsip (lihat `docs/DESAIN_DATABASE.md` §8) masih harus diuji dan dijalankan sebelum penggunaan produksi jangka panjang; Worker produksi saat ini sudah aktif, sehingga ukur pertumbuhan DB dan siapkan prosedur arsip sebagai pekerjaan operasional prioritas.
 
 ---
 

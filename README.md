@@ -1,21 +1,10 @@
 # Absensi Acara
 
-Sistem absensi peserta berbasis QR untuk **banyak acara sekaligus**. Setiap acara punya admin dan petugas lapangan sendiri; hasil absensi akan disinkronkan ke Google Sheets.
+Sistem absensi berbasis QR untuk banyak acara, dengan admin/petugas per acara, pencatatan
+kehadiran, audit, dan sinkronisasi batch ke Google Sheets.
 
-Stack: React + Vite (SPA) · Cloudflare Workers + D1 (API dan database) · Google Sheets API (laporan, fase lanjut). Semua di free tier.
-
-> **Status: Fase 0, Fase 1 (Tahap 2), dan Tahap 3 selesai.** Yang hidup: health check,
-> autentikasi passwordless, sesi cookie, peran `superadmin`/`event_admin`/`officer`,
-> otorisasi per acara, undangan sekali pakai, kode pemulihan, CRUD acara dengan lifecycle,
-> manajemen peserta terisolasi per acara, impor CSV dua langkah, pencarian + paginasi,
-> ekspor/template CSV, dan UI-nya. Yang **belum**: QR peserta, pemindaian absensi, rekap,
-> audit, dan sinkronisasi Sheets — dikerjakan per fase sesuai `IMPLEMENTATION_PLAN.md`.
->
-> Skema database sekarang berisi 10 tabel: `app_meta` (Fase 0); `users`, `events`,
-> `event_memberships`, `device_credentials`, `sessions`, `invites`, `recovery_codes`,
-> `rate_limits` (Fase 1); `participants` (Tahap 3). Tabel `attendance`, `audit_log`,
-> `outbox`, dan `sheet_rows` menyusul pada fasenya; kolom QR pada `participants` juga
-> belum ada.
+Stack: React + Vite · Cloudflare Workers + D1 · Google Sheets API. Status kode, fase,
+verifikasi, dan deploy dicatat di [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md).
 
 ## Prasyarat
 
@@ -49,9 +38,8 @@ npm run dev:api             # Worker  -> http://localhost:8787
 npm run dev:web             # Vite    -> http://localhost:5173
 ```
 
-Buka **<http://localhost:5173>**. Halaman awal adalah daftar acara (`/acara`); navigasi memakai
-bottom floating pill dock. `fetch("/api/*")` diproksikan Vite ke Worker, jadi browser tetap
-satu origin seperti produksi.
+Buka **<http://localhost:5173>**. Halaman admin acara berada di `/admin/events` (rute lama
+`/acara` tetap didukung). Browser menggunakan API same-origin melalui proxy Vite.
 
 Buat akun pertama (superadmin). Skrip mencetak URL aktivasi sekali pakai:
 
@@ -157,36 +145,16 @@ npm run test -- -t "rejects an empty key"
 
 ## Pengujian
 
-| Lapis | Jumlah | Lokasi |
-|---|---|---|
-| Kontrak API bersama | 2 | `packages/shared/src/types.test.ts` |
-| Worker: health + 404 envelope | 3 | `apps/api/src/test/health.test.ts` |
-| Integrasi D1 (skema nyata di `workerd`) | 7 | `apps/api/src/test/db.integration.test.ts` |
-| Spike D1 (atomisitas, `RETURNING`, index parsial, query plan, biaya) | 24 | `apps/api/src/test/spike.*.test.ts` |
-| Primitif token (base32, HMAC, kode pemulihan) | 16 | `apps/api/src/test/token.test.ts` |
-| Generator ID (ULID) | 3 | `apps/api/src/test/ids.test.ts` |
-| Matriks izin §5.1 | 6 | `apps/api/src/test/permissions.test.ts` |
-| Parser CSV + normalisasi telepon/email | 31 | `apps/api/src/test/csv.test.ts` |
-| Lifecycle status acara | 14 | `apps/api/src/test/event-status.test.ts` |
-| Auth: aktivasi, umur sesi, logout | 19 | `apps/api/src/test/auth.activate.test.ts` |
-| Auth: pemulihan & rotasi kode | 9 | `apps/api/src/test/auth.recover.test.ts` |
-| Manajemen sesi perangkat | 5 | `apps/api/src/test/auth.sessions.test.ts` |
-| Otorisasi per acara + undangan | 19 | `apps/api/src/test/authz.events.test.ts` |
-| Tanpa sesi + CSRF | 9 | `apps/api/src/test/authz.unauthenticated.test.ts` |
-| CRUD acara + lifecycle + hapus draf | 20 | `apps/api/src/test/events.crud.test.ts` |
-| Peserta: CRUD, cari, paginasi, isolasi, ekspor | 22 | `apps/api/src/test/participants.crud.test.ts` |
-| Impor CSV: pratinjau, konfirmasi, idempoten, batas | 16 | `apps/api/src/test/participants.import.test.ts` |
-| Frontend: router, format zona waktu, query peserta, base URL | 41 | `apps/web/src/lib/*.test.ts` |
-
-**Total: 266 tes di 26 file.**
-
-Tes API berjalan di `workerd` dengan binding D1 asli (`@cloudflare/vitest-plugin`), memakai file migrasi yang sama dengan wrangler. Tes frontend berjalan di Node tanpa DOM karena yang diuji logika murni.
+Jalankan `npm run typecheck`, `npm run lint`, lalu `npm run test`. Tes Worker berjalan di
+`workerd` dengan D1 melalui `@cloudflare/vitest-plugin`; tes frontend memeriksa logika murni
+di Node. Cakupan terkini dan tes yang masih perlu dikerjakan ada di
+[`docs/RENCANA_PENGUJIAN.md`](docs/RENCANA_PENGUJIAN.md).
 
 ## Migrasi database
 
 ```bash
 # 1. buat file baru — JANGAN mengedit migrasi yang sudah pernah dijalankan
-touch migrations/0004_<nama>.sql
+touch migrations/0007_<nama>.sql
 
 # 2. terapkan ke lokal
 npm run db:migrate:local
@@ -223,26 +191,21 @@ Detail lingkungan dan hasil pengukuran: `docs/OPERASIONAL.md`.
 
 ## Deploy
 
-Belum pernah dijalankan — belum ada akun Cloudflare yang terhubung. Urutan yang disiapkan:
+Worker produksi saat ini tersedia di
+[`qrcek.hamdirobbi5.workers.dev`](https://qrcek.hamdirobbi5.workers.dev). Untuk deploy,
+build dahulu lalu jalankan `npx wrangler deploy` dari `apps/api` setelah memastikan migrasi
+remote yang diperlukan sudah diterapkan. Migrasi remote memerlukan konfirmasi pemilik proyek.
 
 ```bash
+npm run build
 cd apps/api
-npx wrangler d1 create absensi-db            # isi database_id di wrangler.jsonc
-npx wrangler d1 migrations apply absensi-db --remote
-npx wrangler secret put SESSION_PEPPER
-npx wrangler secret put QR_PEPPER
-npx wrangler secret put QR_ENCRYPTION_KEY   # openssl rand -base64 32
-npx wrangler secret put QR_KEY_VERSION      # 1 selama belum ada rotasi
-npx wrangler secret put TURNSTILE_SECRET_KEY # secret dari widget yang sama dengan site key di apps/web/.env.production
-cd ../.. && npm run build
-cd apps/api && npx wrangler deploy
-
-# akun pertama (setelah deploy): ekspor pepper produksi yang sama
-cd ../.. && export SESSION_PEPPER='<secret produksi>'
-npm run seed:superadmin -- --remote --yes --base-url https://<domain-anda>
+npx wrangler deploy
 ```
 
-`wrangler.jsonc` masih memakai `database_id` placeholder (`00000000-…`) dan **wajib** diganti sebelum deploy. Semua pepper/kunci adalah secret, bukan `vars`; jangan pernah menaruhnya di `wrangler.jsonc` atau bundle frontend.
+Secret produksi dikelola dengan `npx wrangler secret put <NAMA>`. Jangan menampilkan atau
+mencatat nilai secret. `TURNSTILE_SECRET_KEY` harus berasal dari widget yang sama dengan
+`VITE_TURNSTILE_SITE_KEY` yang dipakai frontend. Prosedur dan status deployment ada di
+[`docs/OPERASIONAL.md`](docs/OPERASIONAL.md).
 
 ## Dokumen
 
@@ -251,7 +214,7 @@ npm run seed:superadmin -- --remote --yes --base-url https://<domain-anda>
 | `IMPLEMENTATION_PLAN.md` | Fase, kriteria penerimaan, status |
 | `docs/ARSITEKTUR.md` | Alur, boundary, model data, keputusan |
 | `docs/DESAIN_API.md` | Tabel endpoint |
-| `docs/DESAIN_DATABASE.md` | Skema target, indeks, migrasi |
+| `docs/DESAIN_DATABASE.md` | Skema aktual, indeks, migrasi |
 | `docs/RENCANA_PENGUJIAN.md` | Tes wajib dan gerbang kualitas |
 | `docs/OPERASIONAL.md` | Hasil spike, quirk lingkungan, item belum terverifikasi |
 | `COSTS_AND_LIMITS.md` | Batas free tier |

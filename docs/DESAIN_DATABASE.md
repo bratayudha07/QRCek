@@ -8,7 +8,7 @@ Batasan platform yang membentuk skema ini (terverifikasi, lihat [`../COSTS_AND_L
 - **100.000 baris tulis/hari**, **5.000.000 baris baca/hari** pada Workers Free.
 - Setiap indeks menambah **satu baris tulis** per `INSERT`/`UPDATE` pada kolom terindeks.
 - Maksimum **100 kolom per tabel**, **100 parameter terikat per query**, **100 KB per statement SQL**.
-- D1 tidak punya transaksi interaktif; atomisitas lewat `db.batch()` ⚠️ (perilaku rollback batch harus dikonfirmasi dengan tes di Fase 0).
+- D1 tidak punya transaksi interaktif; operasi atomik multi-statement memakai `db.batch()`. Rollback batch terverifikasi lewat `spike.batch.test.ts`.
 
 ---
 
@@ -53,14 +53,7 @@ Catatan: `superadmin` bersifat global (`users.role`), sedangkan `event_admin` da
 
 ## 3. DDL
 
-> ⚠️ **Ini desain TARGET, bukan keadaan database sekarang.** Per 31 Oktober 2026,
-> `migrations/0001_init.sql` hanya membuat satu tabel: `app_meta`. Semua tabel di
-> bawah dibuat pada tahap yang membutuhkannya (Tahap 2: `users`, `events`,
-> `event_memberships`; Tahap 3: `participants`; Tahap 4: kolom QR, `event_label_config`,
-> `audit_log`; Tahap 5: `attendance`; Fase 5: `sync_state`, `sheet_rows`, `outbox`).
-> Alasan pemangkasan:
-> `docs/OPERASIONAL.md` §4.3. Pecah DDL ini menjadi migrasi per fase — **jangan**
-> menyalin seluruh blok ini ke satu file.
+> **Keadaan aktual per 1 November 2026:** migrasi `0001`–`0006` membuat tabel bisnis dan kolom QR, attendance, audit, outbox, Sheets, serta self-signup. DDL di bawah mendokumentasikan skema; file migrasi tetap sumber kebenaran untuk definisi aktual.
 
 File migrasi: satu file per perubahan skema, diberi nomor berurutan di `migrations/`.
 
@@ -300,8 +293,7 @@ CREATE TABLE rate_limits (
 > jadi invariant lama tetap berlaku untuk seluruh jalur normal. Migrasi berikutnya tidak
 > boleh "merapikan" kolom ini tanpa memikirkan baris bootstrap yang mungkin belum dipakai.
 
-> **Deviasi implementasi (Tahap 3–4).** Blok DDL di atas adalah desain target; yang
-> berjalan sekarang, setelah `migrations/0003_participants.sql` dan `migrations/0004_qr.sql`:
+> **Catatan implementasi:**
 >
 > 1. **Kolom QR nullable, bukan `NOT NULL`.** Kredensial dibuat *lazy* saat label pertama
 >    dicetak (Tahap 4). Peserta hasil import CSV dan peserta lama tetap valid tanpa QR, dan
@@ -322,10 +314,9 @@ CREATE TABLE rate_limits (
 >
 > Migrasi berikutnya tidak boleh mengedit `0003`/`0004`; perubahan skema selalu lewat file baru.
 
-> Nomor file aktual saat ini: `0001_init.sql`, `0002_auth.sql`, `0003_participants.sql`,
-> `0004_qr.sql`, `0005_attendance_sync.sql`, `0006_self_signup.sql`. Blok sinkronisasi di
-> bawah tetap desain target; kalau dikerjakan pada tahap berikutnya, filenya menjadi
-> `0007_*.sql` (nomor tidak boleh dipakai ulang).
+> Nomor file aktual: `0001_init.sql`, `0002_auth.sql`, `0003_participants.sql`,
+> `0004_qr.sql`, `0005_attendance_sync.sql`, `0006_self_signup.sql`. Perubahan berikutnya
+> harus memakai `0007_*.sql` atau nomor berurutan berikutnya.
 
 > **ADR-007 (`0006_self_signup.sql`).** Satu kolom baru pada `users`:
 >
@@ -340,7 +331,7 @@ CREATE TABLE rate_limits (
 > `self_signup` untuk `POST /api/auth/register`. Kolom ini **bukan** penanda kepercayaan:
 > otorisasi tetap dihitung dari `users.role` + `event_memberships`.
 
-File: `migrations/0005_sync.sql`
+File: `migrations/0005_attendance_sync.sql`
 
 ```sql
 -- ───────────────────────────────────────────── konfigurasi sync per acara
@@ -491,7 +482,7 @@ Error 4xx dari Google (kecuali 429 dan 403 rate-limit) menandakan masalah perman
 ### Aturan
 
 1. File di `migrations/` bernomor urut: `0001_init.sql`, `0002_auth.sql`,
-   `0003_participants.sql`, `0004_qr.sql`, `0005_sync.sql`, dst. Nomor yang sudah dipakai
+   `0003_participants.sql`, `0004_qr.sql`, `0005_attendance_sync.sql`, dst. Nomor yang sudah dipakai
    tidak boleh dipakai ulang walau isinya dihapus dari rencana.
 2. **File yang sudah pernah diaplikasikan (termasuk di lokal) tidak boleh diedit.** Perubahan selalu file baru.
 3. Setiap migrasi harus **idempoten-sempurna** dalam arti: berhasil dijalankan pada database kosong.
@@ -562,14 +553,14 @@ Kesimpulan: **satu database 500 MB cukup untuk puluhan ribu peserta**, tetapi `a
 
 ---
 
-## 9. Hal yang perlu diverifikasi saat implementasi
+## 9. Verifikasi skema dan platform
 
-| # | Yang perlu dibuktikan | Cara | Status Fase 0 |
+| # | Yang perlu dibuktikan | Cara | Status terkini |
 |---|---|---|---|
 | 1 | `db.batch()` benar-benar atomik (rollback semua bila satu statement gagal) | Tes: batch dengan statement kedua melanggar constraint, pastikan statement pertama tidak tersimpan | ✅ Terverifikasi — `spike.batch.test.ts` (statement ke-2 gagal → statement ke-1 hilang) |
-| 2 | `meta.changes` akurat untuk `INSERT ... ON CONFLICT DO NOTHING` | Tes unit + integrasi | ⬜ **Belum** — tabel tujuan belum ada. Diverifikasi di Fase 3 bersama `attendance`, karena itulah satu-satunya tempat pola ini dipakai |
+| 2 | `meta.changes` akurat untuk `INSERT ... ON CONFLICT DO NOTHING` | Tes unit + integrasi | ✅ Terverifikasi melalui tes scan/attendance yang memeriksa hasil insert idempoten |
 | 3 | Partial unique index didukung D1 | Migrasi lokal + tes insert duplikat | ✅ Terverifikasi — `spike.index.test.ts` memakai tabel sekali-pakai `spike_outbox` dengan bentuk & indeks identik. **Catatan**: `ON CONFLICT` wajib mengulang predikat indeks (§6) |
-| 4 | Trigger `RAISE(ABORT)` berjalan normal di D1 | Tes `audit.immutable.test.ts` | ⬜ **Belum** — trigger audit ikut dihapus saat skema dipangkas (`docs/OPERASIONAL.md` §4.3). Diverifikasi di Fase 4 |
+| 4 | Trigger `RAISE(ABORT)` berjalan normal di D1 | `apps/api/src/test/qr.db.test.ts` | ✅ Terverifikasi; UPDATE/DELETE ditolak oleh trigger |
 | 5 | `EXPLAIN QUERY PLAN` menampilkan `SEARCH` untuk semua query utama | Skrip pemeriksaan indeks | ✅ Terverifikasi — `spike.explain.test.ts`, 10/10 query memakai `SEARCH ... USING INDEX` (tabel sekali-pakai) + `app_meta` yang nyata |
 | 6 | Ukuran nyata per baris | `SELECT SUM(pgsize) FROM dbstat` bila tersedia, atau `wrangler d1 export` + hitung file | ⬜ **Belum** — `dbstat` tidak tersedia di D1; perlu data nyata + `wrangler d1 export` (Fase 2, setelah import peserta) |
 
