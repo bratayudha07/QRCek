@@ -43,6 +43,17 @@ export const ROUTES: readonly RouteDefinition[] = [
   ...syncRoutes,
 ];
 
+/** Content blockers may block XHR paths named `/api/events`; expose a neutral alias. */
+const ROUTES_WITH_CALENDAR_ALIAS: readonly RouteDefinition[] = [
+  ...ROUTES,
+  ...ROUTES.filter(
+    (route) => route.pattern === "/api/events" || route.pattern.startsWith("/api/events/"),
+  ).map((route) => ({
+    ...route,
+    pattern: route.pattern.replace("/api/events", "/api/calendar"),
+  })),
+];
+
 export interface HandleOptions {
   /** Injected clock. Tests pass a controllable function; production uses Date.now. */
   now?: () => number;
@@ -57,7 +68,7 @@ export async function handleRequest(
 
   if (pathname.startsWith("/api/")) {
     const now = (options.now ?? Date.now)();
-    return (await dispatchRoutes(ROUTES, request, env, now)) ?? apiNotFound();
+    return (await dispatchRoutes(ROUTES_WITH_CALENDAR_ALIAS, request, env, now)) ?? apiNotFound();
   }
 
   // Everything else is the SPA (Workers Static Assets, ADR-001).

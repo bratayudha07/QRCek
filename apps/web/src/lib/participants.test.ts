@@ -40,7 +40,7 @@ describe("participantListPath", () => {
 describe("participantExportUrl", () => {
   it("uses the same-origin base by default", () => {
     expect(participantExportUrl("EVT", { status: "active" })).toBe(
-      "/api/events/EVT/participants/export?status=active",
+      "/api/calendar/EVT/participants/export?status=active",
     );
   });
 
@@ -48,7 +48,7 @@ describe("participantExportUrl", () => {
     vi.stubEnv("VITE_API_BASE_URL", "https://staging.example.com");
 
     expect(participantExportUrl("EVT")).toBe(
-      "https://staging.example.com/api/events/EVT/participants/export",
+      "https://staging.example.com/api/calendar/EVT/participants/export",
     );
   });
 });

@@ -233,6 +233,7 @@ npx wrangler secret put SESSION_PEPPER
 npx wrangler secret put QR_PEPPER
 npx wrangler secret put QR_ENCRYPTION_KEY   # openssl rand -base64 32
 npx wrangler secret put QR_KEY_VERSION      # 1 selama belum ada rotasi
+npx wrangler secret put TURNSTILE_SECRET_KEY # secret dari widget yang sama dengan site key di apps/web/.env.production
 cd ../.. && npm run build
 cd apps/api && npx wrangler deploy
 

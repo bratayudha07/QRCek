@@ -39,4 +39,10 @@ describe("apiUrl", () => {
   it("tolerates a path without a leading slash", () => {
     expect(apiUrl("api/health")).toBe("/api/health");
   });
+
+  it("uses the content-blocker-safe calendar alias for event endpoints", () => {
+    expect(apiUrl("/api/events")).toBe("/api/calendar");
+    expect(apiUrl("/api/events/EVT/participants")).toBe("/api/calendar/EVT/participants");
+    expect(apiUrl("/api/events-archive")).toBe("/api/events-archive");
+  });
 });

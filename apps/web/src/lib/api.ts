@@ -26,6 +26,9 @@ export function apiBaseUrl(): string {
 
 /** Joins the configured base URL with an API path such as `/api/health`. */
 export function apiUrl(path: string): string {
-  const suffix = path.startsWith("/") ? path : `/${path}`;
+  const pathWithLeadingSlash = path.startsWith("/") ? path : `/${path}`;
+  // Some content blockers classify XHR requests to `/api/events` as tracking.
+  // Use a neutral public alias; the Worker maps it to the existing event routes.
+  const suffix = pathWithLeadingSlash.replace(/^\/api\/events(?=\/|$)/, "/api/calendar");
   return `${apiBaseUrl()}${suffix}`;
 }

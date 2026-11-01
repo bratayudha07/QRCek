@@ -157,6 +157,11 @@ Perilaku (ADR-007):
 
 ## 3. Acara
 
+Untuk request dari browser, gunakan prefix `/api/calendar` (mis. `GET /api/calendar`);
+Worker memetakannya ke route `/api/events` yang terdokumentasi di bawah. Alias ini
+mencegah content blocker memblokir request XHR berdasarkan nama path. Prefix lama tetap
+didukung untuk klien yang sudah ada.
+
 | Method | Path | Peran | Keterangan |
 |---|---|---|---|
 | `GET` | `/api/events` | semua | Hanya acara yang boleh diakses pemanggil |

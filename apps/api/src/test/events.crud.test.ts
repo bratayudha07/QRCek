@@ -133,6 +133,16 @@ describe("POST /api/events", () => {
 });
 
 describe("GET /api/events", () => {
+  it("serves the calendar alias for browsers with content blockers", async () => {
+    const w = await world();
+
+    const response = await callApi("/api/calendar", { cookie: w.adminA.cookie });
+    const body = response.json<EventListPayload>();
+    if (!body.ok) throw new Error("expected success");
+
+    expect(body.data.events.map((event) => event.id)).toEqual([w.eventA]);
+  });
+
   it("shows a superadmin every event", async () => {
     const w = await world();
 
