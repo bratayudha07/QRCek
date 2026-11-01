@@ -16,7 +16,7 @@
     {
       "binding": "DB",
       "database_name": "absensi-db",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "5c8ec1c4-c1ef-4058-80bc-1d114929c669",
       "migrations_dir": "../../migrations"
     }
   ]
