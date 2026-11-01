@@ -273,6 +273,12 @@ async function register(ctx: RouteContext): Promise<RouteResult> {
     });
 
     if (!check.success) {
+      // Cloudflare's reason codes ("invalid-input-secret", "timeout-or-duplicate",
+      // "hostname-mismatch"…) are the only way to tell a wrong secret from a
+      // replayed token. They carry no PII and no credential, so they are safe to
+      // log; the token and the secret never are.
+      console.warn("turnstile_rejected", { codes: check.errorCodes });
+
       throw new ApiError(
         400,
         "TURNSTILE_FAILED",

@@ -21,6 +21,7 @@ interface TurnstileApi {
     },
   ): string;
   remove(widgetId: string): void;
+  reset(widgetId?: string): void;
 }
 
 declare global {
@@ -64,23 +65,30 @@ function loadScript(): Promise<void> {
 export function TurnstileWidget({
   onToken,
   onError,
+  resetSignal = 0,
 }: {
   onToken: (token: string) => void;
   onError?: () => void;
+  /**
+   * Increment to request a fresh challenge. A Turnstile token is single-use:
+   * once the server has spent it (even on a rejection) the widget must be reset,
+   * otherwise every retry replays a dead token and fails with "duplicate".
+   */
+  resetSignal?: number;
 }) {
   const container = useRef<HTMLDivElement>(null);
+  const widgetIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isTurnstileEnabled()) return;
 
-    let widgetId: string | null = null;
     let cancelled = false;
 
     loadScript()
       .then(() => {
         if (cancelled || !container.current || !window.turnstile) return;
 
-        widgetId = window.turnstile.render(container.current, {
+        widgetIdRef.current = window.turnstile.render(container.current, {
           sitekey: TURNSTILE_SITE_KEY,
           callback: onToken,
           "error-callback": onError,
@@ -92,9 +100,15 @@ export function TurnstileWidget({
 
     return () => {
       cancelled = true;
-      if (widgetId && window.turnstile) window.turnstile.remove(widgetId);
+      if (widgetIdRef.current && window.turnstile) window.turnstile.remove(widgetIdRef.current);
+      widgetIdRef.current = null;
     };
   }, [onToken, onError]);
+
+  useEffect(() => {
+    if (resetSignal === 0) return;
+    if (widgetIdRef.current && window.turnstile) window.turnstile.reset(widgetIdRef.current);
+  }, [resetSignal]);
 
   if (!isTurnstileEnabled()) return null;
 

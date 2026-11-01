@@ -25,6 +25,7 @@ type Status =
 export function RegisterPage() {
   const [displayName, setDisplayName] = useState("");
   const [token, setToken] = useState("");
+  const [resetSignal, setResetSignal] = useState(0);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
 
   const handleToken = useCallback((value: string) => setToken(value), []);
@@ -32,6 +33,12 @@ export function RegisterPage() {
     () => setStatus({ kind: "error", message: "Verifikasi anti-bot gagal dimuat. Muat ulang halaman." }),
     [],
   );
+
+  /** The server (or the network) consumed this token: drop it and get a fresh one. */
+  const spendToken = useCallback(() => {
+    setToken("");
+    setResetSignal((value) => value + 1);
+  }, []);
 
   const turnstileEnabled = isTurnstileEnabled();
   const canSubmit =
@@ -52,9 +59,11 @@ export function RegisterPage() {
         });
       } else {
         setStatus({ kind: "error", message: body.error.message });
+        spendToken();
       }
     } catch {
       setStatus({ kind: "error", message: "Tidak bisa menghubungi server. Periksa koneksi." });
+      spendToken();
     }
   }
 
@@ -109,7 +118,11 @@ export function RegisterPage() {
           </span>
         </label>
 
-        <TurnstileWidget onToken={handleToken} onError={handleTurnstileError} />
+        <TurnstileWidget
+          onToken={handleToken}
+          onError={handleTurnstileError}
+          resetSignal={resetSignal}
+        />
 
         {status.kind === "error" && (
           <p role="alert" className="text-sm text-red-600">

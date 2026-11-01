@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { verifyTurnstile } from "../integrations/turnstile";
 import { testEnv } from "./env";
@@ -89,8 +89,14 @@ describe("verifyTurnstile", () => {
 });
 
 describe("registration with Turnstile enabled", () => {
+  beforeEach(() => {
+    // The route logs Cloudflare's rejection codes; keep that out of test output.
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
     Reflect.deleteProperty(testEnv, "TURNSTILE_SECRET_KEY");
   });
 
@@ -117,5 +123,45 @@ describe("registration with Turnstile enabled", () => {
 
     expect(response.status).toBe(201);
     expect(await countRows("users")).toBe(1);
+  });
+
+  it("rejects a token Cloudflare refuses, creates no account, and logs only the reason codes", async () => {
+    Reflect.set(testEnv, "TURNSTILE_SECRET_KEY", "test-turnstile-secret");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse({ success: false, "error-codes": ["invalid-input-secret"] })),
+    );
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const response = await callApi("/api/auth/register", {
+      body: { displayName: "Bot", turnstileToken: "tok-123" },
+    });
+
+    expect(response.status).toBe(400);
+    expect(errorCode(response)).toBe("TURNSTILE_FAILED");
+    expect(await countRows("users")).toBe(0);
+
+    // Without the reason code a wrong secret, a replayed token, and an outage
+    // look identical in production, so the route must keep it...
+    expect(warn).toHaveBeenCalledWith("turnstile_rejected", { codes: ["invalid-input-secret"] });
+
+    // ...but neither the browser token nor the Worker secret may reach the log.
+    const logged = JSON.stringify(warn.mock.calls);
+    expect(logged).not.toContain("tok-123");
+    expect(logged).not.toContain("test-turnstile-secret");
+  });
+
+  it("sends the Worker secret and the browser token to Cloudflare", async () => {
+    Reflect.set(testEnv, "TURNSTILE_SECRET_KEY", "test-turnstile-secret");
+    const fetchMock = vi.fn<typeof fetch>(async () => jsonResponse({ success: true }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await callApi("/api/auth/register", {
+      body: { displayName: "Manusia", turnstileToken: "tok-ok" },
+    });
+
+    const sent = new URLSearchParams(String(fetchMock.mock.calls[0]?.[1]?.body));
+    expect(sent.get("secret")).toBe("test-turnstile-secret");
+    expect(sent.get("response")).toBe("tok-ok");
   });
 });
