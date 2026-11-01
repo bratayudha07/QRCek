@@ -29,6 +29,8 @@ describe("unauthenticated access", () => {
         "GET /api/events",
         "GET /api/events/:eventId",
         "GET /api/events/:eventId/attendance",
+        "GET /api/events/:eventId/attendance/export",
+        "GET /api/events/:eventId/audit",
         "GET /api/events/:eventId/dashboard",
         "GET /api/events/:eventId/invites",
         "GET /api/events/:eventId/label-config",

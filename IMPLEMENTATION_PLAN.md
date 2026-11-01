@@ -302,9 +302,8 @@ workspace acara (segmented control) — tanpa mencampurnya.
    komponennya tidak ikut ter-*remount* saat pindah tab — kalau tidak, indikator lahir langsung
    di posisi akhir dan animasinya tidak pernah terlihat. Indikator memakai `translateX` per
    indeks, jadi tidak perlu mengukur DOM.
-6. Halaman baru: dashboard, aktivitas (placeholder), Petugas/Absensi/Laporan (placeholder),
-   Beranda/Scan/Riwayat petugas (placeholder), serta pemisahan detail acara menjadi Ringkasan
-   dan Peserta.
+6. Halaman baru: dashboard, aktivitas audit, Petugas/Absensi/Laporan, Beranda/Scan/Riwayat
+   petugas, serta pemisahan detail acara menjadi Ringkasan dan Peserta.
 7. Motion CSS: transisi halaman 220 ms, sidebar 200 ms, hover/press 150 ms, spring tab; semua
    menghormati `prefers-reduced-motion`.
 
@@ -315,7 +314,7 @@ workspace acara (segmented control) — tanpa mencampurnya.
 | Route staff hanya `/staff/{home,scan,history}` | Tambah `/staff/profile` | Item bottom nav "Profil" wajib punya tujuan; `/admin/settings` tidak pantas untuk peran petugas |
 | Sidebar hanya untuk admin | Sidebar juga dipakai petugas di desktop | Tanpa itu petugas di layar lebar tidak punya navigasi sama sekali |
 | Event switcher hanya di sidebar | Juga tampil sebagai strip di atas konten pada mobile | Sidebar tidak dirender di mobile, sedangkan berpindah acara tanpa kembali ke daftar tetap diperlukan |
-| Tab Petugas/Absensi/Laporan punya fitur | Placeholder eksplisit "Belum tersedia" | Fitur tersebut milik fase berikutnya (AGENTS.md) |
+| Tab Petugas/Absensi/Laporan punya fitur | Fitur dikerjakan setelah fase backend terkait tersedia | Mematuhi gate roadmap |
 | Data acara lama dibersihkan manual | Halaman di-*remount* per route + effect bergantung `eventId` | Dua lapis pencegahan data basi |
 | Pengujian visual/keyboard/reduced-motion otomatis | **NOT RUN** (manual) | Web test berjalan di Node, tanpa jsdom/Playwright |
 
@@ -394,11 +393,10 @@ menjadi 50). Cetak fisik, kamera, dan CPU produksi tetap **NOT RUN**.
 
 **Tujuan**: fitur inti bekerja di HP sungguhan. Ini fase dengan risiko teknis tertinggi.
 
-> **Status saat ini: backend tersedia, belum end-to-end.** Route scan dan attendance ada di
-> `apps/api/src/routes/scan.ts` dan `attendance.ts`, dengan tes integritas di suite API.
-> `apps/web/src/pages/staff-scan.tsx` saat ini belum mengirim QR ke Worker; alur kamera,
-> feedback server, antrean retry, dan uji perangkat masih menjadi pekerjaan terbuka. Kriteria
-> di bawah tetap menjadi gerbang penerimaan fase.
+> **Status saat ini: alur web scan dan riwayat tersedia.** `StaffScanPage` mengirim QR ke
+> Worker dan menampilkan hasil server; halaman riwayat petugas membaca API attendance.
+> Uji perangkat fisik, umpan balik bunyi, antrean scan offline, dan pengukuran CPU produksi
+> masih menjadi pekerjaan terbuka.
 
 ### Pekerjaan
 
@@ -434,19 +432,20 @@ Bila `scan.concurrent` tidak bisa dibuat deterministik setelah 2 hari kerja, hen
 
 ## FASE 4 — Rekap, audit, dan koreksi
 
-> **Status saat ini: API inti parsial, UI belum tersedia.** API event dashboard, daftar
-> absensi, riwayat petugas, pencatatan manual, koreksi dan penulisan audit tersedia. Dashboard
-> web belum mengambil API tersebut; tab Absensi/Laporan, halaman Aktivitas, dan route baca
-> audit belum dibuat. Ekspor laporan kehadiran dan prosedur arsip audit juga belum selesai.
+> **Status saat ini: alur produk utama tersedia secara lokal.** Dashboard, tab Petugas,
+> Absensi, Laporan, scan/riwayat petugas, Aktivitas audit, koreksi, undangan/revokasi,
+> ekspor CSV, dan pengelolaan sinkronisasi sudah terhubung. Prosedur arsip/retensi audit,
+> verifikasi perangkat fisik, dan verifikasi akun Google Sheets nyata masih terbuka.
 
 ### Pekerjaan
 
 1. ✅ `GET /api/events/:id/attendance` (paginasi + filter status + pencarian).
 2. ✅ Dashboard API global dan per acara. ⬜ Agregat per kategori belum tersedia.
 3. ✅ `POST /api/events/:eventId/attendance/:attendanceId/correction` dengan optimistic check.
-4. ⬜ `GET /api/events/:id/audit` + detail (belum ada di route table).
-5. ⬜ UI dashboard dengan data API, tabel kehadiran, dialog koreksi, dan halaman audit.
-6. ⬜ Modul/prosedur arsip audit (`domain/audit-retention.ts`) belum diaktifkan.
+4. ✅ `GET /api/events/:id/audit` dengan filter dan cursor, tanpa hash IP/token di respons.
+5. ✅ UI dashboard dengan data API, tabel kehadiran, dialog koreksi, halaman aktivitas, dan laporan.
+6. ✅ Ekspor kehadiran CSV hingga 5.000 baris dengan filter status/pencarian.
+7. ⬜ Modul/prosedur arsip audit (`domain/audit-retention.ts`) belum diaktifkan.
 
 ### Kriteria penerimaan (terukur)
 

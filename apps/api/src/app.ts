@@ -6,6 +6,7 @@ import { apiNotFound, dispatchRoutes } from "./http/router";
 import type { RouteContext, RouteDefinition, RouteResult } from "./http/router";
 import { authRoutes } from "./routes/auth";
 import { attendanceRoutes } from "./routes/attendance";
+import { auditRoutes } from "./routes/audit";
 import { dashboardRoutes } from "./routes/dashboard";
 import { eventRoutes } from "./routes/events";
 import { labelRoutes } from "./routes/labels";
@@ -39,6 +40,7 @@ export const ROUTES: readonly RouteDefinition[] = [
   ...labelRoutes,
   ...scanRoutes,
   ...attendanceRoutes,
+  ...auditRoutes,
   ...dashboardRoutes,
   ...syncRoutes,
 ];

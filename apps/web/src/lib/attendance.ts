@@ -1,4 +1,5 @@
 import type {
+  AuditListPayload,
   AttendanceCorrectionRequest,
   AttendanceDetailPayload,
   AttendanceListPayload,
@@ -18,6 +19,7 @@ import type {
 } from "@absensi/shared";
 
 import { apiRequest } from "./http";
+import { apiUrl } from "./api";
 
 /** Typed bindings for scan, attendance, dashboard, and sync. No business rules. */
 
@@ -71,6 +73,49 @@ export function scanQr(eventId: string, qr: string) {
 
 export function listAttendance(eventId: string, params: AttendanceListParams = {}) {
   return apiRequest<AttendanceListPayload>(eventAttendancePath(eventId, params));
+}
+
+export function listEventAudit(
+  eventId: string,
+  params: { action?: string; limit?: number; cursor?: string } = {},
+) {
+  const search = new URLSearchParams();
+  if (params.action) search.set("action", params.action);
+  if (params.limit !== undefined) search.set("limit", String(params.limit));
+  if (params.cursor) search.set("cursor", params.cursor);
+  const suffix = search.toString();
+  return apiRequest<AuditListPayload>(
+    `/api/events/${encodeURIComponent(eventId)}/audit${suffix ? `?${suffix}` : ""}`,
+  );
+}
+
+export async function downloadAttendanceCsv(
+  eventId: string,
+  params: Pick<AttendanceListParams, "query" | "status"> = {},
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const search = new URLSearchParams();
+  const query = params.query?.trim();
+  if (query) search.set("query", query);
+  if (params.status && params.status !== "all") search.set("status", params.status);
+  const suffix = search.toString();
+  const response = await fetch(
+    apiUrl(`/api/events/${encodeURIComponent(eventId)}/attendance/export${suffix ? `?${suffix}` : ""}`),
+    { credentials: "same-origin", headers: { "x-absensi-csrf": "1" } },
+  );
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as
+      | { error?: { message?: string } }
+      | null;
+    return { ok: false, message: body?.error?.message ?? "Gagal mengunduh laporan" };
+  }
+
+  const blobUrl = URL.createObjectURL(await response.blob());
+  const link = document.createElement("a");
+  link.href = blobUrl;
+  link.download = `laporan-absensi-${eventId}.csv`;
+  link.click();
+  window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+  return { ok: true };
 }
 
 export function listStaffAttendance(params: StaffAttendanceParams = {}) {

@@ -491,8 +491,18 @@ Query: `?status=&query=&limit=&cursor=`
 | `GET` | `/api/calendar/:eventId/dashboard` | anggota acara | Hitungan peserta, kehadiran per status, persentase, kehadiran terbaru |
 | `GET` | `/api/staff/attendance` | petugas/admin | Riwayat scan milik pengguna, opsional difilter per acara |
 
-Endpoint data rekap sudah tersedia, tetapi UI Dashboard saat ini belum mengambil datanya dan
-tab Laporan belum dibuat. Belum ada endpoint ekspor laporan kehadiran CSV.
+Endpoint data rekap dipakai oleh dashboard dan halaman Laporan. Riwayat petugas hanya memuat
+scan yang dicatat oleh pengguna tersebut.
+
+### Ekspor kehadiran CSV
+
+| Method | Path | Peran | Keterangan |
+|---|---|---|---|
+| `GET` | `/api/events/:eventId/attendance/export` | event_admin, superadmin | Unduh CSV; menerima filter `status` dan `query`; maksimum 5.000 baris per unduhan |
+
+Kolom CSV: nama peserta, referensi, kategori, status, waktu UTC, metode, petugas, dan catatan.
+Nilai CSV diloloskan dengan helper CSV bersama. Jika hasil lebih dari 5.000 baris, Worker
+meminta pengguna mempersempit filter.
 
 ### `POST /api/calendar/:eventId/attendance/:attendanceId/correction`
 
@@ -521,9 +531,15 @@ Dipakai sebagai fallback saat HP petugas tidak bisa memindai (mis. QR rusak). Te
 ## 7. Audit
 
 Worker menulis audit untuk pemindaian, koreksi, dan pencetakan label. Tabel `audit_log`
-append-only dan dilindungi trigger database. **Belum ada route untuk membaca atau mencari
-audit log**, dan halaman Aktivitas masih placeholder. Karena itu endpoint audit read tidak
-dicantumkan sebagai tersedia.
+append-only dan dilindungi trigger database.
+
+| Method | Path | Peran | Keterangan |
+|---|---|---|---|
+| `GET` | `/api/events/:eventId/audit` | event_admin, superadmin | Daftar audit per acara, filter `action`, cursor dan limit |
+
+Respons tidak menyertakan hash IP atau token. Endpoint selalu dibatasi ke acara yang diminta
+dan memerlukan akses baca audit. Aktivitas web menggabungkan daftar audit dari acara yang
+dapat diakses pengguna.
 
 ---
 

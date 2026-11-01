@@ -1,4 +1,9 @@
-import type { ActivatePayload, MePayload } from "@absensi/shared";
+import type {
+  ActivatePayload,
+  MePayload,
+  RecoveryCodePayload,
+  SessionListPayload,
+} from "@absensi/shared";
 
 import { apiRequest } from "./http";
 
@@ -45,4 +50,19 @@ export function registerAccount(displayName: string, label: string, turnstileTok
 
 export function logoutSession() {
   return apiRequest<{ revoked: true }>("/api/auth/logout", { method: "POST" });
+}
+
+export function listSessions() {
+  return apiRequest<SessionListPayload>("/api/auth/sessions");
+}
+
+export function revokeSession(sessionId: string) {
+  return apiRequest<{ revoked: true }>(
+    `/api/auth/sessions/${encodeURIComponent(sessionId)}/revoke`,
+    { method: "POST" },
+  );
+}
+
+export function rotateRecoveryCode() {
+  return apiRequest<RecoveryCodePayload>("/api/auth/recovery-code", { method: "POST" });
 }

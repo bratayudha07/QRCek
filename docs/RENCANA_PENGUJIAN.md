@@ -148,6 +148,8 @@ it("menolak koreksi tanpa alasan yang memadai", () => {
 | I-28 | `pagination.cursor-stable` | Kursor tetap benar saat ada insert baru di antara halaman | |
 | I-29 | **`register.scope-zero`** | Akun hasil daftar sendiri adalah `event_admin` tanpa keanggotaan dan tidak bisa membaca acara orang lain (404) | |
 | I-30 | **`register.role-injection`** | Payload berisi `role` ditolak 400; tidak ada baris `users` yang tertulis | |
+| I-31 | `audit.read-scope` | Admin acara dapat membaca audit acaranya; petugas ditolak; respons tidak memuat hash IP/token | Route nyata + D1 |
+| I-32 | `attendance.export` | Admin dapat mengunduh CSV terfilter; petugas ditolak | Periksa status, MIME, header, isi CSV |
 | I-31 | `register.rate-limit` | Pendaftaran ke-6 dalam 1 jam per IP-hash → 429, tanpa penulisan | |
 | I-32 | `register.creates-owner` | Admin baru membuat acara → baris acara + keanggotaan `event_admin` dalam satu batch | |
 | I-33 | **`turnstile.fail-closed`** | Token kosong / HTTP error / fetch throw → registrasi ditolak; tidak ada penulisan | |

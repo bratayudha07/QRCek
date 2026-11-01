@@ -33,7 +33,9 @@ import { enqueueAttendanceStatement, enqueueCorrectionStatement } from "../db/ou
 import { findParticipant } from "../db/participants";
 import { isEventOpenForAttendance } from "../domain/attendance-policy";
 import { decodeCursor, encodeCursor } from "../domain/cursor";
+import { buildCsv } from "../domain/csv";
 import { newId } from "../domain/ids";
+import { slugify } from "../domain/slug";
 import { authOf, requireEventAccess } from "../http/auth";
 import { businessRule, conflict, notFound, validationError } from "../http/errors";
 import type { RouteContext, RouteDefinition, RouteResult } from "../http/router";
@@ -52,6 +54,19 @@ const AttendanceParamsSchema = z.object({
   eventId: EventIdSchema,
   attendanceId: AttendanceIdSchema,
 });
+const MAX_ATTENDANCE_EXPORT_ROWS = 5_000;
+
+function csvResponse(body: string, filename: string): Response {
+  return new Response(body, {
+    status: 200,
+    headers: {
+      "content-type": "text/csv; charset=utf-8",
+      "content-disposition": `attachment; filename="${filename}"`,
+      "cache-control": "no-store",
+      "x-content-type-options": "nosniff",
+    },
+  });
+}
 
 function toRecord(row: AttendanceJoinedRow): AttendanceRecord {
   return {
@@ -103,6 +118,39 @@ async function listEventAttendance(ctx: RouteContext): Promise<RouteResult> {
   };
 
   return { data: payload };
+}
+
+async function exportEventAttendance(ctx: RouteContext): Promise<RouteResult> {
+  const auth = authOf(ctx);
+  const { eventId } = parsePathParams(ctx.params, EventParamsSchema);
+  const access = await requireEventAccess(ctx.env, auth, eventId, "participant:import");
+  const query = parseQuery(ctx.request, AttendanceListQuerySchema);
+  const rows = await listAttendance(
+    ctx.env.DB,
+    eventId,
+    { query: query.query, status: query.status },
+    null,
+    MAX_ATTENDANCE_EXPORT_ROWS,
+  );
+  if (rows.length > MAX_ATTENDANCE_EXPORT_ROWS) {
+    throw businessRule("Laporan melebihi 5.000 baris. Gunakan filter pencarian atau status.");
+  }
+
+  const csv = buildCsv(
+    ["nama_peserta", "referensi", "kategori", "status", "waktu_utc", "metode", "petugas", "catatan"],
+    rows.map((row) => [
+      row.participant_name,
+      row.participant_external_ref,
+      row.category,
+      row.status,
+      new Date(row.checked_in_at).toISOString(),
+      row.method,
+      row.recorded_by_name,
+      row.note,
+    ]),
+  );
+  const filename = `absensi-${slugify(access.eventName)}.csv`;
+  return { raw: csvResponse(csv, filename) };
 }
 
 async function staffAttendanceHistory(ctx: RouteContext): Promise<RouteResult> {
@@ -303,6 +351,12 @@ async function manualAttendance(ctx: RouteContext): Promise<RouteResult> {
 }
 
 export const attendanceRoutes: readonly RouteDefinition[] = [
+  {
+    method: "GET",
+    pattern: "/api/events/:eventId/attendance/export",
+    public: false,
+    handler: exportEventAttendance,
+  },
   {
     method: "GET",
     pattern: "/api/events/:eventId/attendance",

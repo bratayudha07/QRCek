@@ -22,6 +22,58 @@ export interface AuditEntry {
   createdAt: number;
 }
 
+export interface AuditJoinedRow {
+  id: string;
+  event_id: string;
+  actor_user_id: string | null;
+  actor_name: string | null;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  before_json: string | null;
+  after_json: string | null;
+  reason: string | null;
+  created_at: number;
+}
+
+export async function listAuditEntries(
+  db: D1Database,
+  input: {
+    eventId: string;
+    action?: string;
+    cursor: { createdAt: number; id: string } | null;
+    limit: number;
+  },
+): Promise<AuditJoinedRow[]> {
+  const clauses = ["a.event_id = ?"];
+  const bindings: Array<string | number> = [input.eventId];
+  if (input.action) {
+    clauses.push("a.action = ?");
+    bindings.push(input.action);
+  }
+  if (input.cursor) {
+    clauses.push("(a.created_at < ? OR (a.created_at = ? AND a.id < ?))");
+    bindings.push(input.cursor.createdAt, input.cursor.createdAt, input.cursor.id);
+  }
+  bindings.push(input.limit + 1);
+
+  const { results } = await db
+    .prepare(
+      `SELECT a.id, a.event_id, a.actor_user_id, u.display_name AS actor_name,
+              a.action, a.entity_type, a.entity_id, a.before_json, a.after_json,
+              a.reason, a.created_at
+         FROM audit_log a
+         LEFT JOIN users u ON u.id = a.actor_user_id
+        WHERE ${clauses.join(" AND ")}
+        ORDER BY a.created_at DESC, a.id DESC
+        LIMIT ?`,
+    )
+    .bind(...bindings)
+    .all<AuditJoinedRow>();
+
+  return results;
+}
+
 function jsonOrNull(value: unknown): string | null {
   return value === undefined ? null : JSON.stringify(value);
 }

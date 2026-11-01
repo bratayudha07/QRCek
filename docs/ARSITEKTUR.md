@@ -1,6 +1,6 @@
 # ARSITEKTUR — Multi-Event Parent Attendance Management System
 
-Status: **fondasi dan sebagian API Fase 0–5 tersedia; alur UI petugas, absensi, laporan, aktivitas, dan sinkronisasi belum selesai.** API scan, daftar/koreksi absensi, ringkasan dashboard, undangan anggota, dan sync tersedia di Worker. Namun tab Petugas/Absensi/Laporan dan halaman Scan/Riwayat/Aktivitas adalah placeholder; dashboard web belum memuat endpoint rekap; route baca audit dan ekspor laporan kehadiran belum ada. Uji perangkat, Google Sheet nyata, CPU produksi, dan deploy alias `/api/calendar` juga masih terbuka. Rincian ada di [`../IMPLEMENTATION_PLAN.md`](../IMPLEMENTATION_PLAN.md) dan [`OPERASIONAL.md`](./OPERASIONAL.md).
+Status: **alur utama Petugas, scan/riwayat, Absensi, Laporan, dashboard, Aktivitas, dan kontrol akun sudah tersambung ke API.** Audit bisa dibaca oleh admin acara, dan laporan absensi bisa diekspor sebagai CSV. Verifikasi perangkat fisik, akun Google Sheets nyata, CPU produksi, kebijakan arsip audit, dan deploy alias `/api/calendar` masih terbuka. Rincian ada di [`../IMPLEMENTATION_PLAN.md`](../IMPLEMENTATION_PLAN.md) dan [`OPERASIONAL.md`](./OPERASIONAL.md).
 
 Dokumen terkait: [`DESAIN_DATABASE.md`](./DESAIN_DATABASE.md), [`DESAIN_API.md`](./DESAIN_API.md), [`RENCANA_PENGUJIAN.md`](./RENCANA_PENGUJIAN.md), [`../COSTS_AND_LIMITS.md`](../COSTS_AND_LIMITS.md), [`../IMPLEMENTATION_PLAN.md`](../IMPLEMENTATION_PLAN.md).
 

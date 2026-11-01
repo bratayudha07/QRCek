@@ -1,12 +1,12 @@
-import type { Role } from "@absensi/shared";
-import { ChevronRight, LogOut } from "lucide-react";
-import { useState } from "react";
+import type { Role, SessionSummary } from "@absensi/shared";
+import { ChevronRight, KeyRound, LogOut, MonitorSmartphone } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { AppLink } from "@/components/app-link";
 import { AppShell } from "@/components/app-shell";
 import { ErrorState, LoadingState, Notice } from "@/components/page-state";
 import { Button } from "@/components/ui/button";
-import { logoutSession } from "@/lib/auth";
+import { listSessions, logoutSession, revokeSession, rotateRecoveryCode } from "@/lib/auth";
 import { eventOverviewPath, navigate, paths } from "@/lib/router";
 import { useSession } from "@/lib/session";
 
@@ -26,6 +26,19 @@ export function AccountPage({
   const session = useSession();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<SessionSummary[]>([]);
+  const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (session.status !== "authenticated") return;
+    let cancelled = false;
+    listSessions().then((body) => {
+      if (cancelled) return;
+      if (body.ok) setSessions(body.data.sessions);
+      else setError(body.error.message);
+    }).catch(() => { if (!cancelled) setError("Tidak bisa memuat sesi perangkat"); });
+    return () => { cancelled = true; };
+  }, [session.status]);
 
   async function logout() {
     setBusy(true);
@@ -39,6 +52,28 @@ export function AccountPage({
     } finally {
       setBusy(false);
     }
+  }
+
+  async function revokeOtherSession(item: SessionSummary) {
+    if (!window.confirm(`Cabut sesi ${item.label || "perangkat tanpa nama"}?`)) return;
+    setBusy(true); setError(null);
+    try {
+      const body = await revokeSession(item.id);
+      if (!body.ok) setError(body.error.message);
+      else setSessions((current) => current.filter((row) => row.id !== item.id));
+    } catch { setError("Tidak bisa menghubungi server"); }
+    finally { setBusy(false); }
+  }
+
+  async function rotateCode() {
+    if (!window.confirm("Kode pemulihan lama langsung tidak berlaku. Simpan kode baru setelah dibuat. Lanjutkan?")) return;
+    setBusy(true); setError(null);
+    try {
+      const body = await rotateRecoveryCode();
+      if (!body.ok) setError(body.error.message);
+      else setRecoveryCode(body.data.recoveryCode);
+    } catch { setError("Tidak bisa menghubungi server"); }
+    finally { setBusy(false); }
   }
 
   return (
@@ -109,6 +144,17 @@ export function AccountPage({
                 ))}
               </ul>
             )}
+          </section>
+
+          <section className="space-y-3 rounded-lg border p-4">
+            <div className="flex items-center gap-2"><MonitorSmartphone className="size-4" /><h2 className="text-sm font-semibold">Sesi perangkat</h2></div>
+            {sessions.length === 0 ? <p className="text-sm text-muted-foreground">Tidak ada sesi aktif yang terdaftar.</p> : <ul className="divide-y">{sessions.map((item) => <li key={item.id} className="flex flex-wrap items-center gap-2 py-3"><div className="min-w-0 flex-1"><p className="text-sm font-medium">{item.label || "Perangkat tanpa nama"}{item.current ? " · Perangkat ini" : ""}</p><p className="text-xs text-muted-foreground">Terakhir aktif {new Date(item.lastSeenAt).toLocaleString("id-ID")}</p></div>{!item.current && <Button variant="outline" size="sm" disabled={busy} onClick={() => void revokeOtherSession(item)}>Cabut sesi</Button>}</li>)}</ul>}
+          </section>
+
+          <section className="space-y-3 rounded-lg border p-4">
+            <div className="flex items-center gap-2"><KeyRound className="size-4" /><h2 className="text-sm font-semibold">Kode pemulihan</h2></div>
+            <p className="text-sm text-muted-foreground">Kode baru menggantikan kode lama. Simpan di tempat aman; kode hanya ditampilkan satu kali.</p>
+            {recoveryCode ? <div className="rounded-lg bg-muted p-3"><p className="mb-1 text-xs text-muted-foreground">Kode pemulihan baru</p><code className="select-all font-mono text-lg tracking-wider">{recoveryCode}</code></div> : <Button variant="outline" disabled={busy} onClick={() => void rotateCode()}>Buat kode baru</Button>}
           </section>
         </>
       )}
