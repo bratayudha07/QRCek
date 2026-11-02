@@ -402,3 +402,9 @@ Checklist singkat yang dijalankan pada staging sebelum deploy produksi:
     ada kontrol yang tertutup bottom nav.
 18. Secret QR sengaja dikosongkan di lokal → pratinjau menampilkan pesan konfigurasi server,
     bukan halaman kosong atau QR rusak.
+19. Setelah push ke `main`, tunggu build Workers Builds hijau lalu verifikasi produksi:
+    `/api/health` 200, `/api/health/ready` 200, `curl -I` memuat
+    `content-security-policy` dan `permissions-policy: camera=(self)`, dan pemindai kamera
+    tetap berjalan di HP (CSP tidak memblokir bundle).
+20. Buka tab Network setelah rilis header: tidak ada error CSP di console, dan tidak ada
+    request ke origin selain origin aplikasi.

@@ -38,6 +38,26 @@ Semua angka di bawah dikutip dari dokumentasi resmi pada tanggal verifikasi (lih
 
 Sumber: <https://developers.cloudflare.com/workers/platform/limits/> (diperbarui 29 Okt 2026).
 
+### Batas Workers Builds (deploy dari GitHub)
+
+Produksi di-deploy lewat Git integration, jadi kuota build ikut relevan:
+
+| Fitur | Free | Paid |
+|---|---|---|
+| Build minutes | **3.000/bulan** | 6.000/bulan, lalu $0,005/menit |
+| Build bersamaan | **1** | 6 |
+| Timeout satu build | 20 menit | 20 menit |
+| CPU / memori build | 2 vCPU / 8 GB | 4 vCPU / 8 GB |
+| Environment variable | 64 (5 KB masing-masing) | 64 (5 KB masing-masing) |
+| Retensi log build | 90 hari | 90 hari |
+
+Sumber: <https://developers.cloudflare.com/workers/ci-cd/builds/limits-and-pricing/> (28 Okt 2026).
+
+Satu build repo ini (install workspace + Vite + dry-run bundle) memakan puluhan detik, jadi
+3.000 menit/bulan setara ratusan deploy. Yang perlu diingat hanya: build bersamaan **satu**,
+jadi push beruntun mengantre. Build tidak memakai kuota request Worker, karena build berjalan
+di runner Cloudflare, bukan di edge.
+
 ### Arti praktisnya
 
 **CPU 10 ms adalah batas yang paling membentuk arsitektur.**
@@ -242,6 +262,8 @@ Tidak ada langkah berbayar, tetapi ada langkah **manual** yang harus dilakukan s
 | D1 pricing | https://developers.cloudflare.com/d1/platform/pricing/ | 21 Apr 2026 |
 | Pages limits | https://developers.cloudflare.com/pages/platform/limits/ | 5 Sep 2026 |
 | Workers Static Assets | https://developers.cloudflare.com/workers/static-assets/ | 12 Okt 2026 |
+| Workers Builds limits | https://developers.cloudflare.com/workers/ci-cd/builds/limits-and-pricing/ | 28 Okt 2026 |
+| Workers Builds configuration | https://developers.cloudflare.com/workers/ci-cd/builds/configuration/ | 22 Sep 2026 |
 | Sheets API limits | https://developers.google.com/sheets/api/limits | — |
 | Drive file limits | https://support.google.com/drive/answer/37603 | — |
 | Vitest integration | https://developers.cloudflare.com/workers/testing/vitest-integration/ | Okt 2026 |

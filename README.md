@@ -191,10 +191,41 @@ Detail lingkungan dan hasil pengukuran: `docs/OPERASIONAL.md`.
 
 ## Deploy
 
-Worker produksi saat ini tersedia di
-[`qrcek.hamdirobbi5.workers.dev`](https://qrcek.hamdirobbi5.workers.dev). Untuk deploy,
-build dahulu lalu jalankan `npx wrangler deploy` dari `apps/api` setelah memastikan migrasi
-remote yang diperlukan sudah diterapkan. Migrasi remote memerlukan konfirmasi pemilik proyek.
+Repo ini terhubung ke Cloudflare lewat **Git integration (Workers Builds)**:
+setiap push ke `main` di [`github.com/bratayudha07/QRCek`](https://github.com/bratayudha07/QRCek)
+memicu build + deploy otomatis. Worker produksi:
+[`qrcek.hamdirobbi5.workers.dev`](https://qrcek.hamdirobbi5.workers.dev).
+
+Pengaturan build yang harus cocok dengan struktur monorepo (Settings → Build di dashboard):
+
+| Setelan | Nilai |
+|---|---|
+| Branch produksi | `main` |
+| Root directory | `apps/api` (lokasi `wrangler.jsonc`) |
+| Build command | `cd ../.. && npm ci && npm run build` — memasang workspace **dan** menghasilkan `apps/web/dist` sebelum deploy |
+| Deploy command | `npx wrangler deploy` (default) |
+
+Tanpa langkah build web, `assets.directory` (`../web/dist`) kosong dan situs tampil 404
+walau build hijau.
+
+> Kalau dashboard memakai **root directory = root repo** (bukan `apps/api`), ganti deploy
+> command menjadi `npx wrangler deploy --config apps/api/wrangler.jsonc`; build command cukup
+> `npm ci && npm run build`. Dua susunan ini setara — yang penting build menghasilkan
+> `apps/web/dist` sebelum deploy.
+
+**Yang tidak dilakukan otomatis oleh deploy Git:**
+
+- **Migrasi D1 tidak dijalankan.** Deploy hanya mengunggah kode. Setelah perubahan skema,
+  jalankan `npm run db:migrate:remote` secara sadar (butuh konfirmasi pemilik proyek).
+  Urutannya: migrasi dulu, baru kode yang bergantung padanya.
+- **Secret tidak ikut ter-deploy.** `SESSION_PEPPER`, `QR_PEPPER`, `QR_ENCRYPTION_KEY`,
+  `QR_KEY_VERSION`, `GOOGLE_SA_KEY`, `TURNSTILE_SECRET_KEY` tetap lewat
+  `npx wrangler secret put <NAMA>` dari `apps/api`. Jangan menampilkan atau mencatat nilainya.
+- **`VITE_TURNSTILE_SITE_KEY` harus ada di build environment** Cloudflare (Settings → Build →
+  Variables and Secrets) kalau Turnstile dipakai; kalau tidak, bundle frontend ter-build tanpa
+  site key.
+
+Deploy manual tetap mungkin sebagai fallback:
 
 ```bash
 npm run build
@@ -202,10 +233,17 @@ cd apps/api
 npx wrangler deploy
 ```
 
-Secret produksi dikelola dengan `npx wrangler secret put <NAMA>`. Jangan menampilkan atau
-mencatat nilai secret. `TURNSTILE_SECRET_KEY` harus berasal dari widget yang sama dengan
-`VITE_TURNSTILE_SITE_KEY` yang dipakai frontend. Prosedur dan status deployment ada di
-[`docs/OPERASIONAL.md`](docs/OPERASIONAL.md).
+Verifikasi setelah deploy:
+
+```bash
+curl -s  https://qrcek.hamdirobbi5.workers.dev/api/health
+curl -s  https://qrcek.hamdirobbi5.workers.dev/api/health/ready
+curl -sI https://qrcek.hamdirobbi5.workers.dev/ | grep -i "content-security-policy"
+```
+
+`/api/health/ready`, `/api/admin/usage`, dan security headers baru ada setelah commit yang
+memuatnya ter-deploy. Status, kuota build, dan prosedur rollback ada di
+[`docs/OPERASIONAL.md`](docs/OPERASIONAL.md) §10.
 
 ## Dokumen
 

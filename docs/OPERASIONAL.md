@@ -2,12 +2,20 @@
 
 Dokumen ini mencatat hasil pengukuran, instruksi operasi, status deployment, dan quirk lingkungan yang tidak terlihat dari kode.
 
-## Status operasi saat ini (1 November 2026)
+## Status operasi saat ini (2 November 2026)
 
-- Worker produksi tersedia di `https://qrcek.hamdirobbi5.workers.dev`; auth/session dan endpoint API merespons. Tail juga menunjukkan request cron terjadwal.
+- Worker produksi berjalan di `https://qrcek.hamdirobbi5.workers.dev` dan di-deploy lewat
+  **Git integration Cloudflare (Workers Builds)**: push ke `main` di
+  `github.com/bratayudha07/QRCek` memicu build + deploy. Deploy manual `wrangler deploy`
+  hanya fallback.
+- Terverifikasi 2 November 2026 05:49 UTC pada URL produksi: `GET /api/health` → `200`
+  (Worker hidup), sedangkan `GET /api/health/ready` dan `GET /api/admin/usage` masih `404`
+  dan security headers belum ada di respons aset. Artinya versi yang live lebih lama dari
+  commit yang menambahkan permukaan Fase 6; endpoint itu muncul setelah push berikutnya.
 - Migrasi remote sampai `0006_self_signup.sql` telah digunakan oleh aplikasi produksi.
+  Migrasi **tidak** dijalankan oleh Workers Builds — lihat §10.3.
 - Secret Turnstile harus cocok dengan **Secret Key** widget yang sama dengan site key publik frontend. `invalid-input-secret` berarti secret tidak cocok atau tidak aktif. Unggah Secret Key yang benar memakai `npx wrangler secret put TURNSTILE_SECRET_KEY` dari `apps/api`. Jangan mencetak nilainya.
-- Browser terbaru mengarahkan request daftar acara ke `/api/calendar` untuk menghindari pemblokiran content blocker yang terlihat pada `/api/events` (Network menampilkan “Blocked By uBlock Origin”). Perubahan ini masih perlu dibuild dan deploy sebelum diverifikasi di domain produksi.
+- Browser terbaru mengarahkan request daftar acara ke `/api/calendar` untuk menghindari pemblokiran content blocker yang terlihat pada `/api/events` (Network menampilkan “Blocked By uBlock Origin”). Alias itu ikut ter-deploy bersama kode Worker, jadi statusnya mengikuti commit yang live.
 
 Lingkungan pengukuran:
 
@@ -64,7 +72,10 @@ Selisih sampai ~2,5× antar-run pada mesin yang sama menunjukkan angka ini didom
 ### Cara memverifikasi gerbang CPU (butuh akun Cloudflare)
 
 ```bash
-# 1. deploy
+# 1. deploy (Git: push ke main, tunggu Workers Builds hijau; fallback manual di bawah)
+git push origin main
+
+# fallback manual
 npm run build
 cd apps/api && npx wrangler deploy
 
@@ -471,3 +482,90 @@ Kebijakan:
 Ambang arsip yang disarankan: baris tertua lebih dari **12 bulan**, atau
 `counts.auditEntries` mendekati batas nyaman D1 free tier. Angka ini keputusan operator,
 bukan aturan yang ditegakkan kode — endpoint usage menyediakan datanya.
+
+---
+
+## 10. Deploy produksi lewat GitHub (Workers Builds)
+
+### 10.1 Alur
+
+```
+git push origin main
+      │
+      ▼
+GitHub  ──webhook──▶  Cloudflare Workers Builds
+                        ├─ build command  (install + build web)
+                        ├─ deploy command (npx wrangler deploy)
+                        └─ unggah Worker + assets (apps/web/dist, termasuk _headers)
+```
+
+- Branch produksi: `main`. Pull request boleh memicu preview build, tetapi produksi hanya
+  dari `main`.
+- Build menulis `apps/web/dist`, lalu `wrangler deploy` mengunggahnya sebagai Static Assets.
+  Berkas `apps/web/public/_headers` ikut terunggah dan langsung berlaku untuk aset statis.
+- Status build terlihat di dua tempat: check run GitHub pada commit, dan Settings → Builds di
+  dashboard Cloudflare (riwayat build disimpan 90 hari).
+
+Setelan yang harus cocok dengan monorepo ini (Settings → Build):
+
+| Setelan | Nilai | Kenapa |
+|---|---|---|
+| Root directory | `apps/api` | Di situ `wrangler.jsonc` berada |
+| Build command | `cd ../.. && npm ci && npm run build` | Workspace root harus di-install **dan** `apps/web/dist` harus ada sebelum deploy |
+| Deploy command | `npx wrangler deploy` | Default; memakai Wrangler dari `package.json` |
+| Branch | `main` | Satu-satunya sumber produksi |
+
+Gejala build hijau tapi situs 404: build command tidak menghasilkan `apps/web/dist`, sehingga
+`assets.directory` kosong.
+
+> Alternatif yang setara: root directory = root repo, build command `npm ci && npm run build`,
+> deploy command `npx wrangler deploy --config apps/api/wrangler.jsonc`. Pilih satu susunan,
+> jangan campur setengah-setengah.
+
+### 10.2 Batas free tier untuk build
+
+| Metrik | Free |
+|---|---|
+| Build minutes | 3.000/bulan |
+| Build bersamaan | 1 |
+| Timeout satu build | 20 menit |
+| Retensi log build | 90 hari |
+| Environment variable | 64 (5 KB masing-masing) |
+
+Satu build repo ini (install + Vite + dry-run bundle) berada di kisaran puluhan detik, jadi
+3.000 menit/bulan jauh lebih dari cukup. Karena build bersamaan hanya satu, push berturut-turut
+akan mengantre; tidak ada biaya, hanya menunggu.
+
+Sumber: <https://developers.cloudflare.com/workers/ci-cd/builds/limits-and-pricing/> (28 Okt 2026).
+
+### 10.3 Yang tidak ikut ter-deploy
+
+| Hal | Kenapa | Cara menangani |
+|---|---|---|
+| **Migrasi D1** | Workers Builds hanya mengunggah kode | Jalankan `npm run db:migrate:remote` lebih dulu, dengan konfirmasi pemilik. Urutan: migrasi → kode |
+| **Secret runtime** | Secret tidak disimpan di repo | `npx wrangler secret put <NAMA>` dari `apps/api` |
+| **Variabel build frontend** | Dibutuhkan saat Vite membangun bundle | Settings → Build → Variables and Secrets: `VITE_TURNSTILE_SITE_KEY` |
+| **Data D1** | Bukan bagian dari deploy | Backup/PITR D1, lihat §9.3 untuk audit |
+
+### 10.4 Verifikasi setelah deploy
+
+```bash
+base=https://qrcek.hamdirobbi5.workers.dev
+
+curl -s  "$base/api/health"            # 200, status ok
+curl -s  "$base/api/health/ready"      # 200 ready | 503 DB_UNAVAILABLE
+curl -sI "$base/" | grep -i "content-security-policy\|permissions-policy"
+curl -sI "$base/assets/" 2>/dev/null | head -1   # aset ada
+```
+
+`/api/admin/usage` butuh cookie superadmin, jadi tidak bisa dicek dengan `curl` tanpa sesi.
+
+### 10.5 Rollback
+
+- **Kode:** dashboard Cloudflare → Worker → Deployments → pilih versi sebelumnya → Rollback.
+  Ini mengembalikan Worker **dan** aset statis ke versi itu.
+- **Database:** rollback kode **tidak** membatalkan migrasi. Kalau rilis berisi migrasi yang
+  merusak, pemulihan memakai Time Travel D1 (7 hari di free tier) atau snapshot manual, dan
+  itu keputusan pemilik proyek.
+- Jangan rollback ke versi yang lebih tua dari skema database saat ini tanpa memeriksa
+  kompatibilitas query-nya.

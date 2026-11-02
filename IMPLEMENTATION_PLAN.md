@@ -8,8 +8,9 @@ dan sinkronisasi Sheets berbasis outbox tersedia. UI scan dan beberapa halaman r
 sync masih parsial. Fase 6 **sebagian**: readiness (`/api/health/ready`), pemakaian
 (`/api/admin/usage`), security headers, dan kebijakan retensi audit (ADR-008) sudah ada;
 perangkat fisik, uji Google Sheet nyata, dan pengukuran CPU produksi belum lengkap. Worker
-produksi tersedia; perubahan browser API ke `/api/calendar` masih menunggu deploy. Status
-rinci per area di bawah.
+produksi `qrcek.hamdirobbi5.workers.dev` di-deploy lewat Git integration Cloudflare
+(push ke `main` = build + deploy; migrasi D1 dan secret tetap manual). Status rinci per
+area di bawah.
 
 Dokumen pendukung: [`AGENTS.md`](./AGENTS.md), [`docs/ARSITEKTUR.md`](./docs/ARSITEKTUR.md), [`docs/DESAIN_DATABASE.md`](./docs/DESAIN_DATABASE.md), [`docs/DESAIN_API.md`](./docs/DESAIN_API.md), [`docs/RENCANA_PENGUJIAN.md`](./docs/RENCANA_PENGUJIAN.md), [`COSTS_AND_LIMITS.md`](./COSTS_AND_LIMITS.md).
 
@@ -496,9 +497,11 @@ Bila `scan.concurrent` tidak bisa dibuat deterministik setelah 2 hari kerja, hen
 ## FASE 6 — Hardening, observability, dan deploy
 
 > **Status saat ini: sebagian selesai.** Worker sudah di-deploy ke `qrcek.hamdirobbi5.workers.dev`
-> dan auth digunakan. Rate limit seluruh bucket `DESAIN_API.md` §10 dan housekeeping cron sudah
+> lewat Git integration (push ke `main` → Workers Builds → `wrangler deploy`), dan auth
+> digunakan. Rate limit seluruh bucket `DESAIN_API.md` §10 dan housekeeping cron sudah
 > berjalan; header keamanan, `/api/health/ready`, `/api/admin/usage`, dan prosedur arsip audit
-> sudah ada. Pengukuran CPU, backup prosedural, smoke test lengkap, dan ekstraksi ADR masih terbuka.
+> sudah ada di kode dan aktif setelah commit terkait ter-deploy. Pengukuran CPU, backup
+> prosedural, smoke test lengkap, dan ekstraksi ADR masih terbuka.
 
 ### Pekerjaan
 
@@ -506,9 +509,9 @@ Bila `scan.concurrent` tidak bisa dibuat deterministik setelah 2 hari kerja, hen
 2. ✅ Header keamanan: `Strict-Transport-Security`, `X-Content-Type-Options`, `Referrer-Policy`, `Content-Security-Policy` (tanpa `unsafe-eval`/`unsafe-inline` untuk script). Dipasang di Worker (`apps/api/src/http/security-headers.ts`) dan di `apps/web/public/_headers`; paritas dijaga tes.
 3. ✅ `/api/health/ready` + `/api/admin/usage`.
 4. ✅ Prosedur arsip audit (`docs/OPERASIONAL.md` §9.3, ADR-008) — ambang peringatan masih manual lewat `counts.auditEntries`.
-5. `docs/OPERASIONAL.md`: break-glass superadmin, rotasi secret, pemulihan dari snapshot, prosedur event day.
-6. Ekstrak ADR 001–005 ke `docs/adr/`.
-7. Deploy produksi: `wrangler deploy`, `wrangler d1 migrations apply --remote`, smoke test.
+5. `docs/OPERASIONAL.md`: break-glass superadmin, rotasi secret, pemulihan dari snapshot, prosedur event day. (Deploy lewat GitHub sudah didokumentasikan di §10.)
+6. Ekstrak ADR 001–008 ke `docs/adr/`.
+7. Deploy produksi lewat Git integration (`main` → Workers Builds), migrasi remote manual (`wrangler d1 migrations apply --remote`), smoke test.
 8. Opsional (hanya bila disetujui): E2E Playwright untuk 3 alur kritis.
 
 ### Kriteria penerimaan (terukur)
