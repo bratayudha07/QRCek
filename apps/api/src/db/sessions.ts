@@ -124,6 +124,25 @@ export function revokeAllCredentialsStatement(
     .bind(now, userId);
 }
 
+/**
+ * Expired sessions are unusable: `authenticate` rejects them, and the device
+ * list already filters them out. Bounded like the rate-limit sweep so cron
+ * stays cheap.
+ */
+export function pruneExpiredSessionsStatement(
+  db: D1Database,
+  input: { before: number; limit: number },
+): D1PreparedStatement {
+  return db
+    .prepare(
+      `DELETE FROM sessions
+        WHERE rowid IN (
+          SELECT rowid FROM sessions WHERE expires_at < ? LIMIT ?
+        )`,
+    )
+    .bind(input.before, input.limit);
+}
+
 export async function listSessions(
   db: D1Database,
   userId: string,

@@ -474,7 +474,7 @@ Bila `scan.concurrent` tidak bisa dibuat deterministik setelah 2 hari kerja, hen
 4. ✅ Mutasi scan/koreksi memasukkan outbox secara atomik.
 5. ✅ Cron `scheduled()` menjalankan sync, reklain item macet, dan housekeeping.
 6. ✅ Route sync mencakup konfigurasi, tes koneksi, full resync, eksekusi, daftar kegagalan, dan retry.
-7. ⬜ UI konfigurasi/status sync belum tersedia.
+7. ✅ UI konfigurasi/status sync tersedia (`event-reports.tsx`), termasuk jalankan, full resync, dan retry item.
 
 ### Kriteria penerimaan (terukur)
 
@@ -494,12 +494,13 @@ Bila `scan.concurrent` tidak bisa dibuat deterministik setelah 2 hari kerja, hen
 ## FASE 6 — Hardening, observability, dan deploy
 
 > **Status saat ini: belum selesai.** Worker sudah di-deploy ke `qrcek.hamdirobbi5.workers.dev`
-> dan auth digunakan. Perubahan `/api/calendar` masih lokal; pengukuran CPU, pemeriksaan
-> keamanan/retensi, backup prosedural, dan smoke test lengkap masih terbuka.
+> dan auth digunakan. Rate limit seluruh bucket `DESAIN_API.md` §10 dan housekeeping cron sudah
+> berjalan; header keamanan, `/api/health/ready`, `/api/admin/usage`, pengukuran CPU, pemeriksaan
+> retensi audit, backup prosedural, dan smoke test lengkap masih terbuka.
 
 ### Pekerjaan
 
-1. Rate limit seluruh endpoint sesuai tabel `DESAIN_API.md` §10.
+1. ✅ Rate limit seluruh endpoint sesuai tabel `DESAIN_API.md` §10 (termasuk `sync:run` 1/menit dan `limit` manual maksimum `SYNC_RUN_MAX`).
 2. Header keamanan: `Strict-Transport-Security`, `X-Content-Type-Options`, `Referrer-Policy: no-referrer`, `Content-Security-Policy` (tanpa `unsafe-eval`).
 3. `/api/health/ready` + `/api/admin/usage`.
 4. Prosedur arsip audit (`docs/OPERASIONAL.md`) + ambang peringatan ukuran DB.

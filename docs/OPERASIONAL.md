@@ -299,8 +299,9 @@ Opsi lain: `--expires-hours 24` (1–168), `--base-url https://absensi.example.c
 | `auth:recover:<ipHash>` | 5 / 15 menit | 429 + `Retry-After` |
 
 IP di-hash dengan `SESSION_PEPPER`, jadi tidak ada IP mentah di D1. Pembersihan baris
-`rate_limits` lama belum dijadwalkan (butuh cron Fase 6); tabel ini tumbuh satu baris per
-(bucket, jendela), jadi volumenya kecil untuk skala saat ini.
+`rate_limits` lama dijalankan cron 5 menit (`runHousekeeping`): jendela yang berakhir lebih
+dari 1 jam dihapus, maksimum 500 baris per siklus. Sesi yang `expires_at`-nya lewat juga
+dihapus dengan batas yang sama.
 
 ### 7.5 Secret QR (Tahap 4)
 

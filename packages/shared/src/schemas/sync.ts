@@ -21,10 +21,23 @@ export const SyncConfigRequestSchema = z
 
 export type SyncConfigRequest = z.infer<typeof SyncConfigRequestSchema>;
 
+/**
+ * Manual sync cap, not a UI preference.
+ *
+ * Each claimed item costs two D1 queries (projection lookup + sheet-row
+ * reservation) plus one per event and the claim/ack batches. The free plan
+ * allows 50 queries per Worker invocation, so a larger `limit` can exceed the
+ * budget and fail mid-run. Cron keeps its own smaller limit.
+ */
+export const SYNC_RUN_MAX = 10;
+export const SYNC_RUN_DEFAULT = 5;
+
 export const SyncRunRequestSchema = z
-  .object({ limit: z.number().int().min(1).max(50).default(5) })
+  .object({
+    limit: z.number().int().min(1).max(SYNC_RUN_MAX).default(SYNC_RUN_DEFAULT),
+  })
   .strict()
-  .default({ limit: 5 });
+  .default({ limit: SYNC_RUN_DEFAULT });
 
 export const OutboxListQuerySchema = z.object({
   status: z.enum(["all", "pending", "inflight", "done", "failed", "dead"]).default("all"),

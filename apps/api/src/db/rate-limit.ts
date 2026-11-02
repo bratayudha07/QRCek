@@ -35,3 +35,21 @@ export async function consumeRateLimit(
     retryAfterSeconds: Math.max(1, Math.ceil((windowEnd - input.now) / 1000)),
   };
 }
+
+/**
+ * Deletes finished windows. Bounded so one cron tick cannot write an unbounded
+ * number of rows; the 5-minute schedule drains any backlog quickly.
+ */
+export function pruneRateLimitsStatement(
+  db: D1Database,
+  input: { before: number; limit: number },
+): D1PreparedStatement {
+  return db
+    .prepare(
+      `DELETE FROM rate_limits
+        WHERE rowid IN (
+          SELECT rowid FROM rate_limits WHERE window_start < ? LIMIT ?
+        )`,
+    )
+    .bind(input.before, input.limit);
+}

@@ -29,11 +29,17 @@ import {
   revokeAllSessionsStatement,
   revokeSession,
 } from "../db/sessions";
-import { claimInvite, findInviteByHash, setInviteUsedByStatement } from "../db/invites";
+import {
+  claimInvite,
+  findInviteByHash,
+  releaseInviteClaim,
+  setInviteUsedByStatement,
+} from "../db/invites";
 import {
   claimRecoveryCode,
   findUnusedRecoveryCode,
   insertRecoveryCodeStatement,
+  releaseRecoveryCodeClaim,
   useAllRecoveryCodesStatement,
 } from "../db/recovery";
 import { consumeRateLimit } from "../db/rate-limit";
@@ -100,6 +106,7 @@ function toMemberships(rows: MembershipRow[]) {
 interface IssuedSession {
   statements: D1PreparedStatement[];
   sessionToken: string;
+  sessionId: string;
   recoveryCode: string;
 }
 
@@ -150,7 +157,7 @@ async function issueSessionStatements(
     }),
   ];
 
-  return { statements, sessionToken, recoveryCode };
+  return { statements, sessionToken, sessionId, recoveryCode };
 }
 
 async function activate(ctx: RouteContext): Promise<RouteResult> {
@@ -220,11 +227,21 @@ async function activate(ctx: RouteContext): Promise<RouteResult> {
     );
   }
 
-  await ctx.env.DB.batch([
-    ...writes,
-    setInviteUsedByStatement(ctx.env.DB, invite.id, userId),
-    ...issued.statements,
-  ]);
+  try {
+    await ctx.env.DB.batch([
+      ...writes,
+      setInviteUsedByStatement(ctx.env.DB, invite.id, userId),
+      ...issued.statements,
+    ]);
+  } catch (error) {
+    // The claim is committed before this batch and D1 cannot span both in one
+    // transaction. A failed batch rolls back `used_by`, so releasing here only
+    // affects an invite that never produced an account.
+    await releaseInviteClaim(ctx.env.DB, invite.id).catch(() => {
+      console.error("invite_claim_release_failed", { inviteId: invite.id });
+    });
+    throw error;
+  }
 
   const user = await ctx.env.DB.prepare(
     "SELECT id, display_name, role, status FROM users WHERE id = ?",
@@ -337,9 +354,8 @@ async function recover(ctx: RouteContext): Promise<RouteResult> {
   const code = await findUnusedRecoveryCode(ctx.env.DB, codeHash);
   if (!code) throw invalidRecovery();
 
-  const claimed = await claimRecoveryCode(ctx.env.DB, code.id, ctx.now);
-  if (claimed === 0) throw invalidRecovery();
-
+  // Validate the account before claiming: a suspended or deleted user must not
+  // burn the last recovery code.
   const user = await ctx.env.DB.prepare(
     "SELECT id, display_name, role, status FROM users WHERE id = ? AND status = 'active'",
   )
@@ -347,15 +363,27 @@ async function recover(ctx: RouteContext): Promise<RouteResult> {
     .first<UserRow>();
   if (!user) throw invalidRecovery();
 
+  const claimed = await claimRecoveryCode(ctx.env.DB, code.id, ctx.now);
+  if (claimed === 0) throw invalidRecovery();
+
   // Recovery assumes the old device is gone: revoke every session and
   // credential first, then issue exactly one new one.
   const issued = await issueSessionStatements(ctx, user.id, body.label ?? null);
 
-  await ctx.env.DB.batch([
-    revokeAllSessionsStatement(ctx.env.DB, user.id, ctx.now),
-    revokeAllCredentialsStatement(ctx.env.DB, user.id, ctx.now),
-    ...issued.statements,
-  ]);
+  try {
+    await ctx.env.DB.batch([
+      revokeAllSessionsStatement(ctx.env.DB, user.id, ctx.now),
+      revokeAllCredentialsStatement(ctx.env.DB, user.id, ctx.now),
+      ...issued.statements,
+    ]);
+  } catch (error) {
+    // Same compensation as activation. The guard inside the release statement
+    // refuses to free a code whose session was actually committed.
+    await releaseRecoveryCodeClaim(ctx.env.DB, code.id, issued.sessionId).catch(() => {
+      console.error("recovery_claim_release_failed", { recoveryCodeId: code.id });
+    });
+    throw error;
+  }
 
   const memberships = await listActiveMemberships(ctx.env.DB, user.id);
   const payload: ActivatePayload = {

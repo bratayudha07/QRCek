@@ -96,6 +96,26 @@ export function setInviteUsedByStatement(
     .bind(userId, inviteId);
 }
 
+/**
+ * Compensation for a failed activation batch.
+ *
+ * `activate` claims the invite before building the batch (fast replay
+ * rejection), and D1 has no interactive transaction that could span both. If
+ * the batch throws it rolls back atomically, so `used_by` is still NULL and the
+ * claim can be released without touching a completed activation.
+ */
+export async function releaseInviteClaim(
+  db: D1Database,
+  inviteId: string,
+): Promise<number> {
+  const result = await db
+    .prepare("UPDATE invites SET used_at = NULL WHERE id = ? AND used_by IS NULL")
+    .bind(inviteId)
+    .run();
+
+  return result.meta.changes;
+}
+
 export async function countActiveInvites(
   db: D1Database,
   eventId: string,

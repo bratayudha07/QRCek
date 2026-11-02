@@ -26,6 +26,7 @@ import {
   retryOutboxStatement,
 } from "../db/outbox";
 import type { OutboxJoinedRow } from "../db/outbox";
+import { consumeRateLimit } from "../db/rate-limit";
 import {
   findSyncState,
   setFullSyncStatement,
@@ -41,7 +42,7 @@ import {
 } from "../domain/sheets";
 import type { SheetsGateway } from "../domain/sheets";
 import { authOf, requireEventAccess } from "../http/auth";
-import { ApiError, businessRule, notFound } from "../http/errors";
+import { ApiError, businessRule, notFound, rateLimited } from "../http/errors";
 import type { RouteContext, RouteDefinition, RouteResult } from "../http/router";
 import { parseJsonBody, parsePathParams, parseQuery } from "../http/validate";
 import { processOutbox } from "../services/outbox";
@@ -59,6 +60,13 @@ const OutboxParamsSchema = z.object({
   eventId: EventIdSchema,
   outboxId: z.string().min(1).max(64),
 });
+
+/**
+ * A manual run performs Google API calls and ~2 D1 queries per item, so it is
+ * the most expensive endpoint in the app. One run per event per minute matches
+ * DESAIN_API.md §10; cron handles the backlog in between.
+ */
+const SYNC_RUN_LIMIT = { windowMs: 60_000, limit: 1 };
 
 function configPayload(env: ContextEnv, state: SyncStateRow | null): SyncConfig {
   return {
@@ -188,6 +196,13 @@ async function runSync(ctx: RouteContext): Promise<RouteResult> {
   const { eventId } = parsePathParams(ctx.params, EventParamsSchema);
 
   await requireEventAccess(ctx.env, auth, eventId, "sync:configure");
+  const budget = await consumeRateLimit(ctx.env.DB, {
+    bucket: `sync:run:${eventId}`,
+    now: ctx.now,
+    ...SYNC_RUN_LIMIT,
+  });
+  if (!budget.allowed) throw rateLimited(budget.retryAfterSeconds);
+
   const body = await parseJsonBody(ctx.request, SyncRunRequestSchema);
 
   const state = await findSyncState(ctx.env.DB, eventId);

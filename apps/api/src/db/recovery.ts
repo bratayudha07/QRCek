@@ -31,6 +31,30 @@ export async function claimRecoveryCode(
   return result.meta.changes;
 }
 
+/**
+ * Compensation for a failed recovery batch.
+ *
+ * A session row is the marker of a committed batch: a batch can commit and
+ * still throw (ambiguous network outcome). Releasing the code when that session
+ * exists would let a second recovery revoke the session just issued, so the
+ * guard lives in the same statement as the release.
+ */
+export async function releaseRecoveryCodeClaim(
+  db: D1Database,
+  codeId: string,
+  sessionId: string,
+): Promise<number> {
+  const result = await db
+    .prepare(
+      `UPDATE recovery_codes SET used_at = NULL
+        WHERE id = ? AND NOT EXISTS (SELECT 1 FROM sessions WHERE id = ?)`,
+    )
+    .bind(codeId, sessionId)
+    .run();
+
+  return result.meta.changes;
+}
+
 /** A new code invalidates every older unused one. */
 export function useAllRecoveryCodesStatement(
   db: D1Database,

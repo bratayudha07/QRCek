@@ -1,4 +1,5 @@
 import type { EventDashboardPayload, SyncStatusPayload } from "@absensi/shared";
+import { SYNC_RUN_MAX } from "@absensi/shared";
 import { Activity, Download, RefreshCw, Save, Settings2 } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 
@@ -90,7 +91,7 @@ export function EventReportsPage({ eventId }: { eventId: string }) {
         if (!body.ok) setSyncError(body.error.message);
         else { setNotice(`${body.data.enqueued} baris dimasukkan ke antrean.`); setRefresh((value) => value + 1); }
       } else {
-        const body = await runSync(eventId, 20);
+        const body = await runSync(eventId, SYNC_RUN_MAX);
         if (!body.ok) setSyncError(body.error.message);
         else { setNotice(`${body.data.succeeded} berhasil, ${body.data.failed} gagal.`); setRefresh((value) => value + 1); }
       }

@@ -611,7 +611,13 @@ Batasan yang disadari: jendela tetap bisa memberi hingga 2× batas di perbatasan
 (klasik fixed window). Untuk melindungi endpoint auth dari tebakan token, itu cukup — yang
 dilindungi adalah percobaan berulang dalam jumlah besar, bukan burst presisi.
 
-Pembersihan baris `rate_limits` lama dilakukan oleh cron yang sama dengan sync (jendela lebih dari 1 jam dihapus).
+`POST /api/events/:eventId/sync/run` juga membatasi `limit` maksimum `SYNC_RUN_MAX` (10 item
+per request). Setiap item memakai ~2 query D1 (proyeksi + reservasi baris), sementara free
+tier hanya mengizinkan 50 query per invocation; `limit` lebih besar bisa gagal di tengah jalan.
+Sisa antrean dihabiskan cron.
+
+Pembersihan baris `rate_limits` lama dilakukan oleh cron yang sama dengan sync: jendela yang
+berakhir lebih dari 1 jam dihapus, maksimum 500 baris per siklus.
 
 ---
 
@@ -628,9 +634,13 @@ Satu cron (`*/5 * * * *`) menjalankan tiga tugas berurutan, masing-masing dibata
 
 1. **Sync outbox** — maksimum 5 item (lihat `DESAIN_DATABASE.md` §6).
 2. **Reklaim item macet** — item `inflight` dengan `claimed_at` lebih dari 10 menit → `failed` + `attempts + 1`.
-3. **Housekeeping** — hapus `outbox.done` > 7 hari, `sessions` kedaluwarsa, `rate_limits` > 1 jam. Dibatasi 500 baris per kategori per siklus ✅ (mematuhi batas 100k baris tulis/hari dengan margin lebar).
+3. **Housekeeping** — hapus `outbox.done` > 7 hari (di dalam `processOutbox`), `sessions` yang
+   `expires_at`-nya lewat, dan `rate_limits` yang jendelanya berakhir > 1 jam lalu. Sesi dan
+   rate limit masing-masing dibatasi 500 baris per kategori per siklus ✅ (mematuhi batas
+   100k baris tulis/hari dengan margin lebar).
 
-Cron harus **selalu selesai** walaupun salah satu tugas gagal; kegagalan dicatat, tidak melempar keluar dari handler.
+Tugas outbox dan housekeeping berjalan independen di dalam `ctx.waitUntil`; kegagalan salah
+satu dicatat (`cron_job_failed`) dan tidak membatalkan yang lain.
 
 ---
 
