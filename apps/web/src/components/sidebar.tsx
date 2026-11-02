@@ -93,29 +93,25 @@ export function Sidebar({
       className={cn(
         // Floating capsule, not a full-height wall: the rail only covers what
         // the navigation needs, so the page is not visually cut in two.
-        "app-chrome fixed left-4 top-4 z-30 hidden max-h-[calc(100dvh-2rem)] flex-col rounded-2xl border border-border/70 bg-background shadow-[0_16px_40px_-24px_rgba(15,23,42,0.45)] transition-[width] duration-[220ms] ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none lg:flex",
+        "app-chrome fixed left-4 top-4 z-30 hidden max-h-[calc(100dvh-2rem)] flex-col rounded-2xl border border-border/70 bg-background shadow-[0_16px_40px_-24px_rgba(15,23,42,0.45)] transition-[width] duration-[260ms] ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none lg:flex",
         expanded ? "w-[232px]" : "w-[72px]",
       )}
     >
-      <div
-        className={cn(
-          "flex h-14 shrink-0 items-center gap-2.5 px-3",
-        )}
-      >
+      <div className="relative flex h-14 shrink-0 items-center px-3">
         <img
           src="/brand-mark.svg"
           alt=""
           className={cn(
-            "size-9 shrink-0 rounded-lg transition-transform duration-[220ms] ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none",
+            "size-9 shrink-0 rounded-lg transition-transform duration-[260ms] ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none",
             compact && "translate-x-[6px]",
           )}
         />
         <span
           className={cn(
-            "min-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold tracking-tight transition-[max-width,opacity,transform] duration-150 ease-out motion-reduce:transition-none",
+            "pointer-events-none absolute left-14 top-1/2 -translate-y-1/2 whitespace-nowrap text-sm font-semibold tracking-tight transition-[opacity,transform] duration-150 ease-out motion-reduce:transition-none",
             compact
-              ? "pointer-events-none max-w-0 -translate-x-1 opacity-0"
-              : "max-w-40 translate-x-0 opacity-100 delay-75",
+              ? "translate-x-1 opacity-0"
+              : "translate-x-0 opacity-100 delay-75",
           )}
         >
           Absensi
@@ -147,21 +143,19 @@ export function Sidebar({
             aria-pressed={!collapsed}
             aria-controls="app-sidebar"
             title={collapsed ? "Sematkan sidebar terbuka" : "Ciutkan sidebar"}
-            className={cn(
-              "flex h-10 w-full items-center gap-3 rounded-full px-3 text-sm font-medium text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2",
-            )}
+            className="relative flex h-10 w-full items-center gap-3 rounded-full px-3 text-sm font-medium text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2"
           >
             {collapsed ? (
-              compact ? <PanelLeftOpen aria-hidden="true" className="size-5 shrink-0 translate-x-[6px] transition-transform duration-[220ms] ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none" /> : <Pin aria-hidden="true" className="size-4 shrink-0" />
+              compact ? <PanelLeftOpen aria-hidden="true" className="size-5 shrink-0 translate-x-[6px] transition-transform duration-[260ms] ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none" /> : <Pin aria-hidden="true" className="size-4 shrink-0" />
             ) : (
-              <PanelLeftClose aria-hidden="true" className={cn("size-5 shrink-0 transition-transform duration-[220ms] ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none", compact && "translate-x-[6px]")} />
+              <PanelLeftClose aria-hidden="true" className={cn("size-5 shrink-0 transition-transform duration-[260ms] ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none", compact && "translate-x-[6px]")} />
             )}
             <span
               className={cn(
-                "min-w-0 overflow-hidden whitespace-nowrap transition-[max-width,opacity,transform] duration-150 ease-out motion-reduce:transition-none",
+                "pointer-events-none absolute left-11 top-1/2 -translate-y-1/2 whitespace-nowrap transition-[opacity,transform] duration-150 ease-out motion-reduce:transition-none",
                 compact
-                  ? "pointer-events-none max-w-0 -translate-x-1 opacity-0"
-                  : "max-w-24 translate-x-0 opacity-100 delay-75",
+                  ? "translate-x-1 opacity-0"
+                  : "translate-x-0 opacity-100 delay-75",
               )}
             >
               {collapsed ? "Sematkan" : "Ciutkan"}
@@ -198,16 +192,16 @@ function SidebarLink({
       <NavIcon
         name={item.key}
         className={cn(
-          "size-5 shrink-0 transition-transform duration-[220ms] ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none",
+          "size-5 shrink-0 transition-transform duration-[260ms] ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none",
           collapsed && "translate-x-[6px]",
         )}
       />
       <span
         className={cn(
-          "min-w-0 overflow-hidden whitespace-nowrap transition-[max-width,opacity,transform] duration-150 ease-out motion-reduce:transition-none",
+          "pointer-events-none absolute left-11 top-1/2 -translate-y-1/2 whitespace-nowrap transition-[opacity,transform] duration-150 ease-out motion-reduce:transition-none",
           collapsed
-            ? "pointer-events-none max-w-0 -translate-x-1 opacity-0"
-            : "max-w-40 translate-x-0 opacity-100 delay-75",
+            ? "translate-x-1 opacity-0"
+            : "translate-x-0 opacity-100 delay-75",
         )}
       >
         {item.label}
