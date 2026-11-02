@@ -58,7 +58,7 @@ export function Sidebar({
     closeTimer.current = window.setTimeout(() => {
       setHoverOpen(false);
       closeTimer.current = null;
-    }, 220);
+    }, 320);
   }
 
   function togglePinnedState() {
@@ -100,11 +100,24 @@ export function Sidebar({
       <div
         className={cn(
           "flex h-14 shrink-0 items-center gap-2.5 px-3",
-          compact && "justify-center px-0",
         )}
       >
-        <img src="/brand-mark.svg" alt="" className="size-9 shrink-0 rounded-lg" />
-        <span className={cn("truncate text-sm font-semibold tracking-tight", compact && "sr-only")}>
+        <img
+          src="/brand-mark.svg"
+          alt=""
+          className={cn(
+            "size-9 shrink-0 rounded-lg transition-transform duration-[220ms] ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none",
+            compact && "translate-x-[6px]",
+          )}
+        />
+        <span
+          className={cn(
+            "min-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold tracking-tight transition-[max-width,opacity,transform] duration-150 ease-out motion-reduce:transition-none",
+            compact
+              ? "pointer-events-none max-w-0 -translate-x-1 opacity-0"
+              : "max-w-40 translate-x-0 opacity-100 delay-75",
+          )}
+        >
           Absensi
         </span>
       </div>
@@ -136,15 +149,21 @@ export function Sidebar({
             title={collapsed ? "Sematkan sidebar terbuka" : "Ciutkan sidebar"}
             className={cn(
               "flex h-10 w-full items-center gap-3 rounded-full px-3 text-sm font-medium text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2",
-              compact && "justify-center px-0",
             )}
           >
             {collapsed ? (
-              compact ? <PanelLeftOpen aria-hidden="true" className="size-5 shrink-0" /> : <Pin aria-hidden="true" className="size-4 shrink-0" />
+              compact ? <PanelLeftOpen aria-hidden="true" className="size-5 shrink-0 translate-x-[6px] transition-transform duration-[220ms] ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none" /> : <Pin aria-hidden="true" className="size-4 shrink-0" />
             ) : (
-              <PanelLeftClose aria-hidden="true" className="size-5 shrink-0" />
+              <PanelLeftClose aria-hidden="true" className={cn("size-5 shrink-0 transition-transform duration-[220ms] ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none", compact && "translate-x-[6px]")} />
             )}
-            <span className={cn("truncate", compact && "sr-only")}>
+            <span
+              className={cn(
+                "min-w-0 overflow-hidden whitespace-nowrap transition-[max-width,opacity,transform] duration-150 ease-out motion-reduce:transition-none",
+                compact
+                  ? "pointer-events-none max-w-0 -translate-x-1 opacity-0"
+                  : "max-w-24 translate-x-0 opacity-100 delay-75",
+              )}
+            >
               {collapsed ? "Sematkan" : "Ciutkan"}
             </span>
           </button>
@@ -174,11 +193,25 @@ function SidebarLink({
         active
           ? "bg-primary/10 font-semibold text-foreground"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
-        collapsed && "justify-center px-0",
       )}
     >
-      <NavIcon name={item.key} className="size-5 shrink-0" />
-      <span className={cn("truncate", collapsed && "sr-only")}>{item.label}</span>
+      <NavIcon
+        name={item.key}
+        className={cn(
+          "size-5 shrink-0 transition-transform duration-[220ms] ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none",
+          collapsed && "translate-x-[6px]",
+        )}
+      />
+      <span
+        className={cn(
+          "min-w-0 overflow-hidden whitespace-nowrap transition-[max-width,opacity,transform] duration-150 ease-out motion-reduce:transition-none",
+          collapsed
+            ? "pointer-events-none max-w-0 -translate-x-1 opacity-0"
+            : "max-w-40 translate-x-0 opacity-100 delay-75",
+        )}
+      >
+        {item.label}
+      </span>
 
       {collapsed && (
         <span
