@@ -98,7 +98,7 @@ export function AppLayout({ route, children }: { route: AppRoute; children: Reac
         id="main-content"
         tabIndex={-1}
         className={cn(
-          "min-h-dvh pb-[calc(4.5rem+env(safe-area-inset-bottom))] outline-none transition-[padding-left] duration-[220ms] ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none lg:pb-0 print:pb-0 print:pl-0",
+          "min-h-dvh pb-[calc(4.5rem+env(safe-area-inset-bottom))] outline-none transition-[padding-left] duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none lg:pb-0 print:pb-0 print:pl-0",
           // Capsule geometry: 1rem margin + rail width + 1rem breathing room.
           collapsed ? "lg:pl-[104px]" : "lg:pl-[264px]",
         )}
