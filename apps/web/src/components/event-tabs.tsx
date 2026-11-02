@@ -34,7 +34,7 @@ export function EventTabs({ eventId, active }: { eventId: string; active: EventT
       <div className="relative flex w-full min-w-[23rem] rounded-full bg-muted p-1">
         <span
           aria-hidden="true"
-          className="absolute inset-y-1 left-1 rounded-full bg-background shadow-sm transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] motion-reduce:transition-none"
+          className="absolute inset-y-1 left-1 rounded-full bg-background shadow-sm transition-transform duration-[220ms] ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none"
           style={{
             width: `calc((100% - 0.5rem) / ${EVENT_TABS.length})`,
             transform: `translateX(${Math.max(activeIndex, 0) * 100}%)`,
@@ -53,7 +53,7 @@ export function EventTabs({ eventId, active }: { eventId: string; active: EventT
               className={cn(
                 // `outline-offset-0` keeps the focus ring inside the scroll
                 // container: `overflow-x-auto` on the wrapper would clip it.
-                "relative z-10 flex min-w-[4.5rem] flex-1 basis-0 flex-col items-center justify-center gap-1 rounded-full px-2 py-1.5 text-[11px] font-medium transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-0 sm:flex-row sm:gap-2 sm:px-3 sm:py-2 sm:text-sm",
+                "relative z-10 flex min-w-[4.5rem] flex-1 basis-0 flex-col items-center justify-center gap-1 rounded-full px-2 py-1.5 text-[11px] font-medium transition-colors duration-200 ease-out focus-visible:outline-2 focus-visible:outline-offset-0 sm:flex-row sm:gap-2 sm:px-3 sm:py-2 sm:text-sm",
                 isActive
                   ? "text-foreground"
                   : "text-muted-foreground hover:text-foreground",

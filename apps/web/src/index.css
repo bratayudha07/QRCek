@@ -47,8 +47,8 @@
 
 /*
  * Stage 3.5 motion. Everything is CSS: no animation dependency is installed,
- * and the durations stay inside the agreed budgets (page 220 ms, hover/press
- * 150 ms, sidebar 200 ms, segmented control a slight spring).
+ * and the durations stay consistent (page, sidebar, and tabs 220 ms; hover/press
+ * 150 ms). Motion is restrained and uses the same ease curve across the shell.
  *
  * `prefers-reduced-motion` removes the page transition entirely; component
  * transitions opt out with Tailwind's `motion-reduce:transition-none`.

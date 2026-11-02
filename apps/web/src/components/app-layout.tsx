@@ -5,7 +5,9 @@ import { BottomNav } from "./bottom-nav";
 import { EventSwitcher } from "./event-switcher";
 import { EventTabs } from "./event-tabs";
 import { Sidebar } from "./sidebar";
+import { EventStatusBadge } from "./status-badge";
 import { listEvents } from "@/lib/events";
+import { formatSchedule } from "@/lib/format";
 import { eventIdOf, eventTabForRoute, navMode, type NavMode } from "@/lib/navigation";
 import { routePath, type AppRoute } from "@/lib/router";
 import { useSession } from "@/lib/session";
@@ -34,10 +36,14 @@ export function AppLayout({ route, children }: { route: AppRoute; children: Reac
   const routeKey = routePath(route) ?? route.name;
   const showSwitcher =
     mode === "admin" && session.status === "authenticated" && eventId !== null;
-
   const [collapsed, setCollapsed] = useState(true);
   const [events, setEvents] = useState<EventSummary[] | null>(null);
   const mainRef = useRef<HTMLElement>(null);
+  const eventContext =
+    eventId !== null && session.status === "authenticated"
+      ? session.memberships.find((membership) => membership.eventId === eventId)
+      : undefined;
+  const currentEvent = events?.find((event) => event.id === eventId);
 
   useEffect(() => {
     if (!showSwitcher) {
@@ -84,9 +90,6 @@ export function AppLayout({ route, children }: { route: AppRoute; children: Reac
         route={route}
         collapsed={collapsed}
         onToggle={() => setCollapsed((value) => !value)}
-        eventId={eventId}
-        events={events}
-        showSwitcher={showSwitcher}
       />
 
       <main
@@ -94,26 +97,36 @@ export function AppLayout({ route, children }: { route: AppRoute; children: Reac
         id="main-content"
         tabIndex={-1}
         className={cn(
-          "min-h-dvh pb-[calc(4.5rem+env(safe-area-inset-bottom))] outline-none transition-[padding-left] duration-200 ease-out motion-reduce:transition-none lg:pb-0 print:pb-0 print:pl-0",
+          "min-h-dvh pb-[calc(4.5rem+env(safe-area-inset-bottom))] outline-none transition-[padding-left] duration-[220ms] ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none lg:pb-0 print:pb-0 print:pl-0",
           collapsed ? "lg:pl-[76px]" : "lg:pl-[256px]",
         )}
       >
-        {showSwitcher && eventId !== null && (
-          <div className="app-chrome border-b border-border/70 bg-background px-4 py-2 lg:hidden">
-            <div className="mx-auto w-full max-w-3xl">
-              <EventSwitcher
-                id="event-switcher-mobile"
-                eventId={eventId}
-                events={events}
-                activeTab={activeTab}
-              />
-            </div>
-          </div>
-        )}
-
         {eventId !== null && activeTab !== null && (
           <div className="app-chrome border-b border-border/70 bg-background">
-            <div className="mx-auto w-full max-w-3xl px-4 py-2.5">
+            <div className="mx-auto w-full max-w-3xl space-y-2 px-4 py-3">
+              <div className="flex min-h-10 items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  {showSwitcher ? (
+                    <EventSwitcher
+                      id="event-switcher-context"
+                      eventId={eventId}
+                      events={events}
+                      activeTab={activeTab}
+                      compact
+                    />
+                  ) : (
+                    <p className="truncate px-3 text-base font-semibold tracking-tight">
+                      {eventContext?.eventName ?? "Acara"}
+                    </p>
+                  )}
+                </div>
+                {currentEvent && <EventStatusBadge status={currentEvent.status} />}
+              </div>
+              {currentEvent && (
+                <p className="truncate px-3 text-xs text-muted-foreground">
+                  {formatSchedule(currentEvent.startsAt, currentEvent.endsAt, currentEvent.timezone)}
+                </p>
+              )}
               <EventTabs eventId={eventId} active={activeTab} />
             </div>
           </div>

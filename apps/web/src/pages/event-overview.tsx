@@ -6,7 +6,6 @@ import { useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { EventForm, type EventFormValues } from "@/components/event-form";
 import { ErrorState, LoadingState, Notice } from "@/components/page-state";
-import { EventStatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import {
   changeEventStatus,
@@ -15,7 +14,7 @@ import {
   getEventSummary,
   updateEvent,
 } from "@/lib/events";
-import { formatCount, formatDateTime, formatSchedule } from "@/lib/format";
+import { formatCount, formatDateTime } from "@/lib/format";
 import {
   EVENT_STATUS_DESCRIPTION,
   EVENT_STATUS_LABEL,
@@ -177,11 +176,7 @@ export function EventOverviewPage({ eventId }: { eventId: string }) {
   const isArchived = event.status === "archived";
 
   return (
-    <AppShell
-      title={event.name}
-      subtitle={formatSchedule(event.startsAt, event.endsAt, event.timezone)}
-      actions={<EventStatusBadge status={event.status} />}
-    >
+    <AppShell title="Ringkasan">
       {actionError && <ErrorState message={actionError} />}
       {actionNotice && <Notice tone="success">{actionNotice}</Notice>}
 

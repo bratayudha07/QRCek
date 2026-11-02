@@ -1,12 +1,9 @@
-import type { EventSummary } from "@absensi/shared";
-import { ChevronsUpDown, PanelLeftClose, PanelLeftOpen, Pin } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen, Pin } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { AppLink } from "./app-link";
-import { EventSwitcher } from "./event-switcher";
 import { NavIcon } from "./nav-icon";
 import {
-  eventTabForRoute,
   isGlobalNavActive,
   sidebarItems,
   type GlobalNavItem,
@@ -24,17 +21,11 @@ export function Sidebar({
   route,
   collapsed,
   onToggle,
-  eventId,
-  events,
-  showSwitcher,
 }: {
   mode: NavMode;
   route: AppRoute;
   collapsed: boolean;
   onToggle: () => void;
-  eventId: string | null;
-  events: EventSummary[] | null;
-  showSwitcher: boolean;
 }) {
   const items = sidebarItems(mode);
   const sidebarRef = useRef<HTMLElement | null>(null);
@@ -100,8 +91,8 @@ export function Sidebar({
       }}
       onBlurCapture={(event) => handleBlur(event.relatedTarget)}
       className={cn(
-        "app-chrome fixed inset-y-2 left-2 z-30 hidden flex-col rounded-2xl border border-border/70 bg-background shadow-sm transition-[width,box-shadow] duration-200 ease-out motion-reduce:transition-none lg:flex",
-        expanded ? "w-[248px] shadow-lg" : "w-[68px]",
+        "app-chrome fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-border/70 bg-background transition-[width,box-shadow] duration-[220ms] ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none lg:flex",
+        expanded ? "w-[256px] shadow-lg" : "w-[76px]",
       )}
     >
       <div
@@ -115,36 +106,6 @@ export function Sidebar({
           Absensi
         </span>
       </div>
-
-      {showSwitcher && eventId !== null && (
-        <div
-          className={cn(
-            "shrink-0 border-y border-border/70",
-            compact ? "px-2 py-2" : "px-3 py-3",
-          )}
-        >
-          {compact ? (
-            // The full select does not fit the rail; expanding is one click and
-            // keeps a single, labelled control instead of a mystery icon select.
-            <button
-              type="button"
-              onClick={togglePinnedState}
-              title="Ganti acara"
-              aria-label="Ganti acara — perluas sidebar"
-              className="flex h-10 w-full items-center justify-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2"
-            >
-              <ChevronsUpDown aria-hidden="true" className="size-5 shrink-0" />
-            </button>
-          ) : (
-            <EventSwitcher
-              id="event-switcher-sidebar"
-              eventId={eventId}
-              events={events}
-              activeTab={eventTabForRoute(route)}
-            />
-          )}
-        </div>
-      )}
 
       {/* Collapsed, the rail never overflows (four 40 px items), so clipping is
           off and the tooltips can escape the navigation box. */}
