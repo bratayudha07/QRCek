@@ -35,7 +35,7 @@ export function AppLayout({ route, children }: { route: AppRoute; children: Reac
   const showSwitcher =
     mode === "admin" && session.status === "authenticated" && eventId !== null;
 
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [events, setEvents] = useState<EventSummary[] | null>(null);
   const mainRef = useRef<HTMLElement>(null);
 
@@ -95,7 +95,7 @@ export function AppLayout({ route, children }: { route: AppRoute; children: Reac
         tabIndex={-1}
         className={cn(
           "min-h-dvh pb-[calc(4.5rem+env(safe-area-inset-bottom))] outline-none transition-[padding-left] duration-200 ease-out motion-reduce:transition-none lg:pb-0 print:pb-0 print:pl-0",
-          collapsed ? "lg:pl-[76px]" : "lg:pl-[248px]",
+          collapsed ? "lg:pl-[76px]" : "lg:pl-[256px]",
         )}
       >
         {showSwitcher && eventId !== null && (

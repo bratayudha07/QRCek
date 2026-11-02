@@ -47,7 +47,7 @@ export function EventSwitcher({
               navigate(eventTabPath(nextEventId, activeTab ?? "overview"));
             }
           }}
-          className="h-10 w-full appearance-none rounded-md border border-border bg-background px-3 pr-9 text-sm font-medium transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60"
+          className="h-10 w-full appearance-none rounded-full border border-border bg-background px-3 pr-9 text-sm font-medium transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60"
         >
           {!current && (
             <option value={eventId}>{loading ? "Memuat acara…" : "Acara saat ini"}</option>

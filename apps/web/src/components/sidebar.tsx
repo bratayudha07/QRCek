@@ -1,5 +1,6 @@
 import type { EventSummary } from "@absensi/shared";
-import { ChevronsUpDown, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ChevronsUpDown, PanelLeftClose, PanelLeftOpen, Pin } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import { AppLink } from "./app-link";
 import { EventSwitcher } from "./event-switcher";
@@ -15,10 +16,8 @@ import type { AppRoute } from "@/lib/router";
 import { cn } from "@/lib/utils";
 
 /**
- * Desktop global navigation: a collapsible icon rail (76 px) that expands to a
- * labelled sidebar (248 px). Collapsed items keep their accessible name (the
- * label stays in the DOM as `sr-only` text) and show the label in a tooltip on
- * hover *and* keyboard focus, which a native `title` cannot do.
+ * Desktop global navigation: a compact icon rail that expands on pointer hover
+ * or keyboard focus. Expansion overlays the page unless the user pins it open.
  */
 export function Sidebar({
   mode,
@@ -38,23 +37,81 @@ export function Sidebar({
   showSwitcher: boolean;
 }) {
   const items = sidebarItems(mode);
+  const sidebarRef = useRef<HTMLElement | null>(null);
+  const closeTimer = useRef<number | null>(null);
+  const [hoverOpen, setHoverOpen] = useState(false);
+  const [focusOpen, setFocusOpen] = useState(false);
+  const [suppressAutoOpen, setSuppressAutoOpen] = useState(false);
+  const expanded = !collapsed || (!suppressAutoOpen && (hoverOpen || focusOpen));
+  const compact = !expanded;
+
+  useEffect(() => clearCloseTimer, []);
+
+  function clearCloseTimer() {
+    if (closeTimer.current !== null) {
+      window.clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  }
+
+  function pointerEnter(pointerType: string) {
+    if (pointerType === "touch") return;
+    clearCloseTimer();
+    setSuppressAutoOpen(false);
+    setHoverOpen(true);
+  }
+
+  function pointerLeave(pointerType: string) {
+    if (pointerType === "touch") return;
+    clearCloseTimer();
+    closeTimer.current = window.setTimeout(() => {
+      setHoverOpen(false);
+      closeTimer.current = null;
+    }, 220);
+  }
+
+  function togglePinnedState() {
+    if (collapsed) {
+      setSuppressAutoOpen(false);
+      onToggle();
+      return;
+    }
+
+    setSuppressAutoOpen(true);
+    setFocusOpen(false);
+    onToggle();
+  }
+
+  function handleBlur(relatedTarget: EventTarget | null) {
+    if (relatedTarget instanceof Node && sidebarRef.current?.contains(relatedTarget)) return;
+    setFocusOpen(false);
+  }
 
   return (
     <aside
+      ref={sidebarRef}
       id="app-sidebar"
+      onPointerEnter={(event) => pointerEnter(event.pointerType)}
+      onPointerLeave={(event) => pointerLeave(event.pointerType)}
+      onFocusCapture={() => {
+        clearCloseTimer();
+        setFocusOpen(true);
+        setSuppressAutoOpen(false);
+      }}
+      onBlurCapture={(event) => handleBlur(event.relatedTarget)}
       className={cn(
-        "app-chrome fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-border/70 bg-background transition-[width] duration-200 ease-out motion-reduce:transition-none lg:flex",
-        collapsed ? "w-[76px]" : "w-[248px]",
+        "app-chrome fixed inset-y-2 left-2 z-30 hidden flex-col rounded-2xl border border-border/70 bg-background shadow-sm transition-[width,box-shadow] duration-200 ease-out motion-reduce:transition-none lg:flex",
+        expanded ? "w-[248px] shadow-lg" : "w-[68px]",
       )}
     >
       <div
         className={cn(
           "flex h-14 shrink-0 items-center gap-2.5 px-3",
-          collapsed && "justify-center px-0",
+          compact && "justify-center px-0",
         )}
       >
         <img src="/brand-mark.svg" alt="" className="size-9 shrink-0 rounded-lg" />
-        <span className={cn("truncate text-sm font-semibold tracking-tight", collapsed && "sr-only")}>
+        <span className={cn("truncate text-sm font-semibold tracking-tight", compact && "sr-only")}>
           Absensi
         </span>
       </div>
@@ -63,15 +120,15 @@ export function Sidebar({
         <div
           className={cn(
             "shrink-0 border-y border-border/70",
-            collapsed ? "px-2 py-2" : "px-3 py-3",
+            compact ? "px-2 py-2" : "px-3 py-3",
           )}
         >
-          {collapsed ? (
+          {compact ? (
             // The full select does not fit the rail; expanding is one click and
             // keeps a single, labelled control instead of a mystery icon select.
             <button
               type="button"
-              onClick={onToggle}
+              onClick={togglePinnedState}
               title="Ganti acara"
               aria-label="Ganti acara — perluas sidebar"
               className="flex h-10 w-full items-center justify-center rounded-lg text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2"
@@ -93,12 +150,12 @@ export function Sidebar({
           off and the tooltips can escape the navigation box. */}
       <nav
         aria-label="Navigasi utama"
-        className={cn("flex-1 p-2", !collapsed && "overflow-y-auto")}
+        className={cn("flex-1 p-2", expanded && "overflow-y-auto")}
       >
         <ul className="space-y-1">
           {items.map((item) => (
             <li key={item.key}>
-              <SidebarLink item={item} route={route} collapsed={collapsed} />
+              <SidebarLink item={item} route={route} collapsed={compact} />
             </li>
           ))}
         </ul>
@@ -107,22 +164,23 @@ export function Sidebar({
       <div className="shrink-0 border-t border-border/70 p-2">
         <button
           type="button"
-          onClick={onToggle}
-          aria-expanded={!collapsed}
+          onClick={togglePinnedState}
+          aria-expanded={expanded}
+          aria-pressed={!collapsed}
           aria-controls="app-sidebar"
-          title={collapsed ? "Perluas sidebar" : "Ciutkan sidebar"}
+          title={collapsed ? "Sematkan sidebar terbuka" : "Ciutkan sidebar"}
           className={cn(
-            "flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm font-medium text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2",
-            collapsed && "justify-center px-0",
+            "flex h-10 w-full items-center gap-3 rounded-full px-3 text-sm font-medium text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2",
+            compact && "justify-center px-0",
           )}
         >
           {collapsed ? (
-            <PanelLeftOpen aria-hidden="true" className="size-5 shrink-0" />
+            compact ? <PanelLeftOpen aria-hidden="true" className="size-5 shrink-0" /> : <Pin aria-hidden="true" className="size-4 shrink-0" />
           ) : (
             <PanelLeftClose aria-hidden="true" className="size-5 shrink-0" />
           )}
-          <span className={cn("truncate", collapsed && "sr-only")}>
-            {collapsed ? "Perluas" : "Ciutkan"}
+          <span className={cn("truncate", compact && "sr-only")}>
+            {collapsed ? "Sematkan" : "Ciutkan"}
           </span>
         </button>
       </div>
@@ -146,7 +204,7 @@ function SidebarLink({
       href={item.href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group relative flex h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2",
+        "group relative flex h-10 items-center gap-3 rounded-full px-3 text-sm font-medium transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2",
         active
           ? "bg-primary/10 font-semibold text-foreground"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
