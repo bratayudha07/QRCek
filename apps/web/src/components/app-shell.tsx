@@ -30,8 +30,13 @@ export function AppShell({
 }) {
   return (
     <div className="flex min-h-full flex-col">
-      <header className="app-chrome sticky top-0 z-20 border-b border-border/70 bg-background">
-        <div className="mx-auto flex w-full max-w-3xl items-start gap-3 px-4 py-3.5">
+      {/*
+        Not sticky on purpose: inside the event workspace the toolbar
+        (search + tabs) owns the top edge. Two sticky headers would fight for
+        the same offset and the lower one would cover the tabs.
+      */}
+      <header className="app-chrome border-b border-border/70 bg-background">
+        <div className="mx-auto flex w-full max-w-4xl items-start gap-3 px-4 py-3.5">
           {backTo && (
             <button
               type="button"
@@ -52,7 +57,7 @@ export function AppShell({
         </div>
       </header>
 
-      <div className={cn("mx-auto w-full max-w-3xl flex-1 space-y-4 px-4 py-5", className)}>
+      <div className={cn("mx-auto w-full max-w-4xl flex-1 space-y-4 px-4 py-5", className)}>
         {children}
       </div>
     </div>

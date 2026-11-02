@@ -29,12 +29,18 @@ type EventState =
 
 type ListStatus = ParticipantListParams["status"];
 
+/** The event toolbar hands its search term over as `?q=`. */
+function queryFromUrl(): string {
+  if (typeof window === "undefined") return "";
+  return new URLSearchParams(window.location.search).get("q") ?? "";
+}
+
 /** `/admin/events/:id/participants` — search, add, import, and export. */
 export function EventParticipantsPage({ eventId }: { eventId: string }) {
   const [eventState, setEventState] = useState<EventState>({ status: "loading" });
 
-  const [queryInput, setQueryInput] = useState("");
-  const [appliedQuery, setAppliedQuery] = useState("");
+  const [queryInput, setQueryInput] = useState(queryFromUrl);
+  const [appliedQuery, setAppliedQuery] = useState(queryFromUrl);
   const [statusFilter, setStatusFilter] = useState<ListStatus>("active");
   const [items, setItems] = useState<ParticipantSummary[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -71,6 +77,20 @@ export function EventParticipantsPage({ eventId }: { eventId: string }) {
       cancelled = true;
     };
   }, [eventId]);
+
+  // The toolbar search can submit while this page is already mounted: the path
+  // does not change, only `?q=`, so the route does not remount the page. Read
+  // the term from the URL on every navigation instead.
+  useEffect(() => {
+    function syncFromUrl() {
+      const next = queryFromUrl();
+      setQueryInput(next);
+      setAppliedQuery(next);
+    }
+
+    window.addEventListener("popstate", syncFromUrl);
+    return () => window.removeEventListener("popstate", syncFromUrl);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

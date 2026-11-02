@@ -2,6 +2,7 @@ import type { EventSummary } from "@absensi/shared";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { BottomNav } from "./bottom-nav";
+import { EventSearch } from "./event-search";
 import { EventSwitcher } from "./event-switcher";
 import { EventTabs } from "./event-tabs";
 import { Sidebar } from "./sidebar";
@@ -98,38 +99,64 @@ export function AppLayout({ route, children }: { route: AppRoute; children: Reac
         tabIndex={-1}
         className={cn(
           "min-h-dvh pb-[calc(4.5rem+env(safe-area-inset-bottom))] outline-none transition-[padding-left] duration-[220ms] ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none lg:pb-0 print:pb-0 print:pl-0",
-          collapsed ? "lg:pl-[76px]" : "lg:pl-[256px]",
+          // Capsule geometry: 1rem margin + rail width + 1rem breathing room.
+          collapsed ? "lg:pl-[104px]" : "lg:pl-[264px]",
         )}
       >
         {eventId !== null && activeTab !== null && (
-          <div className="app-chrome border-b border-border/70 bg-background">
-            <div className="mx-auto w-full max-w-3xl space-y-2 px-4 py-3">
-              <div className="flex min-h-10 items-center justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  {showSwitcher ? (
-                    <EventSwitcher
-                      id="event-switcher-context"
-                      eventId={eventId}
-                      events={events}
-                      activeTab={activeTab}
-                      compact
-                    />
-                  ) : (
-                    <p className="truncate px-3 text-base font-semibold tracking-tight">
-                      {eventContext?.eventName ?? "Acara"}
-                    </p>
-                  )}
+          <>
+            {/*
+              Context block (switcher, status, schedule) scrolls away. It has no
+              bottom border: the line used to stop dead at the sidebar edge and
+              made the workspace look bolted onto the shell instead of part of
+              it. Separation now comes from the floating toolbar below.
+            */}
+            <div className="app-chrome bg-background">
+              <div className="mx-auto w-full max-w-4xl space-y-1 px-4 pb-2 pt-3">
+                <div className="flex min-h-10 items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    {showSwitcher ? (
+                      <EventSwitcher
+                        id="event-switcher-context"
+                        eventId={eventId}
+                        events={events}
+                        activeTab={activeTab}
+                        compact
+                      />
+                    ) : (
+                      <p className="truncate px-3 text-base font-semibold tracking-tight">
+                        {eventContext?.eventName ?? "Acara"}
+                      </p>
+                    )}
+                  </div>
+                  {currentEvent && <EventStatusBadge status={currentEvent.status} />}
                 </div>
-                {currentEvent && <EventStatusBadge status={currentEvent.status} />}
+                {currentEvent && (
+                  <p className="truncate px-3 text-xs text-muted-foreground">
+                    {formatSchedule(currentEvent.startsAt, currentEvent.endsAt, currentEvent.timezone)}
+                  </p>
+                )}
               </div>
-              {currentEvent && (
-                <p className="truncate px-3 text-xs text-muted-foreground">
-                  {formatSchedule(currentEvent.startsAt, currentEvent.endsAt, currentEvent.timezone)}
-                </p>
-              )}
-              <EventTabs eventId={eventId} active={activeTab} />
             </div>
-          </div>
+
+            {/*
+              Sticky toolbar: search + tabs stay reachable while the page
+              scrolls. Translucency plus backdrop blur is the depth cue, so the
+              bar can float over content without drawing a hard rule.
+            */}
+            <div className="app-chrome sticky top-0 z-20 bg-background/85 shadow-[0_12px_28px_-26px_rgba(15,23,42,0.55)] backdrop-blur-md supports-[backdrop-filter]:bg-background/75">
+              <div className="mx-auto w-full max-w-4xl px-4 py-2.5">
+                <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-3">
+                  <div className="lg:w-56 lg:shrink-0">
+                    <EventSearch eventId={eventId} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <EventTabs eventId={eventId} active={activeTab} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
         )}
 
         <div key={routeKey} className="page-enter">

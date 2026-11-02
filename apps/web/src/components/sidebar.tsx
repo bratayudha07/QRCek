@@ -91,8 +91,10 @@ export function Sidebar({
       }}
       onBlurCapture={(event) => handleBlur(event.relatedTarget)}
       className={cn(
-        "app-chrome fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-border/70 bg-background transition-[width,box-shadow] duration-[220ms] ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none lg:flex",
-        expanded ? "w-[256px] shadow-lg" : "w-[76px]",
+        // Floating capsule, not a full-height wall: the rail only covers what
+        // the navigation needs, so the page is not visually cut in two.
+        "app-chrome fixed left-4 top-4 z-30 hidden max-h-[calc(100dvh-2rem)] flex-col rounded-2xl border border-border/70 bg-background shadow-[0_16px_40px_-24px_rgba(15,23,42,0.45)] transition-[width] duration-[220ms] ease-[cubic-bezier(0.2,0,0,1)] motion-reduce:transition-none lg:flex",
+        expanded ? "w-[232px]" : "w-[72px]",
       )}
     >
       <div
@@ -122,28 +124,31 @@ export function Sidebar({
         </ul>
       </nav>
 
-      <div className="shrink-0 border-t border-border/70 p-2">
-        <button
-          type="button"
-          onClick={togglePinnedState}
-          aria-expanded={expanded}
-          aria-pressed={!collapsed}
-          aria-controls="app-sidebar"
-          title={collapsed ? "Sematkan sidebar terbuka" : "Ciutkan sidebar"}
-          className={cn(
-            "flex h-10 w-full items-center gap-3 rounded-full px-3 text-sm font-medium text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2",
-            compact && "justify-center px-0",
-          )}
-        >
-          {collapsed ? (
-            compact ? <PanelLeftOpen aria-hidden="true" className="size-5 shrink-0" /> : <Pin aria-hidden="true" className="size-4 shrink-0" />
-          ) : (
-            <PanelLeftClose aria-hidden="true" className="size-5 shrink-0" />
-          )}
-          <span className={cn("truncate", compact && "sr-only")}>
-            {collapsed ? "Sematkan" : "Ciutkan"}
-          </span>
-        </button>
+      {/* The rule is inset so it cannot run into the capsule's rounded edge. */}
+      <div className="shrink-0 p-2">
+        <div className="border-t border-border/70 pt-2">
+          <button
+            type="button"
+            onClick={togglePinnedState}
+            aria-expanded={expanded}
+            aria-pressed={!collapsed}
+            aria-controls="app-sidebar"
+            title={collapsed ? "Sematkan sidebar terbuka" : "Ciutkan sidebar"}
+            className={cn(
+              "flex h-10 w-full items-center gap-3 rounded-full px-3 text-sm font-medium text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2",
+              compact && "justify-center px-0",
+            )}
+          >
+            {collapsed ? (
+              compact ? <PanelLeftOpen aria-hidden="true" className="size-5 shrink-0" /> : <Pin aria-hidden="true" className="size-4 shrink-0" />
+            ) : (
+              <PanelLeftClose aria-hidden="true" className="size-5 shrink-0" />
+            )}
+            <span className={cn("truncate", compact && "sr-only")}>
+              {collapsed ? "Sematkan" : "Ciutkan"}
+            </span>
+          </button>
+        </div>
       </div>
     </aside>
   );
