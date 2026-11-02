@@ -125,7 +125,7 @@ export function EventAttendancePage({ eventId }: { eventId: string }) {
   }
 
   return (
-    <AppShell title="Absensi" subtitle="Pindai QR, lihat kehadiran, dan koreksi catatan">
+    <AppShell variant="embedded" title="Absensi" subtitle="Pindai QR, lihat kehadiran, dan koreksi catatan">
       {error && <ErrorState message={error} onRetry={() => setRefresh((value) => value + 1)} />}
       {notice && <Notice tone="success">{notice}</Notice>}
       {session.status === "anonymous" && <Notice tone="warning">Sesi berakhir. <a className="underline" href="/masuk">Masuk kembali</a>.</Notice>}

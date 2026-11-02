@@ -145,7 +145,7 @@ export function EventStaffPage({ eventId }: { eventId: string }) {
   }
 
   return (
-    <AppShell title="Petugas" subtitle="Kelola anggota dan undangan acara">
+    <AppShell variant="embedded" title="Petugas" subtitle="Kelola anggota dan undangan acara">
       {error && <ErrorState message={error} onRetry={() => setRefresh((value) => value + 1)} />}
       {notice && <Notice tone="success">{notice}</Notice>}
       <section className="space-y-3 rounded-xl border p-4">

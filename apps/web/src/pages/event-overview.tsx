@@ -153,7 +153,7 @@ export function EventOverviewPage({ eventId }: { eventId: string }) {
 
   if (pageState.status === "loading") {
     return (
-      <AppShell title="Ringkasan">
+      <AppShell variant="embedded" title="Ringkasan">
         <LoadingState label="Memuat acara…" />
       </AppShell>
     );
@@ -161,7 +161,7 @@ export function EventOverviewPage({ eventId }: { eventId: string }) {
 
   if (pageState.status === "error" || event === null) {
     return (
-      <AppShell title="Ringkasan">
+      <AppShell variant="embedded" title="Ringkasan">
         <ErrorState
           message={pageState.status === "error" ? pageState.message : "Acara tidak ditemukan"}
           onRetry={() => setRefreshKey((key) => key + 1)}
@@ -176,7 +176,7 @@ export function EventOverviewPage({ eventId }: { eventId: string }) {
   const isArchived = event.status === "archived";
 
   return (
-    <AppShell title="Ringkasan">
+    <AppShell variant="embedded" title="Ringkasan">
       {actionError && <ErrorState message={actionError} />}
       {actionNotice && <Notice tone="success">{actionNotice}</Notice>}
 

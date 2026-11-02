@@ -5,29 +5,66 @@ import { navigate } from "@/lib/router";
 import { cn } from "@/lib/utils";
 
 /**
- * Page frame inside the global layout: a sticky header and a readable content
- * column.
+ * Page frame inside the global layout: an optional page header and a readable
+ * content column.
+ *
+ * Two variants, because inside the event workspace the screen name is already
+ * on screen:
+ *
+ * - `default` renders the visible header (title, subtitle, back button,
+ *   actions). Used outside the workspace and by its sub-screens (participant
+ *   detail, import, QR labels), where nothing else names the page.
+ * - `embedded` drops the visible header. The five workspace tabs already name
+ *   the screen, so repeating the title in an `h1` cost ~72 px of chrome at the
+ *   top of every tab and printed the same word twice. The heading stays for
+ *   assistive tech, and the subtitle survives as a one-line lead because it
+ *   carries detail the tab label does not.
  *
  * The global navigation (sidebar / bottom nav) lives in `AppLayout`, and so does
  * the event navigation row; this component deliberately knows about neither.
- * The header is opaque, not translucent: a blurred 85 % surface leaves the
- * scrolling content faintly visible under the title.
  */
-export function AppShell({
-  title,
-  subtitle,
-  backTo,
-  actions,
-  children,
-  className,
-}: {
+type AppShellCommon = {
   title: string;
   subtitle?: string;
-  backTo?: string;
   actions?: ReactNode;
   children: ReactNode;
   className?: string;
-}) {
+};
+
+/**
+ * `backTo` needs a visible header to point back from, so the embedded variant
+ * rejects it at the type level instead of silently ignoring it.
+ */
+export type AppShellProps = AppShellCommon &
+  ({ variant?: "default"; backTo?: string } | { variant: "embedded"; backTo?: never });
+
+export function AppShell(props: AppShellProps) {
+  const { title, subtitle, actions, children, className, variant = "default" } = props;
+  const backTo = props.variant === "embedded" ? undefined : props.backTo;
+
+  if (variant === "embedded") {
+    return (
+      <div className="flex min-h-full flex-col">
+        <h1 className="sr-only">{subtitle ? `${title} — ${subtitle}` : title}</h1>
+
+        <div className={cn("mx-auto w-full max-w-4xl flex-1 space-y-4 px-4 pb-5 pt-4", className)}>
+          {(subtitle || actions) && (
+            <div className="app-chrome flex items-start justify-between gap-3">
+              {subtitle ? (
+                <p className="min-w-0 text-sm text-muted-foreground">{subtitle}</p>
+              ) : (
+                <span />
+              )}
+              {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+            </div>
+          )}
+
+          {children}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-full flex-col">
       {/*

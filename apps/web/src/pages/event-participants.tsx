@@ -185,7 +185,7 @@ export function EventParticipantsPage({ eventId }: { eventId: string }) {
 
   if (eventState.status === "loading") {
     return (
-      <AppShell title="Peserta">
+      <AppShell variant="embedded" title="Peserta">
         <LoadingState label="Memuat acara…" />
       </AppShell>
     );
@@ -193,7 +193,7 @@ export function EventParticipantsPage({ eventId }: { eventId: string }) {
 
   if (eventState.status === "error") {
     return (
-      <AppShell title="Peserta">
+      <AppShell variant="embedded" title="Peserta">
         <ErrorState message={eventState.message} />
       </AppShell>
     );
@@ -208,7 +208,7 @@ export function EventParticipantsPage({ eventId }: { eventId: string }) {
   });
 
   return (
-    <AppShell title="Peserta" subtitle={event.name}>
+    <AppShell variant="embedded" title="Peserta">
       {actionNotice && <Notice tone="success">{actionNotice}</Notice>}
 
       {isArchived && (

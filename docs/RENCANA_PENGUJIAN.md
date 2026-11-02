@@ -388,10 +388,16 @@ Checklist singkat yang dijalankan pada staging sebelum deploy produksi:
     di tab Peserta tetap berada di tab Peserta.
 11. Event tabs: indikator geser mengikuti tab aktif (bergerak, bukan melompat), kelima tab tetap
     terbaca pada lebar 320 px (scroll horizontal, bukan teks mengecil), dan bisa dioperasikan
-    dengan Tab + Enter.
+    dengan Tab + Enter. Buka `/admin/events/<id>/reports` langsung di layar 320 px → tab aktif
+    sudah terlihat tanpa menggeser, dan fade muncul di sisi yang masih punya tab lain.
+    Aktifkan tab dengan Enter → fokus tetap di link tab itu (bukan pindah ke konten), sedangkan
+    isi halaman kembali ke atas.
 12. Reduced motion: aktifkan preferensi sistem → transisi halaman dan indikator tab berhenti.
 13. Navigasi antar halaman: scroll kembali ke atas, fokus pindah ke area konten (Tab berikutnya
     masuk ke konten, bukan tertinggal di sidebar), dan `#main-content` tetap jadi target skip link.
+    Perubahan tab acara adalah pengecualian: fokus tetap di link tab yang diaktifkan. Setiap tab
+    acara juga hanya punya **satu** `h1` (tersembunyi secara visual, terbaca screen reader) — tidak
+    ada bar judul kedua yang mengulang nama tab.
 14. Label A4: pilih 30 peserta → pratinjau → cetak. Periksa 24 label di halaman pertama, 6 di
     halaman kedua, tidak ada label terpotong di batas halaman, dan margin 8 mm konsisten.
 15. Label stiker 50 × 30 mm: cetak satu halaman per label; ukur dengan penggaris (lebar 50 mm,

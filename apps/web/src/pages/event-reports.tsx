@@ -119,7 +119,7 @@ export function EventReportsPage({ eventId }: { eventId: string }) {
   }
 
   return (
-    <AppShell title="Laporan" subtitle="Rekap kehadiran dan status sinkronisasi">
+    <AppShell variant="embedded" title="Laporan" subtitle="Rekap kehadiran dan status sinkronisasi">
       {error && <ErrorState message={error} onRetry={() => setRefresh((value) => value + 1)} />}
       {notice && <Notice tone="success">{notice}</Notice>}
       {loading && <LoadingState label="Memuat laporan…" />}

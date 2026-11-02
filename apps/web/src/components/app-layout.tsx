@@ -10,7 +10,7 @@ import { EventStatusBadge } from "./status-badge";
 import { listEvents } from "@/lib/events";
 import { formatSchedule } from "@/lib/format";
 import { eventIdOf, eventTabForRoute, navMode, type NavMode } from "@/lib/navigation";
-import { routePath, type AppRoute } from "@/lib/router";
+import { routePath, type AppRoute, type EventTab } from "@/lib/router";
 import { useSession } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
@@ -40,6 +40,11 @@ export function AppLayout({ route, children }: { route: AppRoute; children: Reac
   const [collapsed, setCollapsed] = useState(true);
   const [events, setEvents] = useState<EventSummary[] | null>(null);
   const mainRef = useRef<HTMLElement>(null);
+  // Which screen the focus effect ran for last; see the effect below.
+  const previousRouteRef = useRef<{ eventId: string | null; tab: EventTab | null }>({
+    eventId,
+    tab: activeTab,
+  });
   const eventContext =
     eventId !== null && session.status === "authenticated"
       ? session.memberships.find((membership) => membership.eventId === eventId)
@@ -72,10 +77,22 @@ export function AppLayout({ route, children }: { route: AppRoute; children: Reac
   // A new screen starts at the top and takes focus: without this the SPA keeps
   // the previous page's scroll offset and leaves focus on a link that no longer
   // exists, which strands keyboard and screen-reader users.
+  //
+  // Switching tabs is the exception. The activated tab link is already the new
+  // focus target, so moving focus into <main> would drop the user out of the tab
+  // bar after every click and force a Shift+Tab to get back. The page still
+  // starts at the top, because the tab change swaps the whole subtree.
   useEffect(() => {
+    const previous = previousRouteRef.current;
+    previousRouteRef.current = { eventId, tab: activeTab };
+    const tabOnlyChange =
+      previous.eventId === eventId && previous.tab !== activeTab && activeTab !== null;
+
     window.scrollTo(0, 0);
+    if (tabOnlyChange) return;
+
     mainRef.current?.focus({ preventScroll: true });
-  }, [routeKey]);
+  }, [routeKey, eventId, activeTab]);
 
   return (
     <div className="min-h-dvh bg-background">
