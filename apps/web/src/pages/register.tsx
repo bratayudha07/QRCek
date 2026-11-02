@@ -26,13 +26,32 @@ export function RegisterPage() {
   const [displayName, setDisplayName] = useState("");
   const [token, setToken] = useState("");
   const [resetSignal, setResetSignal] = useState(0);
+  const [widgetAttempt, setWidgetAttempt] = useState(0);
+  const [turnstileLoadFailed, setTurnstileLoadFailed] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
 
-  const handleToken = useCallback((value: string) => setToken(value), []);
+  const handleToken = useCallback((value: string) => {
+    setToken(value);
+    if (value !== "") setTurnstileLoadFailed(false);
+  }, []);
   const handleTurnstileError = useCallback(
-    () => setStatus({ kind: "error", message: "Verifikasi anti-bot gagal dimuat. Muat ulang halaman." }),
+    () => {
+      setTurnstileLoadFailed(true);
+      setStatus({
+        kind: "error",
+        message:
+          "Widget anti-bot tidak dapat dimuat. Pastikan koneksi ke challenges.cloudflare.com tidak diblokir.",
+      });
+    },
     [],
   );
+
+  function retryTurnstile() {
+    setToken("");
+    setTurnstileLoadFailed(false);
+    setStatus({ kind: "idle" });
+    setWidgetAttempt((attempt) => attempt + 1);
+  }
 
   /** The server (or the network) consumed this token: drop it and get a fresh one. */
   const spendToken = useCallback(() => {
@@ -119,6 +138,7 @@ export function RegisterPage() {
         </label>
 
         <TurnstileWidget
+          key={widgetAttempt}
           onToken={handleToken}
           onError={handleTurnstileError}
           resetSignal={resetSignal}
@@ -128,6 +148,12 @@ export function RegisterPage() {
           <p role="alert" className="text-sm text-red-600">
             {status.message}
           </p>
+        )}
+
+        {turnstileLoadFailed && (
+          <Button type="button" variant="outline" className="w-full" onClick={retryTurnstile}>
+            Coba muat verifikasi lagi
+          </Button>
         )}
 
         <Button type="submit" className="w-full" disabled={!canSubmit}>

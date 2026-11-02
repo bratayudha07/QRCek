@@ -32,6 +32,7 @@ declare global {
 
 const SCRIPT_SRC = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
 const SCRIPT_ID = "cf-turnstile-script";
+let scriptLoadPromise: Promise<void> | null = null;
 
 export const TURNSTILE_SITE_KEY: string = import.meta.env.VITE_TURNSTILE_SITE_KEY ?? "";
 
@@ -42,24 +43,43 @@ export function isTurnstileEnabled(): boolean {
 function loadScript(): Promise<void> {
   if (typeof document === "undefined") return Promise.resolve();
   if (window.turnstile) return Promise.resolve();
+  if (scriptLoadPromise) return scriptLoadPromise;
 
   const existing = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null;
-  if (existing) {
-    return new Promise((resolve) => {
-      existing.addEventListener("load", () => resolve(), { once: true });
-    });
-  }
+  const script = existing ?? document.createElement("script");
 
-  return new Promise((resolve, reject) => {
-    const script = document.createElement("script");
-    script.id = SCRIPT_ID;
-    script.src = SCRIPT_SRC;
-    script.async = true;
-    script.defer = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Gagal memuat Turnstile"));
-    document.head.appendChild(script);
+  scriptLoadPromise = new Promise<void>((resolve, reject) => {
+    const onLoad = () => {
+      script.dataset.loaded = "true";
+      if (window.turnstile) resolve();
+      else reject(new Error("Turnstile tidak tersedia setelah skrip dimuat"));
+    };
+    const onError = () => {
+      script.remove();
+      reject(new Error("Gagal memuat Turnstile"));
+    };
+
+    if (existing?.dataset.loaded === "true") {
+      onLoad();
+      return;
+    }
+
+    script.addEventListener("load", onLoad, { once: true });
+    script.addEventListener("error", onError, { once: true });
+
+    if (!existing) {
+      script.id = SCRIPT_ID;
+      script.src = SCRIPT_SRC;
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+    }
+  }).catch((error: unknown) => {
+    scriptLoadPromise = null;
+    throw error;
   });
+
+  return scriptLoadPromise;
 }
 
 export function TurnstileWidget({

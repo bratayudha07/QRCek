@@ -10,8 +10,10 @@
  * `apps/web/src/lib/security-headers.test.ts` fails when the two drift.
  *
  * CSP notes:
- *   - `script-src 'self'` is enough: the Vite build emits external module
- *     scripts only, no inline bootstrap.
+ *   - Scripts are limited to this origin plus Cloudflare's Turnstile origin;
+ *     do not allow arbitrary remote or inline scripts.
+ *   - Turnstile requires its script, iframe, and network origin in the matching
+ *     CSP directives or the widget is blocked before it can render.
  *   - `style-src 'unsafe-inline'` is required because React writes inline
  *     `style` attributes (tab indicator offset, dynamic widths).
  *   - `worker-src blob:` is a precaution: the QR decoder may spawn a worker
@@ -22,11 +24,12 @@
 export const SECURITY_HEADERS: Readonly<Record<string, string>> = {
   "content-security-policy": [
     "default-src 'self'",
-    "script-src 'self'",
+    "script-src 'self' https://challenges.cloudflare.com",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self'",
-    "connect-src 'self'",
+    "connect-src 'self' https://challenges.cloudflare.com",
+    "frame-src https://challenges.cloudflare.com",
     "worker-src 'self' blob:",
     "media-src 'self' blob:",
     "object-src 'none'",

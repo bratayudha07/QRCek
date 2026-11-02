@@ -447,8 +447,11 @@ menambah header di satu sisi tanpa sisi lain akan merah.
 
 Nilai yang perlu diingat saat mengubah UI:
 
-- `script-src 'self'` — jangan menambah inline script (mis. snippet analytics) tanpa
-  mengubah CSP lebih dulu.
+- `script-src 'self' https://challenges.cloudflare.com` dan `frame-src
+  https://challenges.cloudflare.com` diperlukan Turnstile. Jangan menambah domain
+  lain atau inline script tanpa mengubah CSP lebih dulu.
+- `connect-src 'self' https://challenges.cloudflare.com` mengizinkan komunikasi
+  widget dengan layanan Turnstile.
 - `style-src 'unsafe-inline'` ada karena React menulis atribut `style` dinamis.
 - `Permissions-Policy: camera=(self)` wajib dipertahankan; tanpa itu pemindai QR gagal
   di sebagian browser. Mikrofon dan geolokasi ditutup.
