@@ -1,0 +1,20 @@
+# Security headers for assets Cloudflare serves without invoking the Worker.
+#
+# `wrangler.jsonc` sets `run_worker_first: ["/api/*"]`, so HTML, JS, CSS, and the
+# SPA fallback never reach the Worker and would otherwise miss the headers the
+# API sends. The values mirror `SECURITY_HEADERS` in
+# `packages/shared/src/security.ts`; `apps/web/src/lib/security-headers.test.ts`
+# fails when the two drift.
+#
+# `Permissions-Policy` allows the camera for this origin only: the QR scanner
+# needs `getUserMedia`, and everything else stays denied.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: same-origin
+  Permissions-Policy: camera=(self), microphone=(), geolocation=()
+  Referrer-Policy: strict-origin-when-cross-origin
+  Strict-Transport-Security: max-age=31536000
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  X-XSS-Protection: 0

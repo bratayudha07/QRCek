@@ -2,12 +2,14 @@
 
 Rencana implementasi bertahap untuk Multi-Event Parent Attendance Management System.
 
-**Status diperbarui 1 November 2026:** fondasi dan fitur backend Fase 0–5 sudah banyak
+**Status diperbarui 2 November 2026:** fondasi dan fitur backend Fase 0–5 sudah banyak
 terimplementasi. Auth/acara/peserta/QR, API scan, kehadiran/koreksi, ringkasan/audit write,
 dan sinkronisasi Sheets berbasis outbox tersedia. UI scan dan beberapa halaman rekap/audit/
-sync masih parsial. Fase 6 belum selesai: observabilitas, audit operasional, perangkat fisik,
-uji Google Sheet nyata, dan pengukuran CPU produksi belum lengkap. Worker produksi tersedia;
-perubahan browser API ke `/api/calendar` masih menunggu deploy. Status rinci per area di bawah.
+sync masih parsial. Fase 6 **sebagian**: readiness (`/api/health/ready`), pemakaian
+(`/api/admin/usage`), security headers, dan kebijakan retensi audit (ADR-008) sudah ada;
+perangkat fisik, uji Google Sheet nyata, dan pengukuran CPU produksi belum lengkap. Worker
+produksi tersedia; perubahan browser API ke `/api/calendar` masih menunggu deploy. Status
+rinci per area di bawah.
 
 Dokumen pendukung: [`AGENTS.md`](./AGENTS.md), [`docs/ARSITEKTUR.md`](./docs/ARSITEKTUR.md), [`docs/DESAIN_DATABASE.md`](./docs/DESAIN_DATABASE.md), [`docs/DESAIN_API.md`](./docs/DESAIN_API.md), [`docs/RENCANA_PENGUJIAN.md`](./docs/RENCANA_PENGUJIAN.md), [`COSTS_AND_LIMITS.md`](./COSTS_AND_LIMITS.md).
 
@@ -493,17 +495,17 @@ Bila `scan.concurrent` tidak bisa dibuat deterministik setelah 2 hari kerja, hen
 
 ## FASE 6 — Hardening, observability, dan deploy
 
-> **Status saat ini: belum selesai.** Worker sudah di-deploy ke `qrcek.hamdirobbi5.workers.dev`
+> **Status saat ini: sebagian selesai.** Worker sudah di-deploy ke `qrcek.hamdirobbi5.workers.dev`
 > dan auth digunakan. Rate limit seluruh bucket `DESAIN_API.md` §10 dan housekeeping cron sudah
-> berjalan; header keamanan, `/api/health/ready`, `/api/admin/usage`, pengukuran CPU, pemeriksaan
-> retensi audit, backup prosedural, dan smoke test lengkap masih terbuka.
+> berjalan; header keamanan, `/api/health/ready`, `/api/admin/usage`, dan prosedur arsip audit
+> sudah ada. Pengukuran CPU, backup prosedural, smoke test lengkap, dan ekstraksi ADR masih terbuka.
 
 ### Pekerjaan
 
 1. ✅ Rate limit seluruh endpoint sesuai tabel `DESAIN_API.md` §10 (termasuk `sync:run` 1/menit dan `limit` manual maksimum `SYNC_RUN_MAX`).
-2. Header keamanan: `Strict-Transport-Security`, `X-Content-Type-Options`, `Referrer-Policy: no-referrer`, `Content-Security-Policy` (tanpa `unsafe-eval`).
-3. `/api/health/ready` + `/api/admin/usage`.
-4. Prosedur arsip audit (`docs/OPERASIONAL.md`) + ambang peringatan ukuran DB.
+2. ✅ Header keamanan: `Strict-Transport-Security`, `X-Content-Type-Options`, `Referrer-Policy`, `Content-Security-Policy` (tanpa `unsafe-eval`/`unsafe-inline` untuk script). Dipasang di Worker (`apps/api/src/http/security-headers.ts`) dan di `apps/web/public/_headers`; paritas dijaga tes.
+3. ✅ `/api/health/ready` + `/api/admin/usage`.
+4. ✅ Prosedur arsip audit (`docs/OPERASIONAL.md` §9.3, ADR-008) — ambang peringatan masih manual lewat `counts.auditEntries`.
 5. `docs/OPERASIONAL.md`: break-glass superadmin, rotasi secret, pemulihan dari snapshot, prosedur event day.
 6. Ekstrak ADR 001–005 ke `docs/adr/`.
 7. Deploy produksi: `wrangler deploy`, `wrangler d1 migrations apply --remote`, smoke test.

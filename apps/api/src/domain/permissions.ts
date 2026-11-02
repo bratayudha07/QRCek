@@ -22,7 +22,8 @@ export type Action =
   | "recap:read"
   | "attendance:correct"
   | "audit:read"
-  | "sync:configure";
+  | "sync:configure"
+  | "admin:usage";
 
 /**
  * Minimum event membership needed for a non-superadmin to perform an action on
@@ -48,6 +49,8 @@ const MIN_MEMBERSHIP: Record<Action, EventRole | null> = {
   "attendance:correct": "event_admin",
   "audit:read": "event_admin",
   "sync:configure": "event_admin",
+  // Cross-tenant counters: no membership can grant them.
+  "admin:usage": null,
 };
 
 export const ACTIONS: readonly Action[] = Object.keys(MIN_MEMBERSHIP) as Action[];

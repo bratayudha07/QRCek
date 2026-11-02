@@ -584,10 +584,41 @@ Batas laju: `POST /sync/run` 1×/menit per acara (mencegah admin menekan tombol 
 | Method | Path | Peran | Keterangan |
 |---|---|---|---|
 | `GET` | `/api/health` | publik | `{ ok: true }` — tidak menyentuh DB |
-| `GET` | `/api/health/ready` | publik | Cek `SELECT 1` ke D1; dipakai monitoring eksternal |
-| `GET` | `/api/admin/usage` | superadmin | Perkiraan pemakaian (baris baca/tulis) + ukuran DB |
+| `GET` | `/api/health/ready` | publik | `SELECT 1` ke D1; `503 DB_UNAVAILABLE` bila binding gagal |
+| `GET` | `/api/admin/usage` | superadmin | Hitungan baris per tabel, sesi aktif, antrean outbox, umur audit log |
 
-`/api/admin/usage` tidak melakukan query mahal; ia memakai angka dari `meta` yang dikumpulkan pada request sebelumnya dan disimpan di `rate_limits`/tabel metrik ringan ⚠️ (desain detail ditunda ke Fase 6).
+`/api/health/ready` sengaja terpisah dari `/api/health`: probe liveness tidak boleh ikut
+gagal ketika D1 sedang bermasalah, sedangkan monitoring eksternal butuh sinyal yang
+berbeda untuk "Worker hidup" dan "DB bisa dipakai".
+
+`GET /api/admin/usage` melakukan **satu** `db.batch` berisi sembilan `COUNT(*)`
+(`users`, `events`, `participants`, `attendance`, `audit_log`, sesi aktif, `rate_limits`,
+`outbox` per status, plus `MIN/MAX(created_at)` audit). Setiap `COUNT` membaca tabel, jadi
+endpoint ini untuk pemanggilan manual/insidental, **bukan cron**. Tidak ada PII di respons.
+
+```json
+{
+  "ok": true,
+  "data": {
+    "generatedAt": 1760000000000,
+    "counts": {
+      "users": 12,
+      "events": 3,
+      "participants": 540,
+      "attendance": 488,
+      "auditEntries": 2140,
+      "activeSessions": 7,
+      "rateLimitBuckets": 4,
+      "outbox": { "queued": 12, "failed": 0, "dead": 1 }
+    },
+    "auditLog": { "oldestAt": 1758000000000, "newestAt": 1760000000000 }
+  }
+}
+```
+
+Retensi audit log **tidak** otomatis: tabel bersifat append-only dan trigger database
+menolak `DELETE`. Prosedur arsip manual ada di `docs/OPERASIONAL.md` §9.3 dan
+keputusannya dicatat sebagai ADR-008 di `docs/ARSITEKTUR.md`.
 
 ---
 

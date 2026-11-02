@@ -397,3 +397,77 @@ lama, dan itu akan terlihat sebagai `500` pada cetak ulang (bukan kerusakan data
 | Rotasi kunci QR | Sebelum rotasi produksi pertama | Uji prosedur §7.5 di database salinan; pastikan QR lama tetap identik |
 
 CI workflow tersedia di `.github/workflows/ci.yml`; status eksekusi GitHub perlu diperiksa ketika akses repo tersedia. Jangan menyimpulkan CI hijau hanya dari hasil lokal.
+
+---
+
+## 9. Kesehatan, pemakaian, dan retensi audit (Fase 6)
+
+### 9.1 Endpoint operasional
+
+| Endpoint | Peran | Biaya | Dipakai untuk |
+|---|---|---|---|
+| `GET /api/health` | publik | nol query | Cek "Worker hidup?" Setelah deploy, tidak menyentuh D1 |
+| `GET /api/health/ready` | publik | 1 query (`SELECT 1`) | Cek "D1 bisa dipakai?" Balas `503 DB_UNAVAILABLE` bila binding gagal |
+| `GET /api/admin/usage` | superadmin | 1 `db.batch` (9 statement `COUNT`) | Perencanaan kapasitas: jumlah baris, sesi aktif, antrean outbox, umur audit log |
+
+Contoh:
+
+```bash
+curl -s https://<worker>/api/health/ready
+curl -s -b "absensi_session=<cookie-superadmin>" https://<worker>/api/admin/usage
+```
+
+`/api/admin/usage` **bukan** endpoint cron. Setiap `COUNT(*)` membaca tabel, jadi
+memanggilnya tiap menit akan membakar kuota baris dibaca D1. Panggil manual menjelang
+acara besar atau saat kapasitas mulai terasa.
+
+### 9.2 Security headers
+
+Header dipasang di dua jalur, karena `wrangler.jsonc` memakai
+`run_worker_first: ["/api/*"]` sehingga aset statis dilayani Cloudflare tanpa Worker:
+
+| Jalur | Sumber |
+|---|---|
+| Respons Worker (JSON, CSV, proxy aset saat dev) | `SECURITY_HEADERS` di `packages/shared/src/security.ts`, dipasang `apps/api/src/http/security-headers.ts` |
+| Aset statis + fallback SPA | `apps/web/public/_headers` (disalin Vite ke `dist/`) |
+
+Tes `apps/web/src/lib/security-headers.test.ts` membandingkan keduanya, jadi
+menambah header di satu sisi tanpa sisi lain akan merah.
+
+Nilai yang perlu diingat saat mengubah UI:
+
+- `script-src 'self'` — jangan menambah inline script (mis. snippet analytics) tanpa
+  mengubah CSP lebih dulu.
+- `style-src 'unsafe-inline'` ada karena React menulis atribut `style` dinamis.
+- `Permissions-Policy: camera=(self)` wajib dipertahankan; tanpa itu pemindai QR gagal
+  di sebagian browser. Mikrofon dan geolokasi ditutup.
+- `Strict-Transport-Security` hanya berlaku di HTTPS; `localhost` mengabaikannya.
+
+### 9.3 Retensi audit log (ADR-008)
+
+`audit_log` **tidak** dipangkas otomatis. Trigger `audit_log_no_delete` menolak `DELETE`
+di level database, dan itu disengaja: riwayat absensi tidak boleh hilang karena job
+pembersih yang salah konfigurasi.
+
+Kebijakan:
+
+1. **Pantau** lewat `GET /api/admin/usage` (`counts.auditEntries`, `auditLog.oldestAt`).
+2. **Arsipkan sebelum menghapus.** Ekspor rentang yang akan dibuang:
+   ```bash
+   cd apps/api
+   npx wrangler d1 execute absensi-db --remote --json \
+     --command "SELECT * FROM audit_log WHERE created_at < <cutoff_ms> ORDER BY created_at" \
+     > /tmp/audit-archive-<cutoff>.json
+   ```
+   Simpan file itu di tempat yang bukan D1 (repositori privat/arsip GitHub). Catat
+   `cutoff_ms` dan jumlah baris di catatan rilis.
+3. **Baru setelah arsip terverifikasi**, jalankan migrasi pemeliharaan manual yang
+   (a) menghapus trigger delete, (b) menghapus rentang tersebut, (c) memasang kembali
+   trigger. Migrasi itu harus ditulis sebagai file baru di `migrations/`, direview, dan
+   disebutkan di `docs/DESAIN_DATABASE.md`.
+4. Jangan pernah menghapus baris audit yang belum diarsipkan, dan jangan menjalankan
+   langkah 3 dari `cron`.
+
+Ambang arsip yang disarankan: baris tertua lebih dari **12 bulan**, atau
+`counts.auditEntries` mendekati batas nyaman D1 free tier. Angka ini keputusan operator,
+bukan aturan yang ditegakkan kode — endpoint usage menyediakan datanya.

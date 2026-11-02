@@ -51,3 +51,11 @@ export function rateLimited(retryAfterSeconds: number): ApiError {
 export function payloadTooLarge(message = "Permintaan terlalu besar"): ApiError {
   return new ApiError(413, "PAYLOAD_TOO_LARGE", message);
 }
+
+/**
+ * D1 refused the probe. 503 (not 500) tells a monitor "retry, the dependency is
+ * down" instead of "the code is broken".
+ */
+export function dbUnavailable(): ApiError {
+  return new ApiError(503, "DB_UNAVAILABLE", "Database tidak dapat diakses");
+}

@@ -25,6 +25,7 @@ const EXPECTED: Record<Action, { superadmin: boolean; eventAdmin: boolean; offic
   "attendance:correct": { superadmin: true, eventAdmin: true, officer: false },
   "audit:read": { superadmin: true, eventAdmin: true, officer: false },
   "sync:configure": { superadmin: true, eventAdmin: true, officer: false },
+  "admin:usage": { superadmin: true, eventAdmin: false, officer: false },
 };
 
 describe("authorization matrix", () => {
@@ -76,11 +77,13 @@ describe("authorization matrix", () => {
     expect(isAllowed({ role: "event_admin", action: "scan", membershipRole: "officer" })).toBe(true);
   });
 
-  it("keeps event deletion superadmin-only and event creation globally grantable", () => {
+  it("keeps superadmin-only actions ungrantable by any membership", () => {
+    const superadminOnly = new Set(["event:delete", "admin:usage"]);
+
     for (const action of ACTIONS) {
       const minimum = minMembershipFor(action);
 
-      if (action === "event:delete") {
+      if (superadminOnly.has(action)) {
         expect(minimum).toBeNull();
       } else if (action === "event:create") {
         // No membership can grant it; the global role does (MIN_GLOBAL_ROLE).

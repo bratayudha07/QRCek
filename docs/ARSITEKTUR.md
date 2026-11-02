@@ -157,6 +157,42 @@ membuka akses ke acara milik orang lain. Sistem ini tidak punya verifikasi email
 - Kode pemulihan menjadi satu-satunya jalan masuk kembali; kehilangannya berarti akun
   tersebut tidak bisa dipulihkan tanpa intervensi operator D1.
 
+### ADR-008 — Retensi audit log: **append-only permanen, arsip manual sebelum pemangkasan**
+
+**Konteks.** `audit_log` tumbuh satu baris per mutasi (scan, koreksi, undangan, sinkronisasi)
+dan tidak pernah dipangkas. D1 free tier punya batas baris dibaca/hari dan ukuran database;
+acara besar berbulan-bulan akan menumpuk riwayat. Di sisi lain `AGENTS.md` menetapkan audit
+log **append-only**: tidak ada klien yang boleh `UPDATE`/`DELETE`, dan trigger database
+(`audit_log_no_delete`) menegakkannya. Pertanyaannya: apa yang terjadi ketika tabelnya besar?
+
+**Opsi yang dipertimbangkan.**
+
+1. **Job cron memangkas baris lama otomatis.** Ditolak: melanggar sifat append-only dan
+   membuat riwayat absensi bisa hilang karena salah konfigurasi retensi.
+2. **Membuang trigger agar aplikasi bebas memangkas.** Ditolak: aturan keamanan menjadi
+   konvensi kode, bukan properti database — persis yang dilarang `AGENTS.md`.
+3. **Append-only permanen + arsip manual terverifikasi.** **Dipilih.**
+
+**Keputusan.**
+
+- Tidak ada penghapusan otomatis. Trigger tetap ada, termasuk untuk migrasi biasa.
+- `GET /api/admin/usage` melaporkan `counts.auditEntries`, `auditLog.oldestAt`, dan
+  `auditLog.newestAt` agar pertumbuhan terlihat sebelum menjadi masalah.
+- Pemangkasan, bila diperlukan, adalah **prosedur operator** (docs/OPERASIONAL.md §9.3):
+  ekspor rentang ke file arsip, verifikasi, lalu migrasi pemeliharaan baru yang melepas
+  trigger, menghapus rentang terarsip, dan memasang trigger kembali.
+- Ambang yang disarankan: baris tertua > 12 bulan **atau** jumlah baris mendekati batas
+  nyaman D1. Angka final adalah keputusan operator, bukan konstanta kode.
+
+**Konsekuensi.**
+
+- Riwayat tidak bisa hilang tanpa jejak: setiap pemangkasan punya file arsip dan catatan
+  rilis.
+- Biaya baris dibaca untuk audit tetap tumbuh sampai operator bertindak; `/api/admin/usage`
+  adalah satu-satunya alat pantau, dan ia sendiri membaca tabel (panggil jarang).
+- Query audit selalu memakai indeks `(event_id, created_at)`; pertumbuhan tabel memperlambat
+  pemindaian penuh (mis. `COUNT(*)`), bukan halaman audit per acara.
+
 ---
 
 ## 3. Topologi dan komponen

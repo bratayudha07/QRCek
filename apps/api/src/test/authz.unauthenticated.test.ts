@@ -25,6 +25,7 @@ describe("unauthenticated access", () => {
       [
         "GET /api/auth/me",
         "GET /api/auth/sessions",
+        "GET /api/admin/usage",
         "GET /api/dashboard",
         "GET /api/events",
         "GET /api/events/:eventId",
@@ -89,9 +90,10 @@ describe("unauthenticated access", () => {
     expect(failures).toEqual([]);
   });
 
-  it("publishes exactly the four intended endpoints", () => {
+  it("publishes exactly the five intended endpoints", () => {
     expect(PUBLIC.map((route) => `${route.method} ${route.pattern}`).sort()).toEqual([
       "GET /api/health",
+      "GET /api/health/ready",
       "POST /api/auth/activate",
       "POST /api/auth/recover",
       "POST /api/auth/register",

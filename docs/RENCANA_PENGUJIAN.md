@@ -2,13 +2,15 @@
 
 Tujuan pengujian di proyek ini **bukan** mengejar angka coverage, tetapi membuktikan bahwa aturan yang mudah dilanggar tetap ditegakkan. Setiap aturan di `AGENTS.md` §"Integritas data" dan §"Keamanan" harus punya tes yang **gagal bila aturannya dihapus**.
 
-## Snapshot verifikasi terkini (1 November 2026)
+## Snapshot verifikasi terkini (2 November 2026)
 
 - Gerbang kode lokal terakhir yang tercatat: `typecheck` PASS, `lint` PASS, `test` PASS.
-- Suite terakhir berisi **423 tes di 41 file**. Angka ini adalah snapshot; hitung ulang saat
+- Suite terakhir berisi **450 tes di 47 file**. Angka ini adalah snapshot; hitung ulang saat
   suite berubah dengan `npm run test`.
-- Integrasi Worker mencakup scan/duplikasi/lintas acara, koreksi dan audit, serta alur Sheets
-  dengan fake client. Klien web memiliki tes pemetaan prefix `/api/calendar`.
+- Integrasi Worker mencakup scan/duplikasi/lintas acara, koreksi dan audit, alur Sheets
+  dengan fake client, serta permukaan operasional Fase 6 (`/api/health/ready`,
+  `/api/admin/usage`, header keamanan). Klien web memiliki tes pemetaan prefix `/api/calendar`
+  dan tes paritas `public/_headers`.
 - Pengujian kamera fisik, UI browser end-to-end, dan sinkronisasi ke Google Sheet sungguhan
   belum dibuktikan. Lihat checklist manual §8.
 
@@ -153,6 +155,9 @@ it("menolak koreksi tanpa alasan yang memadai", () => {
 | I-31 | `register.rate-limit` | Pendaftaran ke-6 dalam 1 jam per IP-hash → 429, tanpa penulisan | |
 | I-32 | `register.creates-owner` | Admin baru membuat acara → baris acara + keanggotaan `event_admin` dalam satu batch | |
 | I-33 | **`turnstile.fail-closed`** | Token kosong / HTTP error / fetch throw → registrasi ditolak; tidak ada penulisan | |
+| I-34 | `health.ready` | `SELECT 1` sukses → 200 `ready`; D1 melempar error → 503 `DB_UNAVAILABLE` (bukan 500) | Stub `env.DB` yang melempar |
+| I-35 | **`usage.superadmin-only`** | `event_admin`/`officer` → 403; superadmin → 200 dengan hitungan; `pending`+`inflight` dihitung sebagai `queued` | Route nyata + D1 |
+| I-36 | `security.headers` | Header keamanan ikut pada respons sukses, error, 404, dan CSV; `public/_headers` identik dengan `SECURITY_HEADERS` | Assert header + tes paritas file |
 
 #### Status historis per akhir Tahap 3
 
@@ -212,7 +217,10 @@ Tambahan yang tidak ada di daftar awal tetapi diuji karena Tahap 2 dan 3:
 | Batas 50 undangan aktif per acara → 422 | `authz.events.test.ts` |
 | Undangan yang sudah dipakai tidak bisa dihapus | `authz.events.test.ts` |
 | Tidak bisa mencabut akses sendiri → 422 | `authz.events.test.ts` |
-| Route publik dibatasi tepat 4 (health, activate, register, recover) | `authz.unauthenticated.test.ts` |
+| Route publik dibatasi tepat 5 (health, health/ready, activate, register, recover) | `authz.unauthenticated.test.ts` |
+| Readiness: `SELECT 1` sukses → 200, D1 error → 503 `DB_UNAVAILABLE` | `ops.test.ts` |
+| `/api/admin/usage` superadmin-only; hitungan outbox `queued`/`failed`/`dead` | `ops.test.ts` |
+| Header keamanan pada respons sukses, error, dan 404 API; paritas `_headers` ↔ `SECURITY_HEADERS` | `ops.test.ts`, `apps/web/src/lib/security-headers.test.ts` |
 | Pendaftaran mandiri: sesi + kode pemulihan, peran tidak bisa dipilih, isolasi acara, rate limit | `auth.register.test.ts` |
 | Turnstile gagal-tertutup dan tidak memanggil jaringan saat token kosong | `turnstile.test.ts` |
 | Matriks §5.1 lengkap, termasuk aksi baru yang lupa didaftarkan | `permissions.test.ts` |
@@ -290,6 +298,7 @@ Sumber kebenaran tunggal: `domain/permissions.ts`. Tes mengiterasi matriks ini, 
 | Koreksi absensi | ✅ | ✅ | ❌ | ❌ |
 | Baca audit | ✅ | ✅ | ❌ | ❌ |
 | Konfigurasi sync | ✅ | ✅ | ❌ | ❌ |
+| Pemakaian lintas acara (`/api/admin/usage`) | ✅ | ❌ | ❌ | ❌ |
 
 ### 5.2 Skenario serangan yang wajib diuji
 

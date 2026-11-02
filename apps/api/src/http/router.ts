@@ -4,6 +4,7 @@ import type { AuthContext } from "./auth";
 import { authenticate } from "./auth";
 import { assertCsrf } from "./security";
 import { errorResponse, failureJson, okJson, unexpectedErrorResponse } from "./respond";
+import { withSecurityHeaders } from "./security-headers";
 
 /**
  * Minimal method + path router.
@@ -130,16 +131,18 @@ export async function dispatchRoutes(
 
     const result = await matched.handler({ request, env, now, params, auth });
 
-    if (result.raw) return result.raw;
+    if (result.raw) return withSecurityHeaders(result.raw);
 
-    return okJson(result.data, { status: result.status, headers: result.headers });
+    return withSecurityHeaders(
+      okJson(result.data, { status: result.status, headers: result.headers }),
+    );
   } catch (error) {
-    if (error instanceof ApiError) return errorResponse(error);
-    return unexpectedErrorResponse(error);
+    if (error instanceof ApiError) return withSecurityHeaders(errorResponse(error));
+    return withSecurityHeaders(unexpectedErrorResponse(error));
   }
 }
 
 /** 404 for unmatched `/api/*` paths; the SPA never sees them (ADR-001). */
 export function apiNotFound(): Response {
-  return failureJson("NOT_FOUND", "Endpoint tidak ditemukan", 404);
+  return withSecurityHeaders(failureJson("NOT_FOUND", "Endpoint tidak ditemukan", 404));
 }

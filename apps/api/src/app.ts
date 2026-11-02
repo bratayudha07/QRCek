@@ -1,14 +1,14 @@
-import type { HealthPayload } from "@absensi/shared";
-import { API_VERSION } from "@absensi/shared";
-
 import type { Env } from "./env";
 import { apiNotFound, dispatchRoutes } from "./http/router";
-import type { RouteContext, RouteDefinition, RouteResult } from "./http/router";
+import type { RouteDefinition } from "./http/router";
+import { withSecurityHeaders } from "./http/security-headers";
+import { adminRoutes } from "./routes/admin";
 import { authRoutes } from "./routes/auth";
 import { attendanceRoutes } from "./routes/attendance";
 import { auditRoutes } from "./routes/audit";
 import { dashboardRoutes } from "./routes/dashboard";
 import { eventRoutes } from "./routes/events";
+import { healthRoutes } from "./routes/health";
 import { labelRoutes } from "./routes/labels";
 import { participantRoutes } from "./routes/participants";
 import { scanRoutes } from "./routes/scan";
@@ -21,19 +21,8 @@ import { syncRoutes } from "./routes/sync";
  * so a new endpoint is deny-by-default. Security tests iterate this array, which
  * means adding a route without a session guard fails the test suite.
  */
-function health(ctx: RouteContext): RouteResult {
-  const payload: HealthPayload = {
-    service: "absensi-api",
-    version: API_VERSION,
-    status: "ok",
-    timestamp: ctx.now,
-  };
-
-  return { data: payload };
-}
-
 export const ROUTES: readonly RouteDefinition[] = [
-  { method: "GET", pattern: "/api/health", public: true, handler: health },
+  ...healthRoutes,
   ...authRoutes,
   ...eventRoutes,
   ...participantRoutes,
@@ -43,6 +32,7 @@ export const ROUTES: readonly RouteDefinition[] = [
   ...auditRoutes,
   ...dashboardRoutes,
   ...syncRoutes,
+  ...adminRoutes,
 ];
 
 /** Content blockers may block XHR paths named `/api/events`; expose a neutral alias. */
@@ -73,8 +63,10 @@ export async function handleRequest(
     return (await dispatchRoutes(ROUTES_WITH_CALENDAR_ALIAS, request, env, now)) ?? apiNotFound();
   }
 
-  // Everything else is the SPA (Workers Static Assets, ADR-001).
-  return env.ASSETS.fetch(request);
+  // Everything else is the SPA (Workers Static Assets, ADR-001). Production
+  // serves assets without invoking the Worker; this branch covers `wrangler dev`
+  // and tests, so the headers are applied here too.
+  return withSecurityHeaders(await env.ASSETS.fetch(request));
 }
 
 export default {
