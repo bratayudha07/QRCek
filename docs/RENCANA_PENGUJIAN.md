@@ -414,3 +414,16 @@ Checklist singkat yang dijalankan pada staging sebelum deploy produksi:
     tetap berjalan di HP (CSP tidak memblokir bundle).
 20. Buka tab Network setelah rilis header: tidak ada error CSP di console, dan tidak ada
     request ke origin selain origin aplikasi.
+21. Command palette: klik pemicu "Cari peserta…" **dan** tekan `Ctrl+K` (atau `⌘K` di Mac)
+    membuka panel. Ketik "lap" → muncul "Cari “lap” di Peserta" lalu tab Laporan; panah
+    atas/bawah memindah sorotan, Enter membuka, Escape menutup dan fokus kembali ke pemicu.
+    Klik latar gelap juga menutup. Saat palette terbuka, `Ctrl+K` tidak mengambil alih input.
+22. Ukuran palette di layar 320×568: panel tidak melewati viewport, daftar bisa digulir, dan
+    dengan `prefers-reduced-motion` panel muncul tanpa animasi.
+23. Sinkronisasi pencarian: cari "budi" dari palette → URL memuat `?q=budi` dan tab Peserta
+    terfilter. Ubah kata kunci lewat form di halaman Peserta → URL ikut berubah (`replace`,
+    bukan entri riwayat baru). Pindah ke tab Laporan lalu kembali ke Peserta → kata kunci dan
+    hasil tetap sama.
+24. Blok konteks acara: muat ulang halaman acara dengan jaringan lambat → badge status dan
+    baris jadwal tidak menggeser toolbar (skeleton mengisi ruangnya). Ubah status acara di tab
+    Ringkasan → badge di atas ikut berubah tanpa reload.

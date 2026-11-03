@@ -19,18 +19,22 @@ export function EventSwitcher({
   id,
   eventId,
   events,
+  fallbackName,
   activeTab,
   compact = false,
 }: {
   id: string;
   eventId: string;
   events: EventSummary[] | null;
+  /** Name from the session membership, used when the event list could not load. */
+  fallbackName?: string;
   activeTab?: EventTab | null;
   compact?: boolean;
 }) {
   const current = events?.find((event) => event.id === eventId) ?? null;
   const loading = events === null;
   const unavailable = events !== null && events.length === 0;
+  const label = current?.name ?? fallbackName;
 
   return (
     <div className={compact ? "min-w-0" : "space-y-1.5"}>
@@ -44,6 +48,7 @@ export function EventSwitcher({
         <select
           id={id}
           aria-label={compact ? "Pilih acara" : undefined}
+          title={label}
           value={eventId}
           disabled={loading || unavailable}
           onChange={(event) => {
@@ -58,7 +63,9 @@ export function EventSwitcher({
             : "h-10 w-full appearance-none rounded-full border border-border bg-background px-3 pr-9 text-sm font-medium transition-colors duration-200 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60"}
         >
           {!current && (
-            <option value={eventId}>{loading ? "Memuat acara…" : "Acara saat ini"}</option>
+            <option value={eventId}>
+              {loading ? "Memuat acara…" : (fallbackName ?? "Acara saat ini")}
+            </option>
           )}
 
           {events?.map((event) => (

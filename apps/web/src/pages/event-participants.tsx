@@ -18,7 +18,7 @@ import {
   participantTemplateUrl,
   type ParticipantListParams,
 } from "@/lib/participants";
-import { importPath, labelsPath, participantPath } from "@/lib/router";
+import { importPath, labelsPath, navigate, participantPath, participantsPath } from "@/lib/router";
 
 const PAGE_SIZE = 25;
 
@@ -266,7 +266,18 @@ export function EventParticipantsPage({ eventId }: { eventId: string }) {
           className="flex flex-wrap gap-2"
           onSubmit={(formEvent: FormEvent<HTMLFormElement>) => {
             formEvent.preventDefault();
-            setAppliedQuery(queryInput);
+
+            const term = queryInput.trim();
+            // Keep the address in step with the applied filter: the palette reads
+            // the applied term from `?q=`, and leaving the tab and coming back
+            // remounts this page from the URL. `replace` because a search box
+            // should not fill the back button with one entry per submit.
+            navigate(
+              term === "" ? participantsPath(eventId) : `${participantsPath(eventId)}?q=${encodeURIComponent(term)}`,
+              { replace: true },
+            );
+            setQueryInput(term);
+            setAppliedQuery(term);
           }}
         >
           <div className="relative min-w-0 flex-1">

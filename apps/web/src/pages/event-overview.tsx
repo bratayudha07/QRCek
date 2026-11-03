@@ -12,6 +12,7 @@ import {
   deleteEvent,
   getEvent,
   getEventSummary,
+  notifyEventsChanged,
   updateEvent,
 } from "@/lib/events";
 import { formatCount, formatDateTime } from "@/lib/format";
@@ -94,6 +95,7 @@ export function EventOverviewPage({ eventId }: { eventId: string }) {
         setEvent(body.data.event);
         setShowEdit(false);
         setActionNotice("Detail acara diperbarui.");
+        notifyEventsChanged();
         return;
       }
 
@@ -116,6 +118,7 @@ export function EventOverviewPage({ eventId }: { eventId: string }) {
       if (body.ok) {
         setEvent(body.data.event);
         setActionNotice(`Status acara kini ${EVENT_STATUS_LABEL[target]}.`);
+        notifyEventsChanged();
       } else {
         setActionError(body.error.message);
       }

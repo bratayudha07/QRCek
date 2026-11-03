@@ -7,7 +7,7 @@ import { EventSwitcher } from "./event-switcher";
 import { EventTabs } from "./event-tabs";
 import { Sidebar } from "./sidebar";
 import { EventStatusBadge } from "./status-badge";
-import { listEvents } from "@/lib/events";
+import { listEvents, onEventsChanged } from "@/lib/events";
 import { formatSchedule } from "@/lib/format";
 import { eventIdOf, eventTabForRoute, navMode, type NavMode } from "@/lib/navigation";
 import { routePath, type AppRoute, type EventTab } from "@/lib/router";
@@ -35,8 +35,10 @@ export function AppLayout({ route, children }: { route: AppRoute; children: Reac
   const eventId = eventIdOf(route);
   const activeTab = eventTabForRoute(route);
   const routeKey = routePath(route) ?? route.name;
-  const showSwitcher =
-    mode === "admin" && session.status === "authenticated" && eventId !== null;
+  const inEvent = eventId !== null;
+  // Only admins may switch events, but every role benefits from the status chip
+  // and the schedule, so the fetch is not tied to the switcher.
+  const showSwitcher = mode === "admin" && session.status === "authenticated" && inEvent;
   const [collapsed, setCollapsed] = useState(true);
   const [events, setEvents] = useState<EventSummary[] | null>(null);
   const mainRef = useRef<HTMLElement>(null);
@@ -50,29 +52,42 @@ export function AppLayout({ route, children }: { route: AppRoute; children: Reac
       ? session.memberships.find((membership) => membership.eventId === eventId)
       : undefined;
   const currentEvent = events?.find((event) => event.id === eventId);
+  // `null` only means "waiting" while the request for the current event is
+  // live. A reload announced with `notifyEventsChanged` keeps the previous list
+  // on screen, so the chrome never blinks back to a skeleton.
+  const eventLoading = inEvent && events === null;
+  const eventUnavailable = inEvent && !eventLoading && currentEvent === undefined;
 
   useEffect(() => {
-    if (!showSwitcher) {
+    if (eventId === null) {
       setEvents(null);
       return;
     }
 
     let cancelled = false;
-    setEvents(null);
 
-    listEvents()
-      .then((body) => {
-        if (cancelled) return;
-        setEvents(body.ok ? body.data.events : []);
-      })
-      .catch(() => {
-        if (!cancelled) setEvents([]);
-      });
+    const load = () => {
+      listEvents()
+        .then((body) => {
+          if (cancelled) return;
+          setEvents(body.ok ? body.data.events : []);
+        })
+        .catch(() => {
+          if (!cancelled) setEvents([]);
+        });
+    };
+
+    setEvents(null);
+    load();
+    // Renaming the event or moving it through its lifecycle changes this list;
+    // the overview announces it so the chip stops showing the old status.
+    const stopListening = onEventsChanged(load);
 
     return () => {
       cancelled = true;
+      stopListening();
     };
-  }, [showSwitcher, eventId]);
+  }, [eventId]);
 
   // A new screen starts at the top and takes focus: without this the SPA keeps
   // the previous page's scroll offset and leaves focus on a link that no longer
@@ -137,22 +152,40 @@ export function AppLayout({ route, children }: { route: AppRoute; children: Reac
                         id="event-switcher-context"
                         eventId={eventId}
                         events={events}
+                        fallbackName={eventContext?.eventName}
                         activeTab={activeTab}
                         compact
                       />
                     ) : (
                       <p className="truncate px-3 text-base font-semibold tracking-tight">
-                        {eventContext?.eventName ?? "Acara"}
+                        {eventContext?.eventName ?? currentEvent?.name ?? "Acara"}
                       </p>
                     )}
                   </div>
-                  {currentEvent && <EventStatusBadge status={currentEvent.status} />}
+                  {currentEvent ? (
+                    <EventStatusBadge status={currentEvent.status} />
+                  ) : eventLoading ? (
+                    // Reserved space: the badge and the schedule line used to
+                    // appear after the list arrived and pushed the toolbar down.
+                    <span
+                      aria-hidden="true"
+                      className="h-5 w-16 shrink-0 animate-pulse rounded-full bg-muted motion-reduce:animate-none"
+                    />
+                  ) : null}
                 </div>
-                {currentEvent && (
+                {currentEvent ? (
                   <p className="truncate px-3 text-xs text-muted-foreground">
                     {formatSchedule(currentEvent.startsAt, currentEvent.endsAt, currentEvent.timezone)}
                   </p>
-                )}
+                ) : eventLoading ? (
+                  <div aria-hidden="true" className="flex h-4 items-center px-3">
+                    <span className="h-3 w-44 animate-pulse rounded-full bg-muted motion-reduce:animate-none" />
+                  </div>
+                ) : eventUnavailable ? (
+                  <p className="truncate px-3 text-xs text-muted-foreground">
+                    Status dan jadwal tidak bisa dimuat.
+                  </p>
+                ) : null}
               </div>
             </div>
 
