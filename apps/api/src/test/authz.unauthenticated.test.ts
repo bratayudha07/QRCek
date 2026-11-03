@@ -163,7 +163,7 @@ describe("CSRF protection", () => {
   /**
    * Regression: `assertCsrf` used to run only for non-public routes, so
    * `/api/auth/activate` and `/api/auth/recover` accepted cross-site POSTs
-   * (login-CSRF). AGENTS.md and docs/ARSITEKTUR.md require every non-GET
+   * (login-CSRF). AGENTS.md and docs/adr/0002 require every non-GET
    * request to carry the header and a matching Origin, public route or not.
    */
   it.each([["/api/auth/activate"], ["/api/auth/recover"]])(

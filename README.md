@@ -1,10 +1,19 @@
-# Absensi Acara
+# QRCek
 
-Sistem absensi berbasis QR untuk banyak acara, dengan admin/petugas per acara, pencatatan
-kehadiran, audit, dan sinkronisasi batch ke Google Sheets.
+Sistem manajemen kehadiran dan distribusi konsumsi berbasis QR untuk Tema Acara yang memiliki
+banyak Aktivitas dan Sesi, dengan Admin Acara, Petugas lapangan, audit, laporan, dan
+sinkronisasi opsional ke Google Sheets.
 
-Stack: React + Vite · Cloudflare Workers + D1 · Google Sheets API. Status kode, fase,
-verifikasi, dan deploy dicatat di [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md).
+Stack: React + Vite · Cloudflare Workers + D1 · Google Sheets API (opsional).
+
+> **Status:** kode saat ini adalah baseline Fase 0–6 dengan model acara datar (satu kehadiran
+> per peserta per acara). Model QRCek (Tema → Aktivitas → Sesi, entitlement, konsumsi,
+> Reversal/Adjustment) **belum diimplementasikan**. Kebutuhan ada di
+> [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md), urutan kerja di
+> [`docs/IMPLEMENTATION_ROADMAP.md`](docs/IMPLEMENTATION_ROADMAP.md).
+>
+> Identifier teknis tetap memakai `absensi` (`@absensi/*`, cookie `absensi_session`, prefix QR
+> `absensi:v1:`, D1 `absensi-db`); nama produk adalah QRCek.
 
 ## Prasyarat
 
@@ -89,35 +98,34 @@ Untuk secret Worker: `cp .dev.vars.example apps/api/.dev.vars` lalu isi. Di prod
 ```
 apps/web/                  SPA — React + Vite + Tailwind + shadcn/ui
   src/App.tsx              composition root + router mini (`lib/router.ts`)
-  src/pages/               events, event-detail, participant-detail, import, account,
-                           activation, login, not-found
-  src/components/          app-shell, dock (bottom floating pill), form, badge, page-state
-  src/components/ui/       komponen shadcn/ui copy-in (button, field)
-  src/lib/                 api, http (fetch + CSRF), auth, router, session, events,
-                           participants, format (zona waktu), labels
+  src/pages/               admin (dashboard, events, event-*, import, labels, activity,
+                           account) dan staff (staff.tsx: beranda, scan, riwayat); auth (activation,
+                           login, register)
+  src/components/          layout, sidebar, bottom-nav, event-tabs, qr-code, qr-scanner, …
+  src/components/ui/       komponen shadcn/ui copy-in
+  src/lib/                 logika UI murni + teruji: router, navigation, api, http (CSRF),
+                           scanner, qr-labels, format (zona waktu), …
   vite.config.ts           dev server + proxy /api -> :8787
-  .env.example             VITE_API_BASE_URL
 
-apps/api/                  Cloudflare Worker — satu-satunya pemegang secret
-  src/index.ts             entry tipis → app.ts
-  src/app.ts               tabel ROUTES + handleRequest(request, env, { now })
-  src/routes/              auth.ts, events.ts, participants.ts (handler tipis)
-  src/http/                auth, cookies, csrf, errors, respond, router, validate
-  src/domain/              token, ids, permissions, csv, participant-import,
-                           event-status, slug, cursor (murni, tanpa I/O)
-  src/db/                  SQL per topik: users, sessions, invites, recovery, rate-limit,
-                           events, participants
-  src/env.ts               tipe binding (DB, ASSETS, SESSION_PEPPER, ALLOWED_ORIGINS)
+apps/api/                  Cloudflare Worker `qrcek` — satu-satunya pemegang secret
+  src/index.ts             entry tipis (fetch + scheduled) → app.ts
+  src/app.ts               tabel ROUTES (+ alias /api/calendar) + handleRequest
+  src/routes/              satu file per resource (auth, events, participants, labels,
+                           scan, attendance, dashboard, audit, sync, health, admin)
+  src/http/                router, security (CSRF/Origin), cookies, auth, errors, headers
+  src/domain/              fungsi murni tanpa I/O (token, qr-token, permissions, csv,
+                           participant-import, attendance-policy, outbox-policy, …)
+  src/db/                  semua SQL, per topik
+  src/services/            outbox, housekeeping
   src/test/                tes integrasi + spike D1 (berjalan di workerd)
-  wrangler.jsonc           config produksi (D1 + Static Assets)
+  wrangler.jsonc           config produksi (D1 + Static Assets + cron)
   wrangler.test.jsonc      config tes (tanpa assets, pepper khusus tes)
-  scripts/reset-local-db.mjs
-  scripts/seed-superadmin.mjs
+  scripts/                 reset-local-db.mjs, seed-superadmin.mjs
 
 packages/shared/           tipe + skema zod + kontrak API dipakai web & api
-                           (termasuk tabel transisi status acara di `events.ts`)
-migrations/                migrasi SQL D1 (urutan = nama file)
-docs/                      arsitektur, API, database, pengujian, operasional
+migrations/                migrasi SQL D1 0001–0006 (urutan = nama file; jangan diedit)
+docs/                      kebutuhan, keputusan, arsitektur, roadmap, desain teknis
+.opencode/                 konfigurasi agent OpenCode (agents, commands, skills, plans)
 ```
 
 ## Perintah
@@ -180,7 +188,7 @@ Menghasilkan `apps/web/dist/` (SPA) dan dry-run bundle Worker di `apps/api/dist/
 | Tes gagal dengan biner `workerd`/`esbuild` hilang | `postinstall` diblokir npm | `npm install-scripts approve esbuild workerd` |
 | `SQL code did not contain a statement` | `db.exec()` memecah SQL per baris | Pakai `db.prepare(...).run()`, atau `applyD1Migrations()` untuk file migrasi |
 | `ON CONFLICT clause does not match ...` | unique index parsial tanpa predikat | Ulangi predikatnya: `ON CONFLICT (...) WHERE status IN (...)` |
-| `npm run test` lambat (~1,5 s/berkas) | satu `workerd` per file tes | Normal. Jangan set `isolate: false` tanpa mengukur ulang isolasi D1 |
+| `npm run test` lambat (~1,5 s/berkas) | satu `workerd` per file tes | Normal. Saat iterasi pakai tes terfokus. Jangan set `isolate: false` tanpa mengukur ulang isolasi D1 |
 | Worker merespons 404 JSON untuk `/api/*` yang tidak ada | memang perilaku yang diinginkan | Tambahkan route-nya di `apps/api/src/app.ts` |
 | Semua POST mengembalikan 403 `CSRF_FAILED` | request non-browser tanpa `Origin` | Kirim `Origin` yang sama dengan host + header `X-Absensi-Csrf: 1` |
 | Aktivasi selalu 401 padahal URL baru dibuat | `SESSION_PEPPER` saat seed ≠ pepper Worker | Seed ulang dengan pepper yang sama, atau samakan `.dev.vars` |
@@ -249,10 +257,15 @@ memuatnya ter-deploy. Status, kuota build, dan prosedur rollback ada di
 
 | File | Isi |
 |---|---|
-| `IMPLEMENTATION_PLAN.md` | Fase, kriteria penerimaan, status |
-| `docs/ARSITEKTUR.md` | Alur, boundary, model data, keputusan |
-| `docs/DESAIN_API.md` | Tabel endpoint |
+| `AGENTS.md` | Aturan mengikat untuk agent AI dan kontributor |
+| `docs/REQUIREMENTS.md` | Kebutuhan produk, keputusan produk, baseline, delta |
+| `docs/DECISIONS.md` | Indeks keputusan produk, ADR, dan pertanyaan arsitektur |
+| `docs/adr/` | Keputusan arsitektur individual (ADR-0001–0008) |
+| `docs/ARCHITECTURE.md` | Boundary, model domain target, alur baseline |
+| `docs/IMPLEMENTATION_ROADMAP.md` | Tahap Q0–Q11, prasyarat, gate |
+| `docs/DESAIN_API.md` | Tabel endpoint aktual |
 | `docs/DESAIN_DATABASE.md` | Skema aktual, indeks, migrasi |
 | `docs/RENCANA_PENGUJIAN.md` | Tes wajib dan gerbang kualitas |
-| `docs/OPERASIONAL.md` | Hasil spike, quirk lingkungan, item belum terverifikasi |
-| `COSTS_AND_LIMITS.md` | Batas free tier |
+| `docs/OPERASIONAL.md` | Hasil spike, deploy, prosedur, quirk lingkungan |
+| `COSTS_AND_LIMITS.md` | Batas free tier dan anggaran |
+| `IMPLEMENTATION_PLAN.md` | Arsip historis Fase 0–6 |

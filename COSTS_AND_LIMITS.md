@@ -4,6 +4,10 @@ Dokumen ini menjawab satu pertanyaan: **kapan sistem ini akan menabrak batas, da
 
 Semua angka di bawah dikutip dari dokumentasi resmi pada tanggal verifikasi (lihat §7). Angka yang tidak bisa diverifikasi ditandai ⚠️ dan tidak dipakai sebagai dasar keputusan.
 
+> **Lokasi file:** tetap di root sampai `OQ-027` [O] diputuskan product owner. Jangan dipindah.
+>
+> **Cakupan anggaran (3 November 2026):** batas platform (§2, §3.1, §5.1) berlaku umum. Anggaran operasi (§3.3–§3.5) dihitung untuk **baseline** (`attendance` satu baris per peserta per acara, audit pada scan/koreksi/label). Model target QRCek menambah biaya yang belum dianggarkan: transaksi per Aktivitas/Sesi (satu peserta bisa punya banyak transaksi per Tema), baris Reversal/Adjustment, transaksi konsumsi, tabel entitlement/kategori/custom field beserta indeksnya, dan cakupan audit yang lebih luas (`FR-135`, `D-023` [P]). Anggaran ulang wajib dilakukan saat skema target dirancang (roadmap Q1/Q5) dan diverifikasi di Q11 (`NFR-010`–`NFR-012`, `NFR-023`).
+
 ---
 
 ## 1. Ringkasan eksekutif
@@ -13,7 +17,7 @@ Semua angka di bawah dikutip dari dokumentasi resmi pada tanggal verifikasi (lih
 | Sistem ini **bisa berjalan sepenuhnya gratis** untuk skala satu sekolah/kecamatan | Tidak ada biaya bulanan |
 | Batas paling cepat tercapai adalah **100.000 baris tulis D1/hari** dan **500 MB ukuran database** | Import besar + audit log panjang |
 | Batas paling berbahaya adalah **10 ms CPU per request** | Membunuh desain auth berbasis password (lihat §4) |
-| Risiko biaya tak terduga berasal dari **Google Sheets**, bukan Cloudflare | Google menyatakan kelebihan kuota akan berbayar (lihat §3.3) |
+| Risiko biaya tak terduga berasal dari **Google Sheets**, bukan Cloudflare | Google menyatakan kelebihan kuota akan berbayar (lihat §5.3) |
 | Tidak ada layanan berbayar yang perlu diaktifkan | ✅ sesuai `AGENTS.md` |
 
 ---
@@ -131,7 +135,7 @@ Dengan 100.000 baris tulis/hari:
 | 1 acara, 1.000 peserta, 1 hari | ~9.000 + 5.000 import | ✅ 14% kuota |
 | 1 acara, 5.000 peserta, 1 hari | ~45.000 + 25.000 import | ✅ 70% kuota |
 | 2 acara × 5.000 peserta di hari yang sama | ~140.000 | ❌ **melebihi** |
-| Import 10.000 peserta dalam sehari | ~50.000 | ✅ (tetapi terpecah ke 2 request karena batas 5.000/request) |
+| Import 10.000 peserta dalam sehari | ~50.000 | ✅ (terpecah ke ≥ 10 request karena batas 1.000 baris/request) |
 
 **Rekomendasi operasional**: jangan menjadwalkan dua acara besar pada tanggal yang sama, atau bagi import ke beberapa hari sebelum acara.
 
@@ -173,7 +177,7 @@ Tiga pilihan yang tersedia:
 |---|---|
 | Turunkan iterasi sampai muat 10 ms | Hash menjadi cepat ditebak; keamanan hilang |
 | Naikkan ke Workers Paid ($5/bulan) | Melanggar batasan "tidak ada layanan berbayar" |
-| **Hilangkan password** (ADR-002) | Tidak ada KDF sama sekali; aman karena token berentropi 128–256 bit |
+| **Hilangkan password** ([ADR-0002](docs/adr/0002-passwordless-token-auth.md)) | Tidak ada KDF sama sekali; aman karena token berentropi 100–256 bit |
 
 Pilihan ketiga dipakai. Ini **bukan** kompromi keamanan: HMAC-SHA256 atas token 256-bit acak lebih tahan tebak daripada password apa pun yang dipilih manusia.
 

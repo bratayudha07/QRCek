@@ -1,0 +1,353 @@
+# IMPLEMENTATION ROADMAP — QRCek
+
+> **Status:** Draft v1 — Pending Product Owner Review. Dibuat 3 November 2026 dari [`REQUIREMENTS.md`](./REQUIREMENTS.md) v0.3.1.
+> **Baseline:** commit `157c330` (`REQUIREMENTS.md` §7). Riwayat Fase 0–6 ada di [`../IMPLEMENTATION_PLAN.md`](../IMPLEMENTATION_PLAN.md) (arsip, `D-002` [A]).
+> **Sifat dokumen:** urutan tahap, prasyarat keputusan, dan gate. Dokumen ini **merujuk** `FR-`/`BR-`/`AC-` dan tidak menyalin isinya. Rencana eksekusi teknis per tahap ditulis di `.opencode/plans/` setelah tahapnya dibuka.
+
+---
+
+## 1. Aturan roadmap
+
+1. **Tahap dibuka oleh pemilik proyek**, bukan oleh agent. Status "Belum dibuka" berarti tidak ada kode fitur untuk tahap itu.
+2. **Gate keras.** Tahap berikutnya tidak dimulai sebelum gate tahap sebelumnya terpenuhi dan dibuktikan dengan perintah yang bisa dijalankan ulang, lalu direview manusia (`REQUIREMENTS.md` §14 #10).
+3. **Prasyarat keputusan wajib.** Requirement bertanda `[P]` tidak dikerjakan sebagai final sebelum keputusan terkait disetujui; `[O]` tidak boleh dijawab sendiri; AQ dijawab lewat ADR sebelum tahapnya dibuka (lihat [`DECISIONS.md`](./DECISIONS.md)).
+4. **Repo tetap hijau** di setiap commit: `npm run typecheck` → `npm run lint` → `npm run test` (dan `npm run build` sebelum menutup tahap).
+5. **Reuse sebelum menulis ulang** (`FR-172`, `FR-173`). Setiap tahap mencantumkan modul baseline yang dievaluasi.
+6. **Regression test wajib** untuk fitur baseline yang dipakai ulang atau diganti (`D-007` [A], `FR-175`).
+7. **Ukur, jangan tebak.** Klaim CPU, jumlah statement, atau baris dibaca/ditulis harus punya angka.
+8. **Tidak ada fitur "sekalian".** Ide di tengah tahap dicatat sebagai usulan, bukan dikerjakan.
+9. **Dokumen diperbarui di perubahan yang sama** (`AC-038`): `DESAIN_API.md`, `DESAIN_DATABASE.md`, `RENCANA_PENGUJIAN.md`, `ARCHITECTURE.md`, dan baris status di dokumen ini.
+
+### Definisi selesai sebuah tahap
+
+- Semua acceptance criteria tahap terpenuhi dengan bukti (tes atau langkah manual tercatat).
+- Tes integritas tahap ada dan **gagal bila aturannya dihapus** (`NFR-018`, `AC-035`).
+- `typecheck` → `lint` → `test` → `build` hijau; CI hijau.
+- Dokumen terkait diperbarui; tidak ada klaim "selesai" hanya karena endpoint tersedia (`FR-178`).
+- Tidak ada dependensi baru tanpa justifikasi satu baris (`NFR-020`).
+- Pemilik proyek menyetujui ringkasan tahap.
+
+---
+
+## 2. Ringkasan tahap
+
+| Tahap | Fokus | Status | Prasyarat keputusan utama |
+|---|---|---|---|
+| Q0 | Penyelarasan dokumen & keputusan | **Berjalan** | `D-001`, `D-002` [A] |
+| Q1 | Fondasi Tema → Aktivitas → Sesi, lifecycle, mekanisme audit | Belum dibuka | AQ-001, AQ-010, AQ-014; `D-009`, `D-023` [P]; `OQ-033` [O] untuk aksi arsip Sesi |
+| Q2 | Peserta, kategori, custom field, impor CSV | Belum dibuka | AQ-006; `D-008`, `D-020` [P] |
+| Q3 | Entitlement | Belum dibuka | AQ-005 |
+| Q4 | QR Identity per Tema, rotasi, ekspor PNG/ZIP | Belum dibuka | AQ-009; `D-016` [P] |
+| Q5 | Transaksi Attendance, Manual Entry, Reversal/Adjustment | Belum dibuka | AQ-002–AQ-004, AQ-007, AQ-008; `D-010`, `D-011`, `D-022`, `D-024` [P]; `OQ-034` [O] |
+| Q6 | Penugasan Petugas & Scanner/Kiosk | Belum dibuka | AQ-007, AQ-008, AQ-012; `D-012`, `D-013` [P] |
+| Q7 | Distribusi konsumsi | Belum dibuka | AQ-002, AQ-003; `D-009`, `D-014` [P] |
+| Q8 | Audit lengkap, dashboard, navigasi, laporan & ekspor | Belum dibuka | AQ-013, AQ-014; `D-015`, `D-023` [P] |
+| Q9 | Design system & UI | Belum dibuka | `D-021` [P] |
+| Q10 | Google Sheets opsional | Belum dibuka | AQ-011; `D-017` [P] |
+| Q11 | Hardening, verifikasi lapangan, rilis | Belum dibuka | `D-019` [P] dikonfirmasi |
+
+```mermaid
+graph TD
+    Q0[Q0 Dokumen & keputusan] --> Q1[Q1 Tema-Aktivitas-Sesi]
+    Q1 --> Q2[Q2 Peserta, kategori, impor]
+    Q2 --> Q3[Q3 Entitlement]
+    Q2 --> Q4[Q4 QR per Tema]
+    Q3 --> Q5[Q5 Transaksi & koreksi]
+    Q4 --> Q5
+    Q5 --> Q6[Q6 Scanner/Kiosk]
+    Q5 --> Q7[Q7 Konsumsi]
+    Q6 --> Q7
+    Q5 --> Q8[Q8 Audit, dashboard, laporan]
+    Q7 --> Q8
+    Q8 --> Q10[Q10 Google Sheets]
+    Q0 -.paralel bila dibuka eksplisit.-> Q9[Q9 Design system]
+    Q10 --> Q11[Q11 Hardening & rilis]
+    Q9 --> Q11
+```
+
+Alasan urutan: transaksi (Q5) membutuhkan konteks (Q1), peserta (Q2), entitlement (Q3), dan QR per Tema (Q4). Scanner (Q6) didahulukan dari konsumsi (Q7) agar alur Attendance end-to-end bisa diuji di lapangan lebih awal. Sheets (Q10) terakhir karena proyeksinya bergantung bentuk akhir transaksi.
+
+---
+
+## 3. Persyaratan lintas tahap
+
+Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
+
+| Aspek | Rujukan |
+|---|---|
+| Otorisasi di Worker pada setiap route; guard React hanya UX | `NFR-001`, `FR-169`, `AGENTS.md` |
+| Validasi input di boundary dengan skema `packages/shared` | `AGENTS.md` |
+| Tanpa PII/token/secret di log dan audit | `NFR-006`, `FR-195` |
+| Waktu UTC, konversi di presentasi | `NFR-013` |
+| Reuse dievaluasi; struktur tak kompatibel boleh diganti | `FR-172`–`FR-175`, `FR-198`, `D-007` [A] |
+| Identifier teknis `absensi` dipertahankan; nama produk QRCek | `FR-196`, `D-019` [P] |
+| Status implementasi dipisah dari kebutuhan | `FR-177`, `FR-178` |
+| Free tier saja; anggaran CPU/query/baris diperhitungkan | `NFR-009`–`NFR-012` |
+
+---
+
+## 4. Detail tahap
+
+### Q0 — Penyelarasan dokumen dan keputusan
+
+**Status:** Berjalan (dokumentasi dikerjakan 3 November 2026).
+
+**Cakupan:** `FR-176`–`FR-181`; `D-001`, `D-002` [A].
+
+**Hasil:**
+
+- [x] `docs/ARSITEKTUR.md` dipindah menjadi `docs/ARCHITECTURE.md` dan diselaraskan dengan model target.
+- [x] ADR-001…008 diekstrak ke `docs/adr/0001`–`0008`.
+- [x] `docs/DECISIONS.md` (indeks keputusan + AQ) dan dokumen ini dibuat.
+- [x] `AGENTS.md`, `README.md`, dokumen teknis, dan konfigurasi `.opencode/` diselaraskan.
+- [x] `IMPLEMENTATION_PLAN.md` ditandai arsip; `PLAN_TAB_PESERTA.md` dievaluasi (§5).
+
+**Gate untuk membuka Q1:**
+
+- [ ] Product owner mereview `REQUIREMENTS.md` v0.3.1 dan dokumen turunan ini.
+- [ ] Keputusan `[P]` yang dibutuhkan Q1 diputuskan: `D-009`, `D-023` (dan `D-018` bila registrasi masuk Q1).
+- [ ] ADR untuk AQ-001, AQ-010, AQ-014 berstatus Diterima.
+- [ ] `REQUIREMENTS.md` §0.3 dan §13.3 diperbarui product owner agar status dokumen turunan tidak lagi "belum dibuat".
+
+---
+
+### Q1 — Fondasi Tema → Aktivitas → Sesi
+
+**Tujuan:** sistem dapat merepresentasikan Tema dengan banyak Aktivitas dan Sesi beserta lifecycle-nya, dengan audit yang sudah memakai mekanisme final.
+
+**Cakupan:**
+
+- Hierarki dan konteks: `FR-001`, `FR-002`, `FR-005`–`FR-012`, `FR-182` (`D-009` [P]); `BR-001`, `BR-003`–`BR-009`, `BR-070`.
+- Lifecycle: `FR-090`–`FR-096`, `FR-206`; `BR-047`–`BR-049`, `BR-078`. Aksi pengarsipan Sesi menunggu `OQ-033` [O]; state arsip dan penolakan transaksinya boleh disiapkan.
+- Akses per Tema: `FR-097`, `FR-098`. Bila `D-018` disetujui: `FR-194`.
+- Audit mutasi Tema/Aktivitas/Sesi memakai allowlist (`FR-135` sebagian, `FR-207`; AQ-014).
+
+**Reuse yang dievaluasi:** `routes/events.ts`, `packages/shared/src/events.ts` (tabel transisi), `domain/permissions.ts`, `db/events.ts`, undangan & keanggotaan, `lib/navigation.ts`, `lib/router.ts`.
+
+**Gate:**
+
+- `AC-001`, `AC-004` (struktural), `AC-005`.
+- Tes: Sesi tidak bisa dibuat di bawah Aktivitas Tema lain; transisi status Aktivitas/Sesi sah/terlarang (tabel lengkap, murni); duplikasi Sesi menyalin konfigurasi saja dengan status awal Terjadwal (`BR-048`); akses lintas Tema → 404.
+- Regression: tes auth, undangan, dan isolasi acara baseline tetap lulus atau diganti tes setara.
+- `DESAIN_DATABASE.md` mencatat migrasi baru; tidak ada migrasi lama yang diedit.
+
+**Bukan cakupan:** transaksi, entitlement, scanner.
+
+---
+
+### Q2 — Peserta, kategori, custom field, impor CSV
+
+**Tujuan:** peserta terdaftar di Tema dengan kategori sebagai entitas, custom field yang aman dari kehilangan data, dan impor yang tidak pernah mengubah data tanpa persetujuan admin.
+
+**Cakupan:**
+
+- Peserta: `FR-003`, `FR-013`–`FR-025`; `BR-010`–`BR-012`.
+- Custom field: `FR-026`–`FR-033`; `BR-013`–`BR-017`.
+- Kategori: `FR-034`–`FR-036`.
+- Impor: `FR-046`–`FR-053`, `FR-197`, `FR-205` (`D-008`, `D-020` [P]); `BR-061`–`BR-063`, `BR-076`, `BR-077`.
+
+**Reuse yang dievaluasi:** `domain/csv.ts` (parser RFC 4180, 31+ kasus tes), `domain/participant-import.ts`, `routes/participants.ts`, normalisasi telepon/email, soft-delete `inactive`, `pages/import.tsx`, `pages/event-participants.tsx`. Masukan dari `PLAN_TAB_PESERTA.md`: lihat §5.
+
+**Gate:**
+
+- `AC-006`–`AC-010`, `AC-042`, `AC-054`.
+- Tes: Participant ID tidak bisa diubah lewat API; impor tanpa konfirmasi tidak menulis; External Reference cocok banyak kandidat → tidak ada pemilihan otomatis; nama/email/phone sama → warning, bukan merge; field kosong tidak menghapus nilai; rename/nonaktif/arsip custom field tidak menghapus nilai; perubahan tipe tidak kompatibel ditolak.
+- Batas 2 MB / 1.000 baris menghasilkan pesan actionable (`FR-197`).
+
+**Bukan cakupan:** entitlement per kategori (Q3).
+
+---
+
+### Q3 — Entitlement
+
+**Tujuan:** hak akses peserta per Aktivitas/Sesi dapat dikonfigurasi dan di-resolve deterministik.
+
+**Cakupan:** `FR-037`–`FR-042`, `FR-199`; resolver untuk `FR-043`/`FR-044`; `BR-018`–`BR-023`, `BR-075`.
+
+**Prasyarat tambahan:** jawaban product owner atas sub-pertanyaan AQ-005 (cara menegakkan konfigurasi eksplisit per kategori, `FR-040`/`FR-041`).
+
+**Gate:**
+
+- `AC-011`, `AC-012`, `AC-014`, `AC-043`.
+- Tes tabel resolver mencakup lima tingkat × Inherit/Allowed/Denied, override Sesi hanya untuk Sesi itu, perubahan kategori tidak menghapus override individual. Resolver murni, tanpa I/O.
+- Jumlah query untuk me-resolve satu peserta dalam satu konteks terukur dan dicatat.
+
+**Bukan cakupan:** penolakan di endpoint scan (Q5) dan tampilan scanner (`FR-045`, Q6).
+
+---
+
+### Q4 — QR Identity per Tema, rotasi, ekspor PNG/ZIP
+
+**Tujuan:** satu QR per Tema + Peserta, dapat dirotasi, dan dapat diunduh sebagai PNG/ZIP tanpa membebani Worker.
+
+**Cakupan:** `FR-004`, `FR-054`–`FR-065`, `FR-200`; `BR-002`, `BR-024`–`BR-029`.
+
+**Reuse yang dievaluasi:** `domain/qr-token.ts` (ADR-0003, ADR-0006), `routes/labels.ts`, `components/qr-code.tsx`, `lib/qr-labels.ts`. Cetak label A4/stiker via `window.print()` tidak diminta `REQUIREMENTS.md` dan bukan generator PDF; mempertahankan atau memensiunkannya diputuskan pemilik proyek saat tahap dibuka.
+
+**Gate:**
+
+- `AC-015`–`AC-018`.
+- Tes: token Tema A ditolak di konteks Tema B; rotasi → token lama langsung ditolak, riwayat transaksi tidak berubah, audit tercatat tanpa token; QR peserta nonaktif ditolak; permintaan data token tanpa izin → 403/404; ekspor tercatat di audit dengan jumlah, bukan token.
+- Batas batch per request ditetapkan dari pengukuran CPU (baseline 50).
+
+---
+
+### Q5 — Transaksi Attendance, Manual Entry, Reversal/Adjustment
+
+**Tujuan:** model transaksi target menggantikan `attendance` baseline: konteks Aktivitas/Sesi, duplikasi berbasis transaksi efektif di database, koreksi non-destruktif.
+
+**Cakupan:**
+
+- Transaksi: `FR-066`–`FR-072`, `FR-075`, `FR-088`, `FR-162`–`FR-167`, `FR-169`; penegakan `FR-043`/`FR-044` dan `FR-183`–`FR-188`; `BR-030`–`BR-033`, `BR-035`, `BR-064`–`BR-066`, `BR-071`, `BR-072`.
+- Manual Entry: `FR-073`, `FR-074` (`D-022` [P], `OQ-034` [O]); `BR-034`.
+- Koreksi: `FR-076`–`FR-080`, `FR-201`, `FR-202`, `FR-106`; `BR-036`–`BR-040`.
+- Pesan duplikat Attendance: `FR-203` (bagian Attendance).
+
+**Perubahan baseline yang wajib:**
+
+- Jalur `POST .../attendance/:id/correction` yang melakukan `UPDATE attendance` diganti Reversal/Adjustment (`D-006` [A]).
+- Kewenangan koreksi Super Admin tidak diperluas maupun dihapus diam-diam; ikuti keputusan `D-024`.
+- Izin legacy `attendance:correct` tidak dipakai sebagai izin Manual Check-in (`AC-055`).
+- `UNIQUE (event_id, participant_id)` baru dilepas setelah constraint pengganti ada dan tes konkurennya lulus.
+
+**Gate:**
+
+- `AC-002`, `AC-003`, `AC-013`, `AC-019`–`AC-023`, `AC-035`, `AC-040`, `AC-041`, `AC-044`, `AC-045`, `AC-049`, `AC-055`.
+- Tes integritas wajib (`RENCANA_PENGUJIAN.md` §9): scan ganda ruang lingkup sama; dua scan paralel → tepat satu sukses (diulang ≥ 50 kali tanpa flakiness); Sesi berbeda diterima; konteks lintas Tema/Aktivitas/Sesi ditolak tanpa menulis; lifecycle tertutup ditolak; Petugas → koreksi 403; Reversal membebaskan slot; Adjustment menyimpan before/after field allowlist; koreksi + audit dalam satu batch.
+- Jumlah statement D1 per scan dihitung dari kode dan dicatat.
+
+---
+
+### Q6 — Penugasan Petugas dan Scanner/Kiosk
+
+**Tujuan:** Petugas memindai di HP/kiosk dalam konteks yang ditugaskan, dengan feedback jelas dan tanpa keberhasilan palsu.
+
+**Cakupan:**
+
+- Penugasan & peran: `FR-099`–`FR-105`; `BR-050`–`BR-053`.
+- Scanner: `FR-045`, `FR-107`–`FR-128`, `FR-189`–`FR-192` (`D-012`, `D-013` [P]); `BR-054`–`BR-057`; `NFR-014`, `NFR-015`, `NFR-022`.
+
+**Reuse yang dievaluasi:** `components/qr-scanner.tsx`, `lib/scanner.ts`, `components/scan-toast.tsx`, `StaffScanPage` di `pages/staff.tsx` (baseline: sudah memanggil endpoint scan per acara), `lib/attendance.ts` (`scanQr`). `pages/staff-scan.tsx` adalah kode mati (tidak diimpor); kandidat dihapus saat Q6 dengan persetujuan.
+
+**Gate:**
+
+- `AC-026`–`AC-028`, `AC-048`, `AC-053`.
+- Tes: Petugas tanpa penugasan pada Aktivitas/Sesi → ditolak backend walau URL memilih konteks itu; kesalahan jaringan dibedakan dari QR tidak valid; tidak ada antrean offline.
+- **Uji perangkat fisik** (dicatat di `OPERASIONAL.md`): iPhone (fallback ZXing) dan Android (`BarcodeDetector`) masing-masing 20 scan berturut tanpa reload; kamera depan/belakang; portrait/landscape; jaringan dimatikan menampilkan pesan actionable.
+
+---
+
+### Q7 — Distribusi konsumsi
+
+**Tujuan:** penukaran konsumsi sebagai transaksi independen dengan kuota.
+
+**Cakupan:** `FR-081`–`FR-087`, `FR-089`, `FR-203` (bagian Consumption), state Consumption di `FR-119`; `BR-041`–`BR-046`, `BR-073`.
+
+**Gate:**
+
+- `AC-024`, `AC-025`, `AC-046`.
+- Tes: penukaran melebihi kuota efektif ditolak di database (termasuk paralel); kuota 0 menolak; Reversal mengembalikan kuota (hanya bila `D-014` disetujui); perubahan entitlement tidak menghapus riwayat penukaran.
+
+**Bukan cakupan:** inventory/stock management (`D-014` [P]).
+
+---
+
+### Q8 — Audit lengkap, dashboard, navigasi, laporan & ekspor
+
+**Cakupan:**
+
+- Audit: `FR-135`–`FR-140`, `FR-170`, `FR-195`, `FR-207`; `BR-058`, `BR-074`, `BR-079`; `NFR-023`.
+- Dashboard & navigasi: `FR-129`–`FR-134`.
+- Laporan & ekspor: `FR-141`–`FR-149` (`D-015` [P]); `BR-059`, `BR-060`.
+
+**Reuse yang dievaluasi:** `routes/audit.ts`, `db/audit.ts`, `routes/dashboard.ts`, ekspor CSV kehadiran/peserta, `pages/activity.tsx`, `pages/event-reports.tsx`, `lib/navigation.ts`.
+
+**Gate:**
+
+- `AC-029`–`AC-033`, `AC-047`.
+- Tes: setiap endpoint mutasi menghasilkan ≥ 1 baris audit (tes iterasi tabel route); audit tidak memuat token/secret dan nilai field sensitif; Petugas ditolak membaca audit; ekspor sesuai filter dan tercatat di audit.
+- Query dashboard/laporan memakai indeks (`EXPLAIN QUERY PLAN` → `SEARCH`) dan baris dibaca terukur.
+
+---
+
+### Q9 — Design system dan UI
+
+**Catatan pembukaan:** boleh dibuka paralel setelah Q0 hanya bila pemilik proyek menyetujui `D-021` dan membukanya secara eksplisit. Tahap ini tidak boleh mengubah perilaku atau kontrak API.
+
+**Cakupan:** `FR-150`–`FR-161`, `FR-204`; `NFR-016`, `NFR-021`, `NFR-022`.
+
+**Reuse yang dievaluasi:** `apps/web/src/index.css` (token shadcn/ui), `components/ui/`, komponen layout/sidebar/tabs yang sudah ada.
+
+**Gate:** `AC-039`, `AC-053`; checklist visual manual (light/dark, kontras AA, reduced motion, layar kecil) tercatat; tidak ada runtime CDN.
+
+---
+
+### Q10 — Google Sheets opsional
+
+**Cakupan:** `FR-193` (`D-017` [P]); proyeksi baru sesuai ADR dari AQ-011.
+
+**Reuse yang dievaluasi:** `services/outbox.ts`, `domain/sheets.ts`, `domain/sheet-projection.ts`, `domain/outbox-policy.ts`, `routes/sync.ts` (ADR-0004, ADR-0005).
+
+**Gate:** `AC-051`; tes dengan fake Sheets client (batching, idempotensi retry, error permanen → `dead`, kegagalan sync tidak memblokir transaksi); uji dengan akun Google nyata tercatat sebelum diklaim production-ready.
+
+---
+
+### Q11 — Hardening, verifikasi lapangan, rilis
+
+**Cakupan:** verifikasi seluruh `NFR-001`–`NFR-023`; `AC-034`, `AC-036`, `AC-037`, `AC-052`.
+
+**Pekerjaan:** pengukuran CPU produksi (`wrangler tail`), smoke test produksi end-to-end, backup `wrangler d1 export` sebelum migrasi remote, prosedur break-glass diuji, kebijakan retensi audit final (`D-023`), pembaruan `COSTS_AND_LIMITS.md` dengan model transaksi baru, CI hijau tercatat.
+
+**Gate:** semua butir di atas tercatat di `OPERASIONAL.md` dengan tanggal dan hasil.
+
+---
+
+## 5. Evaluasi `PLAN_TAB_PESERTA.md` (`D-002` [A])
+
+| Bagian rencana lama | Keputusan integrasi | Alasan |
+|---|---|---|
+| R1–R3, R5, R6: tabel peserta, sort per kolom, empty state, QR tidak di tabel, detail drawer | Dibawa ke **Q2** sebagai masukan UX | Tidak bertentangan dengan `REQUIREMENTS.md`; `FR-159` (baris tabel bukan card) selaras |
+| D3: pemetaan kolom CSV | Dibawa ke **Q2** | Selaras `FR-047`; harus ditambah review duplikat Skip/Update dan konfirmasi (`D-008` [P]) |
+| D1/D2: katalog field + `attributes_json`, kategori sebagai kolom builtin teks | **Masukan AQ-006 saja** | Katalog "hanya bertambah" dan nilai teks saja belum memenuhi `FR-027`–`FR-032`; kategori harus entitas (`FR-034`) |
+| D4: sort/filter di klien dengan cap baris | Masukan **Q2** | Valid untuk anggaran D1; cap harus diukur |
+| D5: penerbitan QR digerakkan klien per 50 | Dibawa ke **Q4** | Selaras batas CPU dan `D-016` [P] |
+| D6/D8: PNG/ZIP dirakit di browser tanpa dependensi | Dibawa ke **Q4** | Selaras `D-016` [P] dan `NFR-020` |
+| R7/D8: unduh QR sebagai **PDF** | **Tidak dibawa** | Bertentangan dengan `NG-04`/`NG-05` |
+| Upsert otomatis saat impor | **Tidak dibawa** | Bertentangan dengan `FR-050`, `BR-061` |
+| Migrasi `0007_participant_fields.sql` dengan backfill | **Tidak dibawa apa adanya** | Skema ditentukan AQ-006/AQ-010; backfill data produksi tidak wajib (`D-007` [A]) |
+| Penomoran "ADR-008" | **Tidak dibawa** | Bentrok dengan ADR-0008 (retensi audit) |
+
+---
+
+## 6. Cakupan kebutuhan per tahap
+
+| Rentang | Tahap |
+|---|---|
+| `FR-001`–`FR-012`, `FR-090`–`FR-098`, `FR-182`, `FR-194`, `FR-206` | Q1 |
+| `FR-013`–`FR-036`, `FR-046`–`FR-053`, `FR-197`, `FR-205` | Q2 |
+| `FR-037`–`FR-044`, `FR-199` | Q3 (resolver), Q5 (penegakan) |
+| `FR-054`–`FR-065`, `FR-200` | Q4 |
+| `FR-066`–`FR-080`, `FR-088`, `FR-162`–`FR-169`, `FR-183`–`FR-188` (penegakan), `FR-201`–`FR-203` | Q5 |
+| `FR-045`, `FR-099`–`FR-128`, `FR-189`–`FR-192` | Q6 |
+| `FR-081`–`FR-087`, `FR-089` | Q7 |
+| `FR-129`–`FR-149`, `FR-170`, `FR-195`, `FR-207` (cakupan penuh) | Q8 (`FR-207` mekanisme di Q1) |
+| `FR-150`–`FR-161`, `FR-204` | Q9 |
+| `FR-193` | Q10 |
+| `FR-171`–`FR-178`, `FR-196`, `FR-198` | Lintas tahap; diverifikasi di Q11 |
+| `FR-179`–`FR-181` | Q0 |
+
+---
+
+## 7. Catatan baseline yang perlu diketahui sebelum mulai
+
+- **Koreksi baseline:** `REQUIREMENTS.md` §7.2, §7.3 #4, dan §8.2 (Scanner/kiosk) menyebut halaman scan petugas belum memanggil API dengan bukti `apps/web/src/pages/staff-scan.tsx`. File itu tidak diimpor di mana pun; rute `/staff/scan` memakai `StaffScanPage` di `apps/web/src/pages/staff.tsx` yang sudah memanggil `POST /api/events/:eventId/scan`. Jadi catatan Fase 3 di `IMPLEMENTATION_PLAN.md` benar untuk bagian ini. Status delta scanner tetap **Sebagian** (audio, pemilihan kamera, indikator jaringan, konteks Aktivitas/Sesi, kiosk, uji perangkat fisik belum ada). Koreksi teks di `REQUIREMENTS.md` menunggu product owner.
+- Suite pada commit acuan: 48 file, 458 tes lulus (`REQUIREMENTS.md` §0.1). Hitung ulang dengan `npm run test` sebelum membuka tahap.
+- Remote D1 sudah menerapkan `0001`–`0006`. Setiap perubahan skema adalah file migrasi baru; `npm run db:migrate:remote` wajib konfirmasi pemilik proyek.
+
+---
+
+## 8. Change log
+
+| Versi | Tanggal | Perubahan |
+|---|---|---|
+| Draft v1 | 3 November 2026 | Dibuat dari `REQUIREMENTS.md` v0.3.1; menggantikan roadmap Fase 0–6 sebagai rencana aktif; mengintegrasikan evaluasi `PLAN_TAB_PESERTA.md`. |

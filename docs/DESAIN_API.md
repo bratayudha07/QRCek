@@ -1,8 +1,10 @@
 # DESAIN API — Worker (`apps/api`)
 
-Semua endpoint di bawah `/api`. Otentikasi memakai cookie sesi `HttpOnly` (same-origin, ADR-001/ADR-002).
+Semua endpoint di bawah `/api`. Otentikasi memakai cookie sesi `HttpOnly` (same-origin, [ADR-0001](./adr/0001-single-worker-same-origin.md)/[ADR-0002](./adr/0002-passwordless-token-auth.md)).
 
 Sumber kebenaran kontrak: skema zod di `packages/shared/src/schemas/`. Dokumen ini menjelaskan **perilaku**, bukan menggantikan skema.
+
+> **Status dokumen (3 November 2026).** Dokumen ini mencatat **API aktual (baseline)** pada commit `157c330`: 50 definisi route, 87 pola efektif setelah alias `/api/calendar` (`REQUIREMENTS.md` §7.1.1). API target untuk Tema → Aktivitas → Sesi, entitlement, konsumsi, dan koreksi Reversal/Adjustment **belum ada**; bentuk payload-nya diputuskan lewat AQ di [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6 dan ditambahkan ke dokumen ini bersama route-nya. Endpoint yang tercantum di sini bukan bukti bahwa kebutuhan produk terpenuhi (`FR-178`). Bagian yang bertentangan dengan keputusan produk `[A]` ditandai **Delta**.
 
 ---
 
@@ -62,11 +64,13 @@ Dievaluasi di middleware, sebelum handler, untuk **setiap** route. Tidak ada rou
 
 | Peran | Cakupan |
 |---|---|
-| `superadmin` | Semua acara, semua operasi kecuali koreksi absensi (lihat catatan) |
+| `superadmin` | Semua acara dan semua operasi, termasuk koreksi absensi (lihat catatan) |
 | `event_admin` | Satu acara: kelola peserta, undangan, koreksi absensi, konfigurasi sync |
 | `officer` | Satu acara: **hanya** scan dan melihat rekap ringkas miliknya |
 
-Catatan: `superadmin` boleh melakukan koreksi absensi, tetapi tetap wajib mengisi `reason` dan tetap tercatat di audit.
+Catatan baseline: `superadmin` lolos semua pemeriksaan izin di `domain/permissions.ts`, sehingga ia dapat melakukan koreksi absensi (wajib `reason`, tercatat di audit).
+
+> **Delta:** `D-006` [A] menetapkan Reversal/Adjustment **hanya** oleh Admin Acara; kewenangan Super Admin menunggu `D-024` [P] (rekomendasi: Super Admin hanya melihat). Jangan memperluas perilaku baseline ini; perubahan dilakukan di roadmap Q5 setelah `D-024` diputuskan.
 
 **Aturan 403 vs 404 (diterapkan sejak Tahap 2).** Untuk resource milik acara:
 
@@ -87,7 +91,7 @@ tidak punya baris membership untuk acara yang belum ia masuki; haknya berasal da
 | Method | Path | Peran | Keterangan |
 |---|---|---|---|
 | `POST` | `/api/auth/activate` | publik | Tukar token undangan menjadi sesi |
-| `POST` | `/api/auth/register` | publik | Daftar sendiri sebagai admin acara (ADR-007) |
+| `POST` | `/api/auth/register` | publik | Daftar sendiri sebagai admin acara (ADR-0007; ditinjau `D-018` [P]) |
 | `POST` | `/api/auth/recover` | publik | Tukar kode pemulihan menjadi sesi baru |
 | `GET` | `/api/auth/me` | semua | Profil + daftar acara yang boleh diakses |
 | `POST` | `/api/auth/logout` | semua | Cabut sesi aktif |
@@ -433,6 +437,8 @@ PUT /api/calendar/:eventId/label-config   body: { fields: [...], showEventName: 
 
 ## 6. Pemindaian dan absensi
 
+> **Target (belum ada):** transaksi berkonteks Aktivitas/Sesi dengan result code `SUCCESS`, `DUPLICATE`, `NOT_ENTITLED`, `INVALID_QR`, `SYSTEM_ERROR` (`FR-088`, `D-011` [P]); pemetaan dari hasil baseline di bawah adalah AQ-008. Halaman scan petugas baseline (`StaffScanPage` di `apps/web/src/pages/staff.tsx`, rute `/staff/scan`) sudah memanggil endpoint ini; `apps/web/src/pages/staff-scan.tsx` adalah file lama yang tidak diimpor di mana pun.
+
 ### `POST /api/calendar/:id/scan`
 
 Peran: `officer`, `event_admin`, `superadmin` (anggota acara).
@@ -508,6 +514,8 @@ meminta pengguna mempersempit filter.
 
 Peran: `event_admin`, `superadmin`. **`officer` selalu ditolak.**
 
+> **Delta (`D-006` [A]):** endpoint ini menimpa baris `attendance` dengan `UPDATE`. Target mewajibkan Reversal (transaksi asli tetap ada, efek dibatalkan) dan Adjustment (before/after field allowlist) tanpa menimpa riwayat, oleh Admin Acara saja. Jangan meniru pola ini untuk endpoint baru; jalur ini diganti di roadmap Q5.
+
 ```jsonc
 // request
 { "status": "excused", "reason": "Surat izin dokter diterima panitia" }
@@ -525,6 +533,8 @@ Peran: `event_admin`, `superadmin`. **`officer` selalu ditolak.**
 Peran: `event_admin`, `superadmin`. Hanya jika `events.allow_manual = 1`.
 
 Dipakai sebagai fallback saat HP petugas tidak bisa memindai (mis. QR rusak). Tetap memakai constraint unik yang sama.
+
+> **Delta:** otorisasi baseline memakai aksi `attendance:correct`. Pada model target, izin ini **tidak boleh** dianggap sebagai otorisasi Manual Check-in (`AC-055`). Manual Entry target adalah Transaction Source, bukan koreksi; Petugas berizin diusulkan `D-022` [P]; izin Super Admin terbuka (`OQ-034` [O]).
 
 ---
 
@@ -618,7 +628,7 @@ endpoint ini untuk pemanggilan manual/insidental, **bukan cron**. Tidak ada PII 
 
 Retensi audit log **tidak** otomatis: tabel bersifat append-only dan trigger database
 menolak `DELETE`. Prosedur arsip manual ada di `docs/OPERASIONAL.md` §9.3 dan
-keputusannya dicatat sebagai ADR-008 di `docs/ARSITEKTUR.md`.
+keputusannya dicatat di [ADR-0008](./adr/0008-audit-log-retention.md).
 
 ---
 

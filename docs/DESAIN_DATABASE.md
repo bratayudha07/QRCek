@@ -2,6 +2,10 @@
 
 Database: Cloudflare D1, binding `DB`. Dialek **SQLite**, bukan Postgres.
 
+> **Status dokumen (3 November 2026).** Dokumen ini mencatat **skema aktual (baseline)**: migrasi `0001`–`0006`, semuanya sudah diterapkan di remote dan **tidak boleh diedit**. Model target QRCek (Tema → Aktivitas → Sesi, kategori, custom field, entitlement, transaksi efektif, Reversal/Adjustment, kuota konsumsi) **belum punya skema**. Skema target diputuskan lewat AQ-001–AQ-006, AQ-009, AQ-010, AQ-014 di [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6, lalu dicatat di sini bersama file migrasi barunya. `D-007` [A] menghapus kewajiban migrasi data produksi, **bukan** kewajiban regression test, dan bukan izin mengedit migrasi lama.
+>
+> Bagian yang bertentangan dengan keputusan produk `[A]` ditandai **Delta**: `attendance` satu baris per `(event_id, participant_id)` (target: per ruang lingkup Aktivitas/Sesi, `D-003`), koreksi via `UPDATE attendance` (target: Reversal/Adjustment, `D-006`), dan kredensial QR per baris peserta per acara (target: per Tema + Peserta, `D-004`).
+
 Batasan platform yang membentuk skema ini (terverifikasi, lihat [`../COSTS_AND_LIMITS.md`](../COSTS_AND_LIMITS.md)):
 
 - Maksimum **500 MB per database** pada Workers Free.
@@ -409,7 +413,7 @@ Setiap indeks menambah baris tulis. Indeks di bawah dipilih karena setiap halama
 
 | Aturan | Ditegakkan oleh | Tes yang membuktikannya |
 |---|---|---|
-| Absensi ganda mustahil | `UNIQUE (event_id, participant_id)` | `scan.duplicate.test.ts` — dua scan paralel, satu `present` satu `duplicate` |
+| Absensi ganda mustahil (baseline; **Delta**: target per transaksi efektif per ruang lingkup, AQ-003) | `UNIQUE (event_id, participant_id)` — jangan dilepas sebelum constraint pengganti teruji | `scan.duplicate.test.ts` — dua scan paralel, satu `present` satu `duplicate` |
 | Scan lintas acara ditolak | Query selalu `WHERE event_id = ?` | `scan.cross-event.test.ts` |
 | Audit tidak bisa diubah | Trigger `RAISE(ABORT)` | `audit.immutable.test.ts` — `UPDATE`/`DELETE` harus error |
 | Satu undangan satu pemakaian | `used_at` + cek dalam transaksi batch | `invite.replay.test.ts` |

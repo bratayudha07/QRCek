@@ -1,12 +1,13 @@
 # RENCANA PENGUJIAN
 
-Tujuan pengujian di proyek ini **bukan** mengejar angka coverage, tetapi membuktikan bahwa aturan yang mudah dilanggar tetap ditegakkan. Setiap aturan di `AGENTS.md` §"Integritas data" dan §"Keamanan" harus punya tes yang **gagal bila aturannya dihapus**.
+Tujuan pengujian di proyek ini **bukan** mengejar angka coverage, tetapi membuktikan bahwa aturan yang mudah dilanggar tetap ditegakkan. Setiap aturan di `AGENTS.md` §"Integritas data" dan §"Keamanan" harus punya tes yang **gagal bila aturannya dihapus** (`NFR-018`, `AC-035`).
 
-## Snapshot verifikasi terkini (2 November 2026)
+> **Cara membaca (3 November 2026).** §1–§8 menjelaskan pengujian **baseline** (model `events` datar, commit acuan `157c330`). §9 adalah daftar tes wajib untuk **model target QRCek** dari [`REQUIREMENTS.md`](./REQUIREMENTS.md); tes di §9 belum ada dan ditulis bersama tahap roadmap terkait ([`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md)). Tes baseline yang dipakai ulang tetap wajib lulus sebagai regression test (`D-007` [A], `FR-175`); tes yang perilakunya sengaja diganti (mis. koreksi via `UPDATE`) diganti tes setara di tahap yang sama, tidak dihapus diam-diam.
 
-- Gerbang kode lokal terakhir yang tercatat: `typecheck` PASS, `lint` PASS, `test` PASS.
-- Suite terakhir berisi **450 tes di 47 file**. Angka ini adalah snapshot; hitung ulang saat
-  suite berubah dengan `npm run test`.
+## Snapshot verifikasi terkini
+
+- Commit acuan `157c330` (3 November 2026, `REQUIREMENTS.md` §0.1): `npm run test` → **458 tes di 48 file** lulus. Angka ini snapshot; hitung ulang dengan `npm run test`.
+- Snapshot sebelumnya (2 November 2026): `typecheck` PASS, `lint` PASS, `test` 450 tes di 47 file.
 - Integrasi Worker mencakup scan/duplikasi/lintas acara, koreksi dan audit, alur Sheets
   dengan fake client, serta permukaan operasional Fase 6 (`/api/health/ready`,
   `/api/admin/usage`, header keamanan). Klien web memiliki tes pemetaan prefix `/api/calendar`
@@ -23,9 +24,9 @@ Tujuan pengujian di proyek ini **bukan** mengejar angka coverage, tetapi membukt
 | Unit | Vitest (environment `node`) | Fungsi murni di `apps/api/src/domain/`, helper di `packages/shared` |
 | Integrasi Worker | `@cloudflare/vitest-plugin` + `cloudflareTest()` | Menjalankan kode di `workerd` dengan binding D1 asli |
 | Integrasi SPA | Vitest (environment `node`) | Tes helper/logika murni; tidak ada DOM Testing Library |
-| E2E | **Belum ada** | Dibuka di Fase 6 bila diperlukan |
+| E2E | **Belum ada** | Tidak ditambahkan sebelum tahap roadmap yang membutuhkannya dibuka (kandidat Q6/Q11) |
 
-⚠️ **Koreksi terhadap `AGENTS.md`**: nama paket yang benar saat ini adalah **`@cloudflare/vitest-plugin`** (bukan `@cloudflare/vitest-pool-workers`, yang merupakan nama lama), dan memerlukan **Vitest ≥ 4.1**. `AGENTS.md` sudah diperbarui pada bagian Pengujian.
+Catatan: nama paket yang benar adalah **`@cloudflare/vitest-plugin`** (bukan `@cloudflare/vitest-pool-workers`, nama lama), dan memerlukan **Vitest ≥ 4.1**. `AGENTS.md` sudah memakai nama ini.
 
 Konfigurasi minimal `apps/api/vitest.config.ts`:
 
@@ -277,9 +278,11 @@ Yang diuji: reklaim item `inflight` macet, housekeeping tidak menghapus data yan
 
 ## 5. Tes keamanan
 
-### 5.1 Matriks otorisasi (dieksekusi sebagai tes parametrik)
+### 5.1 Matriks otorisasi baseline (dieksekusi sebagai tes parametrik)
 
 Sumber kebenaran tunggal: `domain/permissions.ts`. Tes mengiterasi matriks ini, sehingga penambahan route baru tanpa aturan akan gagal.
+
+> Matriks ini menggambarkan **baseline**. Dua baris bertentangan dengan target: "Koreksi absensi" untuk superadmin (`D-006` [A] hanya Admin Acara; kewenangan Super Admin menunggu `D-024` [P]) dan "Buat acara" untuk `event_admin` (baseline ADR-0007 mengizinkan lewat peran global; tabel ini belum memuatnya). Matriks target ditulis ulang di Q1/Q5 setelah AQ-007 dijawab.
 
 | Aksi | superadmin | event_admin | officer | anonim |
 |---|---|---|---|---|
@@ -363,8 +366,9 @@ Ambang tambahan yang dicek manual sebelum merge:
 | Google Sheets sungguhan | Kuota + tidak deterministik; diuji dengan fake, verifikasi manual di staging |
 | `window.print()` dan page break fisik | Perilaku browser + printer; diverifikasi manual |
 | Ukuran QR di kertas dan hasil pindainya | Butuh printer dan kamera fisik |
-| Tampilan visual halaman label / screenshot | Belum ada jsdom/testing-library; dibuka di Fase 6 bila perlu |
-| Tampilan visual / screenshot | Belum ada kebutuhan; dibuka di Fase 6 bila perlu |
+| Tampilan visual halaman label / screenshot | Belum ada jsdom/testing-library; dipertimbangkan saat tahap roadmap yang membutuhkannya dibuka |
+| Tampilan visual / screenshot | Belum ada kebutuhan; dipertimbangkan di Q9/Q11 |
+| Audio scanner dan kamera depan/belakang | Butuh perangkat fisik; checklist manual di Q6 |
 
 ---
 
@@ -427,3 +431,110 @@ Checklist singkat yang dijalankan pada staging sebelum deploy produksi:
 24. Blok konteks acara: muat ulang halaman acara dengan jaringan lambat → badge status dan
     baris jadwal tidak menggeser toolbar (skeleton mengisi ruangnya). Ubah status acara di tab
     Ringkasan → badge di atas ikut berubah tanpa reload.
+
+---
+
+## 9. Tes wajib model target QRCek
+
+Daftar ini diturunkan dari `REQUIREMENTS.md` (BR/AC) dan menjadi bagian gate tahap roadmap. Nama tes di sini adalah **perilaku**; nama file ditentukan saat implementasi. Tes yang ditandai **★** adalah tes integritas: wajib ada, wajib gagal bila aturannya dihapus, dan tidak boleh di-`skip`.
+
+Tes yang bergantung pada keputusan `[P]` hanya ditulis setelah keputusan itu disetujui; sampai saat itu, ekspektasinya dianggap usulan.
+
+### 9.1 Konteks, hierarki, dan lifecycle (Q1, penegakan di Q5)
+
+| ID | Tes | Rujukan | Status keputusan |
+|---|---|---|---|
+| T-001 ★ | Sesi tidak dapat dibuat atau dirujuk di bawah Aktivitas lain / Tema lain | `BR-003`, `AC-003` | `D-003` [A] |
+| T-002 ★ | Transaksi pada Aktivitas yang punya Sesi tanpa memilih Sesi ditolak tanpa menulis | `FR-185`, `AC-004` | `D-003` [A] |
+| T-003 ★ | Transaksi dengan Sesi yang bukan milik Aktivitas konteks ditolak tanpa menulis | `FR-188`, `AC-003` | `D-003` [A] |
+| T-004 | Tidak ada inferensi Sesi dari jam: waktu request tidak memengaruhi Sesi yang dipakai | `FR-187`, `AC-044` | `D-003` [A] |
+| T-005 | Transisi status Aktivitas dan Sesi: tabel sah/terlarang lengkap (fungsi murni) | `FR-090`–`FR-092`, `BR-047` | — |
+| T-006 | Transaksi pada Aktivitas Draft/Selesai/Diarsipkan dan Sesi Terjadwal/Selesai/Dinonaktifkan/diarsipkan ditolak | `FR-183`, `FR-186`, `BR-071` | `D-010` [P] |
+| T-007 ★ | Menonaktifkan/mengarsipkan Aktivitas atau Sesi tidak menghapus maupun me-reversal transaksi historis | `BR-007`, `BR-078`, `AC-005` | — |
+| T-008 | Duplikasi Sesi menyalin konfigurasi saja, identitas baru, status Terjadwal, tanpa transaksi | `BR-048` | — |
+
+### 9.2 Peserta, custom field, impor (Q2)
+
+| ID | Tes | Rujukan | Status keputusan |
+|---|---|---|---|
+| T-020 | Participant ID dibuat sistem, tidak bisa diubah lewat API, unik dalam Tema | `BR-010`, `AC-006` | `D-003` [A] |
+| T-021 ★ | Peserta nonaktif ditolak pada check-in dan penukaran; riwayat tetap ada setelah aktivasi ulang | `BR-011`, `BR-012`, `AC-007` | — |
+| T-022 ★ | Rename/nonaktif/arsip custom field tidak menghapus nilai tersimpan | `BR-013`–`BR-015`, `AC-008` | — |
+| T-023 | Perubahan tipe custom field yang tidak kompatibel ditolak | `BR-016` | — |
+| T-024 ★ | Impor tanpa konfirmasi admin tidak menulis/memperbarui peserta | `BR-061`, `AC-010` | — |
+| T-025 | External Reference cocok banyak kandidat → tidak ada pemilihan/merge otomatis | `BR-063`, `AC-009` | `D-008` [P] |
+| T-026 | Nama/email/phone sama → warning, bukan merge | `AC-042` | `D-008` [P] |
+| T-027 | Field CSV kosong tidak menghapus nilai yang ada kecuali admin memilih menghapus | `BR-077`, `AC-054` | `D-008` [P] |
+| T-028 | > 2 MB atau > 1.000 baris data (header tidak dihitung) ditolak dengan pesan actionable | `BR-076` | `D-020` [P] |
+
+### 9.3 Entitlement (Q3, penegakan di Q5)
+
+| ID | Tes | Rujukan | Status keputusan |
+|---|---|---|---|
+| T-040 ★ | Resolver: lima tingkat prioritas × Inherit/Allowed/Denied (tes tabel, murni) | `BR-018`, `BR-023`, `AC-011` | `D-005` [A] |
+| T-041 | Override Sesi hanya berlaku untuk Sesi itu | `BR-023` | `D-005` [A] |
+| T-042 | Perubahan aturan kategori tidak menghapus override individual | `BR-020`, `AC-014` | `D-005` [A] |
+| T-043 ★ | Peserta tanpa entitlement ditolak dan tidak menghasilkan transaksi berhasil | `BR-022`, `AC-013` | — |
+| T-044 ★ | Perubahan entitlement tidak mengubah atau me-reversal transaksi sukses yang sudah ada | `BR-075`, `AC-043` | `D-005` [A] |
+| T-045 | Aktivitas baru tidak memakai Theme default sebagai konfigurasi final per kategori | `BR-019`, `AC-012` | `D-005` [A]; mekanisme menunggu AQ-005 |
+
+### 9.4 QR Identity (Q4)
+
+| ID | Tes | Rujukan | Status keputusan |
+|---|---|---|---|
+| T-060 ★ | QR Tema A ditolak di konteks Tema B, tanpa menulis transaksi | `D-004`, `AC-015` | `D-004` [A] |
+| T-061 ★ | Setelah rotasi, token lama langsung ditolak; riwayat transaksi tidak berubah; audit rotasi tercatat tanpa token | `BR-027`–`BR-029`, `AC-016` | `D-004` [A] |
+| T-062 | QR peserta nonaktif ditolak | `FR-061`, `AC-017` | — |
+| T-063 ★ | Permintaan data token tanpa izin ditolak (403/404); respons tidak memuat hash/ciphertext | `FR-200` | — |
+| T-064 | Ekspor QR tercatat di audit dengan jumlah, bukan token | `FR-062`, `FR-135` | — |
+
+### 9.5 Transaksi Attendance dan koreksi (Q5)
+
+| ID | Tes | Rujukan | Status keputusan |
+|---|---|---|---|
+| T-080 ★ | Scan kedua pada ruang lingkup yang sama → hasil duplikat, jumlah transaksi efektif tetap 1 | `BR-032`, `AC-020` | `D-006` [A] |
+| T-081 ★ | Dua scan paralel pada ruang lingkup sama → tepat satu sukses; diulang ≥ 50 kali tanpa flakiness | `BR-033`, `FR-165` | — |
+| T-082 | Scan Sesi berbeda pada Aktivitas sama diterima bila berhak | `FR-069`, `AC-020` | — |
+| T-083 ★ | Duplikasi ditegakkan oleh constraint DB: insert langsung lewat `env.DB` yang melanggar ruang lingkup efektif gagal | `FR-075`, `FR-165` | `D-006` [A] |
+| T-084 ★ | Petugas memanggil Reversal/Adjustment → 403, termasuk atas transaksinya sendiri; tidak ada perubahan data | `BR-036`, `AC-023` | `D-006` [A] |
+| T-085 ★ | Reversal tanpa alasan ditolak; dengan alasan: transaksi asli tetap ada, efek dibatalkan, audit dalam batch yang sama | `BR-037`, `BR-038`, `AC-022` | `D-006` [A] |
+| T-086 ★ | Setelah Reversal, check-in baru yang valid pada ruang lingkup sama diterima | `BR-040`, `AC-045` | `D-006` [A] |
+| T-087 ★ | Adjustment mencatat before/after (field allowlist saja) dan tidak menimpa nilai historis | `FR-202`, `AC-041` | `D-006` [A] |
+| T-088 | Kewenangan koreksi Super Admin sesuai keputusan `D-024` | `FR-077` | `D-024` [P] |
+| T-089 | Manual Entry tercatat dengan source Manual Entry dan aktor; validasi duplikasi sama dengan QR Scan | `BR-034`, `AC-021`, `AC-049` | `D-022` [P] |
+| T-090 ★ | Izin legacy `attendance:correct` tidak memberi akses Manual Check-in target | `AC-055` | `OQ-034` [O] |
+| T-091 | Result code stabil per kondisi, terpisah dari pesan; hasil pending tidak pernah dilaporkan sukses | `BR-072`, `AC-040` | `D-011` [P] |
+| T-092 | Jumlah statement D1 per scan dihitung dan ≤ ambang yang ditetapkan saat Q5 | `NFR-011` | — |
+
+### 9.6 Penugasan Petugas dan scanner (Q6)
+
+| ID | Tes | Rujukan | Status keputusan |
+|---|---|---|---|
+| T-100 ★ | Petugas tanpa penugasan pada Aktivitas/Sesi ditolak backend walau URL memilih konteks itu | `BR-050`, `FR-190`, `AC-028` | `D-012` [P] |
+| T-101 ★ | Pencabutan tugas tidak menghapus transaksi historis Petugas itu | `BR-052` | — |
+| T-102 | Kesalahan jaringan dipetakan berbeda dari QR tidak valid (logika murni di `apps/web/src/lib/`) | `BR-056`, `AC-027` | — |
+| T-103 | State scanner: terkunci selama feedback, kembali standby, tidak ada antrean offline (logika murni) | `FR-189`, `BR-054`, `AC-048` | `D-012` [P] |
+| T-104 | Status scanner tidak hanya warna: setiap state punya teks/ikon (logika murni) | `NFR-022`, `AC-053` | `D-013` [P] |
+
+### 9.7 Konsumsi (Q7)
+
+| ID | Tes | Rujukan | Status keputusan |
+|---|---|---|---|
+| T-120 ★ | Penukaran melebihi kuota efektif ditolak di database, termasuk dua request paralel | `BR-044`, `AC-024` | `D-006` [A]; kuota `D-014` [P] |
+| T-121 | Kuota default Aktivitas, override kategori, override individual; kuota 0 menolak | `BR-043` | `D-014` [P] |
+| T-122 | Reversal Consumption mengembalikan kuota | `BR-073`, `AC-046` | `D-014` [P] |
+| T-123 ★ | Perubahan entitlement tidak menghapus riwayat penukaran | `BR-045`, `AC-025` | `D-005` [A] |
+
+### 9.8 Audit, laporan, ekspor (Q1 mekanisme, Q8 cakupan)
+
+| ID | Tes | Rujukan | Status keputusan |
+|---|---|---|---|
+| T-140 ★ | `UPDATE`/`DELETE` pada tabel audit gagal oleh trigger | `BR-058` | ADR-0008 |
+| T-141 ★ | Audit tidak memuat token QR, secret, atau nilai field sensitif; perubahan field sensitif tercatat sebagai "berubah" | `BR-079`, `AC-047` | `FR-207` |
+| T-142 | Setiap endpoint mutasi menghasilkan ≥ 1 baris audit (iterasi tabel route) | `FR-135`, `FR-170` | `D-023` [P] untuk daftar final |
+| T-143 | Petugas ditolak membaca audit; Admin Acara hanya Tema miliknya | `FR-139`, `FR-140` | — |
+| T-144 | Ekspor laporan konsisten dengan filter dan tercatat di audit | `BR-059`, `BR-060`, `AC-033` | — |
+
+### 9.9 Keamanan lintas tahap
+
+Tes baseline berikut tetap wajib dan diperluas ke route baru: `authz.unauthenticated` (semua route non-publik → 401), `csrf.header-required`, `csrf.origin-mismatch`, `invite.replay`, `invite.expired`, `authz.cross-event-member` (menjadi lintas Tema), rate limit D1, `error.no-stack-trace`, dan `security.headers`.

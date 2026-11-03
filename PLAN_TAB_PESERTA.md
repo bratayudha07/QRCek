@@ -1,5 +1,8 @@
 # PLAN — Tab Peserta: tabel dinamis, QR otomatis, unduhan massal
 
+> **ARSIP — jangan dieksekusi apa adanya** (`D-002` [A], 3 November 2026).
+> Bagian yang relevan sudah dievaluasi dan diintegrasikan ke [`docs/IMPLEMENTATION_ROADMAP.md`](docs/IMPLEMENTATION_ROADMAP.md) §5 (tahap Q2 dan Q4). Yang **tidak** dibawa: unduhan QR sebagai PDF (bertentangan `NG-04`/`NG-05`), upsert impor tanpa konfirmasi (bertentangan `FR-050`), migrasi `0007_participant_fields.sql` apa adanya (skema menunggu AQ-006/AQ-010), dan penomoran "ADR-008" (bentrok dengan [ADR-0008](docs/adr/0008-audit-log-retention.md) retensi audit).
+
 > **Dokumen kerja untuk opencode.** Disusun dari diskusi dengan pemilik proyek (Brata Yudha) dan diverifikasi terhadap kode pada 2 Nov 2026.
 > **Lingkup: hanya tab Peserta** (`/admin/events/:id/participants` beserta sub-halamannya). Tab lain, scan, kehadiran, dan Sheets **tidak diubah**.
 > Nama usulan: **Tahap 5.5** (perluasan Fase 2 — Peserta & QR). Tidak ada fase yang dilompati.

@@ -1,44 +1,26 @@
-# test
+---
+description: Jalankan verifikasi QRCek (typecheck → lint → test), terfokus bila diberi argumen
+---
 
-Jalankan suite tes project Absensi Acara.
+Jalankan verifikasi proyek QRCek sesuai `AGENTS.md`.
 
-## Perintah
+Argumen (opsional): $ARGUMENTS
 
-```bash
-# Suite penuh (semua workspace)
-npm run test
+1. Bila argumen berisi path file tes atau nama test case, jalankan tes terfokus saja:
+   - satu file: `npm run test -- <path>`
+   - satu test case: `npm run test -- -t "<nama>"`
+   Mesin dev pemilik lemah (Celeron, RAM 4 GB); jangan menjalankan suite penuh saat iterasi.
+2. Bila tanpa argumen, jalankan berurutan dan berhenti di langkah pertama yang gagal:
+   `npm run typecheck` → `npm run lint` → `npm run test`.
+   Jalankan `npm run build` hanya bila diminta atau sebelum menutup tahap roadmap.
+3. Laporkan hasil apa adanya: jumlah file/tes lulus, kegagalan beserta pesan error yang relevan. Jangan menyatakan "lulus" untuk langkah yang tidak dijalankan.
 
-# Satu file tes
-npm run test -- apps/api/src/test/health.test.ts
+Konteks tes:
 
-# Satu test case
-npm run test -- -t "menolak scan ganda"
+- Tes Worker berjalan di `workerd` via `@cloudflare/vitest-plugin` (`apps/api/vitest.config.ts`, config `wrangler.test.jsonc`); D1 bersih per file.
+- Tes web dan shared berjalan di Node tanpa DOM.
+- Tidak ada tes yang memanggil Google Sheets sungguhan atau bergantung pada jam nyata.
+- `npm run bench` = spike pengukuran hot path (`apps/api/src/test/spike.measure.test.ts`), bukan gerbang.
+- Tes integritas wajib model target: `docs/RENCANA_PENGUJIAN.md` §9.
 
-# Benchmark spike (verbose)
-npm run bench
-```
-
-## Konfigurasi tes
-
-- Worker tes berjalan di `workerd` via `@cloudflare/vitest-plugin` (lihat `apps/api/vitest.config.ts`)
-- Tes frontend berjalan di Node (tanpa DOM/jsdom)
-- Tidak ada tes yang memanggil Google Sheets API sungguhan — gunakan fake client
-- Tidak ada tes yang bergantung pada jam nyata — injek waktu
-- Urutan verifikasi: `typecheck → lint → test → build`
-
-## File tes penting
-
-| File | Cakupan |
-|------|---------|
-| `apps/api/src/test/health.test.ts` | Health endpoint |
-| `apps/api/src/test/auth.activate.test.ts` | Aktivasi undangan |
-| `apps/api/src/test/auth.recover.test.ts` | Pemulihan kode |
-| `apps/api/src/test/authz.events.test.ts` | Otorisasi lintas acara |
-| `apps/api/src/test/authz.unauthenticated.test.ts` | Route publik 401 |
-| `apps/api/src/test/participants.import.test.ts` | Import CSV |
-| `apps/api/src/test/participants.crud.test.ts` | CRUD peserta |
-| `apps/api/src/test/scan.test.ts` | Endpoint scan |
-| `apps/api/src/test/qr.db.test.ts` | Kredensial QR |
-| `apps/api/src/test/labels.api.test.ts` | Label QR |
-| `packages/shared/src/attendance.test.ts` | Logika kehadiran |
-| `packages/shared/src/csv.test.ts` | Parsing CSV |
+Contoh file tes baseline: `apps/api/src/routes/scan.test.ts`, `apps/api/src/routes/audit.test.ts`, `apps/api/src/routes/sync.test.ts`, `apps/api/src/test/authz.unauthenticated.test.ts`, `apps/api/src/test/authz.events.test.ts`, `apps/api/src/test/auth.activate.test.ts`, `apps/api/src/test/participants.import.test.ts`, `apps/api/src/test/qr.db.test.ts`, `apps/api/src/test/csv.test.ts`, `apps/api/src/domain/attendance-policy.test.ts`, `packages/shared/src/attendance.test.ts`, `apps/web/src/lib/navigation.test.ts`.

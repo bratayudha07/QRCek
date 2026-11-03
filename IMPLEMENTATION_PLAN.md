@@ -1,5 +1,9 @@
 # IMPLEMENTATION_PLAN
 
+> **ARSIP HISTORIS — bukan rencana aktif** (`D-002` [A], 3 November 2026).
+> Rencana aktif: [`docs/IMPLEMENTATION_ROADMAP.md`](docs/IMPLEMENTATION_ROADMAP.md). Kebutuhan produk: [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md).
+> Isi di bawah dipertahankan apa adanya sebagai riwayat Fase 0–6. Klaim status di dalamnya adalah catatan saat ditulis; baseline yang terverifikasi ada di `REQUIREMENTS.md` §7 (catatan: klaim §7 bahwa halaman scan petugas masih placeholder keliru — rute `/staff/scan` memakai `StaffScanPage` di `apps/web/src/pages/staff.tsx` yang sudah memanggil API; lihat `docs/IMPLEMENTATION_ROADMAP.md` §7). Keputusan #7 "superadmin boleh mengoreksi absensi" digantikan oleh `D-006` [A]. Rujukan `docs/ARSITEKTUR.md` sekarang = `docs/ARCHITECTURE.md` dan `docs/adr/`.
+
 Rencana implementasi bertahap untuk Multi-Event Parent Attendance Management System.
 
 **Status diperbarui 2 November 2026:** fondasi dan fitur backend Fase 0–5 sudah banyak
@@ -12,7 +16,7 @@ produksi `qrcek.hamdirobbi5.workers.dev` di-deploy lewat Git integration Cloudfl
 (push ke `main` = build + deploy; migrasi D1 dan secret tetap manual). Status rinci per
 area di bawah.
 
-Dokumen pendukung: [`AGENTS.md`](./AGENTS.md), [`docs/ARSITEKTUR.md`](./docs/ARSITEKTUR.md), [`docs/DESAIN_DATABASE.md`](./docs/DESAIN_DATABASE.md), [`docs/DESAIN_API.md`](./docs/DESAIN_API.md), [`docs/RENCANA_PENGUJIAN.md`](./docs/RENCANA_PENGUJIAN.md), [`COSTS_AND_LIMITS.md`](./COSTS_AND_LIMITS.md).
+Dokumen pendukung: [`AGENTS.md`](./AGENTS.md), [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) (dulu `docs/ARSITEKTUR.md`), [`docs/DESAIN_DATABASE.md`](./docs/DESAIN_DATABASE.md), [`docs/DESAIN_API.md`](./docs/DESAIN_API.md), [`docs/RENCANA_PENGUJIAN.md`](./docs/RENCANA_PENGUJIAN.md), [`COSTS_AND_LIMITS.md`](./COSTS_AND_LIMITS.md).
 
 ---
 

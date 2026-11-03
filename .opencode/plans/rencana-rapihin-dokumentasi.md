@@ -1,40 +1,35 @@
-# Rencana: Rapihin Dokumentasi Project Absensi
+# Rencana Q0 — Penyelarasan dokumentasi dengan REQUIREMENTS.md
+
+> Tahap: **Q0** di `docs/IMPLEMENTATION_ROADMAP.md`. Dasar: `docs/REQUIREMENTS.md` v0.3.1, `D-001` dan `D-002` [A].
+> Rencana sebelumnya di file ini (1–2 November 2026: "dokumentasi tidak diubah") sudah tidak berlaku karena produk diarahkan ulang ke QRCek.
 
 ## Tujuan
 
-Memastikan dokumentasi project sesuai struktur OpenCode dan aturan `AGENTS.md`, tanpa dokumen duplikat, dan semua file `.md` ada di tempat yang benar.
+Semua dokumen dan konfigurasi yang dibaca agent AI menunjuk struktur dokumen baru dan konsisten dengan `REQUIREMENTS.md`: target, baseline, dan delta terpisah; keputusan `[P]`/`[O]` tidak diperlakukan sebagai final.
 
-## Kondisi saat ini (terverifikasi)
+## Yang dikerjakan (3 November 2026)
 
-File dokumentasi project yang ada:
+| # | Pekerjaan | Hasil |
+|---|---|---|
+| 1 | `docs/ARSITEKTUR.md` → `docs/ARCHITECTURE.md`, diselaraskan dengan model target dan AQ | Selesai |
+| 2 | ADR-001…008 diekstrak ke `docs/adr/0001`–`0008` (keputusan tidak diubah; catatan dampak QRCek ditambahkan) | Selesai |
+| 3 | `docs/DECISIONS.md` dibuat (indeks D-xxx, OQ `[O]`, ADR, AQ-001…014) | Selesai |
+| 4 | `docs/IMPLEMENTATION_ROADMAP.md` dibuat (Q0–Q11 + evaluasi `PLAN_TAB_PESERTA.md`) | Selesai |
+| 5 | `AGENTS.md` ditulis ulang: QRCek, urutan baca, status keputusan, model domain, aturan integritas per transaksi efektif, tabel dokumen kanonik | Selesai |
+| 6 | `README.md`: nama QRCek, status baseline vs target, tabel dokumen | Selesai |
+| 7 | `DESAIN_API.md`, `DESAIN_DATABASE.md`, `OPERASIONAL.md`, `COSTS_AND_LIMITS.md`: banner baseline/target, penanda Delta, rujukan ADR baru | Selesai |
+| 8 | `RENCANA_PENGUJIAN.md` §9: tes wajib model target (T-001…T-144) | Selesai |
+| 9 | `IMPLEMENTATION_PLAN.md` dan `PLAN_TAB_PESERTA.md` diberi banner arsip (isi tidak dihapus) | Selesai |
+| 10 | `.opencode/` (agents, commands, skill, rencana ini) diselaraskan; frontmatter mengikuti format OpenCode | Selesai |
 
-**Root:**
-- `AGENTS.md` — instruksi AI project (kanonik, tidak diubah)
-- `IMPLEMENTATION_PLAN.md` — fase, kriteria penerimaan, status (kanonik, tidak diubah)
-- `README.md` — panduan awal (kanonik, tidak diubah)
-- `COSTS_AND_LIMITS.md` — batas free tier (kanonik, tidak diubah)
-- `PLAN_TAB_PESERTA.md` — dokumen kerja Tahap 5.5 (dipertahankan)
+## Sengaja tidak dikerjakan
 
-**`docs/`:**
-- `ARSITEKTUR.md` — arsitektur, ADR inline (kanonik, tidak diubah)
-- `DESAIN_API.md` — desain API (kanonik, tidak diubah)
-- `DESAIN_DATABASE.md` — desain database (kanonik, tidak diubah)
-- `RENCANA_PENGUJIAN.md` — rencana pengujian (kanonik, tidak diubah)
-- `OPERASIONAL.md` — operasional (kanonik, tidak diubah)
-- `RISET_KOMPONEN_UI_OPENCODE.md` — riset komponen UI (kanonik, tidak diubah)
+- `docs/REQUIREMENTS.md` tidak diubah (hanya product owner). §0.3 dan §13.3 di sana masih menyebut dokumen turunan "belum dibuat" — perlu diperbarui product owner.
+- `COSTS_AND_LIMITS.md` tidak dipindah (`OQ-027` [O]).
+- Tidak ada file `.md` yang dihapus. `docs/ARSITEKTUR.md` dipindah (rename) menjadi `docs/ARCHITECTURE.md` sesuai `FR-180`.
+- Komentar di `migrations/0004_qr.sql` yang merujuk `docs/ARSITEKTUR.md` tidak diedit (migrasi yang sudah dijalankan tidak boleh diubah); pemetaan rujukan ada di `docs/DECISIONS.md` §5.
+- Tidak ada perubahan kode atau skema.
 
-## Keputusan
+## Gate menuju Q1 (menunggu pemilik proyek)
 
-Dokumentasi project **tidak diubah** — semua file sudah berada di lokasi yang benar sesuai `AGENTS.md` dan dokumentasi OpenCode.
-
-Konfigurasi OpenCode (agent, skill, command, plan) dibuat di `.opencode/` untuk mendukung pekerjaan dokumentasi dan pengembangan project ini.
-
-## Langkah selanjutnya (jika dibutuhkan di masa depan)
-
-1. Jika pemilik proyek ingin memindahkan ADR dari `ARSITEKTUR.md` ke `docs/adr/` — buat rencana baru dan minta konfirmasi.
-2. Jika pemilik proyek ingin menggabungkan `PLAN_TAB_PESERTA.md` ke `IMPLEMENTATION_PLAN.md` — buat rencana baru dan minta konfirmasi (menghapus file `.md` butuh konfirmasi).
-3. Setiap perubahan skema = file migrasi baru + catatan di `docs/DESAIN_DATABASE.md`.
-
-## Status
-
-✅ Rencana disetujui — konfigurasi `.opencode/` telah dibuat. Dokumentasi project tidak diubah.
+Lihat `docs/IMPLEMENTATION_ROADMAP.md` §4 Q0: review product owner, keputusan `D-009`/`D-023` (dan `D-018` bila masuk Q1), serta ADR untuk AQ-001, AQ-010, AQ-014.

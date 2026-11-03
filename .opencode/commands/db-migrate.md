@@ -1,49 +1,37 @@
-# db-migrate
+---
+description: Buat atau terapkan migrasi D1 QRCek dengan aman (lokal saja; remote butuh konfirmasi user)
+---
 
-Kelola migrasi database D1 untuk project Absensi Acara.
+Kelola migrasi database D1 (`absensi-db`) untuk QRCek.
+
+Permintaan: $ARGUMENTS
+
+## Sebelum membuat migrasi
+
+1. Pastikan perubahan skema termasuk tahap roadmap yang **sudah dibuka** (`docs/IMPLEMENTATION_ROADMAP.md`).
+2. Bila skema menyangkut model target (Tema/Aktivitas/Sesi, kategori, custom field, entitlement, transaksi, koreksi, QR per Tema), pastikan AQ terkait sudah dijawab ADR yang **Diterima** (`docs/DECISIONS.md` §4). Bila belum, berhenti dan laporkan — jangan memilih desain sendiri.
+
+## Aturan
+
+1. Satu perubahan skema = satu file baru `migrations/NNNN_nama.sql` (berikutnya `0007_*`; cek `ls migrations/`).
+2. **Jangan pernah mengedit migrasi yang sudah dijalankan.** `0001`–`0006` sudah di remote.
+3. Perubahan merusak memakai pola table rebuild (`PRAGMA defer_foreign_keys = true`); partial unique index wajib mengulang predikatnya di `ON CONFLICT`; ingat SQLite menganggap `NULL` berbeda di unique index.
+4. Jangan melepas `UNIQUE (event_id, participant_id)` pada `attendance` sebelum constraint pengganti ada dan tes konkurennya lulus.
+5. Hitung biaya baris tulis setiap indeks baru (`COSTS_AND_LIMITS.md` §3.3).
+6. Catat skema baru di `docs/DESAIN_DATABASE.md` di perubahan yang sama.
 
 ## Perintah
 
 ```bash
-# Terapkan migrasi ke D1 lokal
-npm run db:migrate:local
-
-# Terapkan migrasi ke D1 remote (WAJIB konfirmasi user terlebih dahulu)
-npm run db:migrate:remote
-
-# Hapus state D1 lokal dan migrate ulang dari nol
-npm run db:reset:local
+npm run db:reset:local      # hapus state D1 lokal
+npm run db:migrate:local    # terapkan ke lokal
+npm run test                # tes integrasi menerapkan migrasi ke D1 uji
 ```
 
-## Aturan migrasi (AGENTS.md + DESAIN_DATABASE.md)
+`npm run db:migrate:remote` **tidak dijalankan** kecuali user mengonfirmasi secara eksplisit di percakapan ini. Sebelum remote: ambil snapshot `wrangler d1 export`, dan ingat deploy Git tidak menjalankan migrasi (migrasi dulu, baru kode yang bergantung padanya). Reset database remote adalah keputusan pemilik proyek (AQ-010), bukan agent.
 
-1. Satu perubahan skema = satu file baru di `migrations/` (nomor berurutan: `0007_*.sql`, dst)
-2. **Jangan pernah edit migrasi yang sudah dijalankan**, termasuk di lokal
-3. Perbaikan = file migrasi baru, tidak edit file lama
-4. Setiap perubahan skema harus dicatat di `docs/DESAIN_DATABASE.md`
-5. Uji di lokal (`--local`) sebelum remote (`--remote`)
-6. Remote hanya setelah konfirmasi eksplisit pemilik proyek
+## Catatan D1
 
-## Contoh membuat migrasi baru
-
-```bash
-# 1. Buat file kosong
-touch migrations/0007_nama_perubahan.sql
-
-# 2. Isi SQL, uji di lokal
-npm run db:reset:local
-npm run db:migrate:local
-
-# 3. Jalankan tes integrasi
-npm run test
-
-# 4. Hanya setelah konfirmasi user
-npm run db:migrate:remote
-```
-
-## Catatan Cloudflare D1
-
-- D1 adalah SQLite, tidak ada transaksi interaktif; gunakan `env.DB.batch()` untuk operasi atomik
-- `ALTER TABLE` sangat terbatas; perubahan kolom yang merusak perlu pola table rebuild
-- Maksimum 50 query per invokasi Worker (free tier)
-- Maksimum 100.000 baris tulis/hari (free tier)
+- SQLite; tanpa transaksi interaktif — operasi atomik via `env.DB.batch()`.
+- Maksimum 50 query per invokasi Worker dan 100.000 baris tulis/hari (free tier).
+- Bila skema lokal terasa "tidak berubah", reset state lokal dulu.

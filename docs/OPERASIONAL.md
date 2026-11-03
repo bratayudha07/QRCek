@@ -2,6 +2,8 @@
 
 Dokumen ini mencatat hasil pengukuran, instruksi operasi, status deployment, dan quirk lingkungan yang tidak terlihat dari kode.
 
+> **Konteks (3 November 2026).** Semua pengukuran dan prosedur di sini berlaku untuk **baseline** (model `events` datar, commit acuan `157c330`). Model target QRCek ([`REQUIREMENTS.md`](./REQUIREMENTS.md)) akan menambah tabel, indeks, dan jalur transaksi baru; angka CPU/statement/baris di bawah **tidak** otomatis berlaku untuk model itu dan harus diukur ulang di tahap roadmap terkait ([`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md) Q5 dan Q11). Uji perangkat fisik scanner, akun Google Sheets nyata, dan CPU produksi belum pernah dilakukan (`REQUIREMENTS.md` §7.3). Rujukan "ADR-00N" di dokumen ini = `docs/adr/000N-*.md`.
+
 ## Status operasi saat ini (2 November 2026)
 
 - Worker produksi berjalan di `https://qrcek.hamdirobbi5.workers.dev` dan di-deploy lewat
@@ -457,7 +459,7 @@ Nilai yang perlu diingat saat mengubah UI:
   di sebagian browser. Mikrofon dan geolokasi ditutup.
 - `Strict-Transport-Security` hanya berlaku di HTTPS; `localhost` mengabaikannya.
 
-### 9.3 Retensi audit log (ADR-008)
+### 9.3 Retensi audit log ([ADR-0008](./adr/0008-audit-log-retention.md))
 
 `audit_log` **tidak** dipangkas otomatis. Trigger `audit_log_no_delete` menolak `DELETE`
 di level database, dan itu disengaja: riwayat absensi tidak boleh hilang karena job
