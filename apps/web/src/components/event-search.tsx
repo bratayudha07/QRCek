@@ -1,200 +1,257 @@
-import { Search, X } from "lucide-react";
-import { useState, useRef, useEffect, type FormEvent } from "react";
+import { ArrowRight, Search } from "lucide-react";
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
-import { navigate, participantsPath, eventTabPath, type EventTab } from "@/lib/router";
-
+import { paletteActions, type PaletteAction } from "@/lib/palette";
+import { eventTabPath, navigate, participantsPath, type EventTab } from "@/lib/router";
+import { cn } from "@/lib/utils";
 
 /**
- * Command palette untuk ruang kerja acara.
- * - Buka dengan Ctrl / ⌘ K di halaman acara (dihandle AppLayout).
- * - Tutup dengan Escape (dihandle EventSearch internal).
- * - Fokus otomatis ke input saat terbuka, fokus kembali ke trigger saat ditutup.
- * - Aksi pencarian: navigasi ke tab Peserta dengan query `?q=`.
- * - Aksi tab: navigasi ke tab aktif (overview, participants, staff, attendance, reports).
+ * Command palette for the event workspace: one entry point to search
+ * participants and to jump between the event tabs.
  *
- * Fungsi search tetap tersedia secara mandiri (form submit → `${target}?q=${query}`),
- * jadi komponen ini bisa digunakan sebagai search biasa maupun sebagai palette trigger.
+ * The toolbar button is the pointer trigger; `Ctrl/⌘ K` opens it from anywhere
+ * on the page. The panel is a native `<dialog>` driven by `showModal()`, so the
+ * focus trap, the inert background, and Escape come from the platform instead of
+ * hand-written key handling. Arrow keys move the highlighted row and the input
+ * keeps focus, which is the combobox pattern screen readers expect.
+ *
+ * The action list is pure (`lib/palette.ts`); this component only renders it and
+ * calls the existing router helpers. It never fetches anything.
  */
-export function EventSearch({ eventId, showPalette, setShowPalette }: { eventId: string; showPalette?: boolean; setShowPalette?: (v: boolean) => void }) {
+export function EventSearch({
+  eventId,
+  activeTab,
+}: {
+  eventId: string;
+  activeTab?: EventTab | null;
+}) {
+  const [open, setOpen] = useState(false);
   const [term, setTerm] = useState("");
+  const [highlight, setHighlight] = useState(0);
+
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const wasOpenedRef = useRef(false);
 
-  // Saat palette ditutup (oleh Escape dari EventSearch atau Batal dari dialog),
-  // kembalikan fokus ke input form search
+  const baseId = useId();
+  const listId = `${baseId}-actions`;
+  const titleId = `${baseId}-title`;
+
+  const actions = useMemo(() => paletteActions(term, activeTab), [term, activeTab]);
+  const shortcut = useMemo(() => (isApplePlatform() ? "⌘K" : "Ctrl K"), []);
+
+  // Opening and closing is imperative: `showModal()` is what moves the dialog
+  // into the top layer and makes the rest of the page inert.
   useEffect(() => {
-    if (showPalette !== undefined && showPalette === false) {
-      // Small delay agar fokus bisa dipindahkan setelah dialog tutup
-      const timer = setTimeout(() => {
-        if (inputRef.current) {
-          inputRef.current.focus();
-        }
-      }, 150);
-      clearTimeout(timer);
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    if (open) {
+      if (!dialog.open) dialog.showModal();
+      inputRef.current?.focus();
+      return;
     }
-  }, [showPalette]);
 
-  function submit(formEvent: FormEvent<HTMLFormElement>) {
-    formEvent.preventDefault();
+    if (dialog.open) dialog.close();
+  }, [open]);
 
-    const query = term.trim();
-    const target = participantsPath(eventId);
+  // Start fresh on open, and give focus back on close: a palette that swallows
+  // focus strands keyboard users inside the top layer.
+  useEffect(() => {
+    if (open) {
+      wasOpenedRef.current = true;
+      setTerm("");
+      setHighlight(0);
+      return;
+    }
 
-    navigate(query === "" ? target : `${target}?q=${encodeURIComponent(query)}`);
+    if (wasOpenedRef.current) triggerRef.current?.focus();
+  }, [open]);
+
+  // `Ctrl/⌘ K` is a shortcut, not a global grab: leave it alone while a field
+  // has focus and when another modifier is held.
+  useEffect(() => {
+    function onKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key.toLowerCase() !== "k") return;
+      if (!event.metaKey && !event.ctrlKey) return;
+      if (event.altKey || event.shiftKey) return;
+      if (event.target instanceof HTMLElement && isTextField(event.target)) return;
+
+      event.preventDefault();
+      setOpen((value) => !value);
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  // Keep the highlighted row inside the scrollable list while arrowing.
+  useEffect(() => {
+    if (!open) return;
+
+    const row = listRef.current?.children[highlight];
+    if (row instanceof HTMLElement) row.scrollIntoView({ block: "nearest" });
+  }, [open, highlight]);
+
+  function run(action: PaletteAction) {
+    setOpen(false);
+
+    if (action.kind === "search") {
+      navigate(`${participantsPath(eventId)}?q=${encodeURIComponent(action.term)}`);
+      return;
+    }
+
+    navigate(eventTabPath(eventId, action.tab));
   }
 
-  // Daftar aksi tab (dibangun murni di sini, tanpa arrow function dalam map)
-  const tabLabels: Record<EventTab, string> = {
-    overview: "Lihat semua",
-    participants: "Peserta",
-    staff: "Staff",
-    attendance: "Kehadiran",
-    reports: "Laporan",
-  };
+  function onInputKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (actions.length === 0) return;
 
-  const tabKeys: EventTab[] = Object.keys(tabLabels) as EventTab[];
-
-  // Filter peserta berdasarkan query (hanya untuk tampilan di palette)
-  const filteredParticipants = [
-    { id: "p1", name: "Budi Santoso", externalRef: "P-001", category: "Kelas 5A" },
-    { id: "p2", name: "Siti Aminah", externalRef: "P-002", category: "Kelas 7" },
-    { id: "p3", name: "Ahmad Rizky", externalRef: "P-003", category: "Kelas 10A" },
-    { id: "p4", name: "Dewi Sartika", externalRef: "P-004", category: "Kelas 5B" },
-  ].filter((p) =>
-    p.name.toLowerCase().includes(term.toLowerCase()) ||
-    p.externalRef.toLowerCase().includes(term.toLowerCase()) ||
-    p.category.toLowerCase().includes(term.toLowerCase())
-  );
+    switch (event.key) {
+      case "ArrowDown":
+        event.preventDefault();
+        setHighlight((index) => (index + 1) % actions.length);
+        break;
+      case "ArrowUp":
+        event.preventDefault();
+        setHighlight((index) => (index - 1 + actions.length) % actions.length);
+        break;
+      case "Home":
+        event.preventDefault();
+        setHighlight(0);
+        break;
+      case "End":
+        event.preventDefault();
+        setHighlight(actions.length - 1);
+        break;
+      case "Enter": {
+        const action = actions[highlight];
+        if (!action) return;
+        event.preventDefault();
+        run(action);
+        break;
+      }
+    }
+  }
 
   return (
-    <div className="relative">
-      {/* Form search tetap ada untuk navigasi mandiri */}
-      <form
-        role="search"
-        onSubmit={submit}
-        className="hidden sm:block relative"
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
+        aria-keyshortcuts="Control+K Meta+K"
+        className="flex h-10 w-full items-center gap-2 rounded-full border border-border bg-background/80 px-3 text-left text-sm text-muted-foreground transition-colors duration-150 hover:border-foreground/20 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2"
       >
-        <Search
-          aria-hidden="true"
-          className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-        />
-        <input
-          ref={inputRef}
-          type="search"
-          value={term}
-          onChange={(event) => setTerm(event.target.value)}
-          placeholder="Cari peserta…"
-          aria-label="Cari peserta di acara ini"
-          className="h-10 w-full rounded-full border border-border bg-background/80 pl-9 pr-3 text-sm transition-colors duration-150 placeholder:text-muted-foreground focus-visible:outline-2 focus-visible:outline-offset-2"
-          disabled={showPalette === true}
-        />
-      </form>
+        <Search aria-hidden="true" className="size-4 shrink-0" />
+        <span className="truncate">Cari peserta…</span>
+        <kbd className="ml-auto hidden shrink-0 rounded border border-border bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium lg:inline-block">
+          {shortcut}
+        </kbd>
+      </button>
 
-      {/* Command Palette */}
-      {showPalette === true && (
-        <dialog
-          className="fixed inset-0 z-50 gap-4 overflow-hidden transition-opacity duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] motion-reduce:duration-100"
-          aria-modal="true"
-          open
-        >
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-md" />
-          <div className="relative min-h-[20rem] max-w-lg mx-auto p-6 bg-background shadow-xl transform transition-opacity duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] motion-reduce:duration-100">
-            <button
-              aria-label="Tutup palette"
-              className="absolute top-3 right-3 rounded-full bg-background p-1.5 hover:bg-gray-200 transition-colors"
-              onClick={() => setShowPalette?.(false)}
-              style={{ width: "32px", height: "32px" }}
-            >
-              <X aria-hidden="true" className="size-5" />
-              <span className="sr-only">Tutup palette</span>
-            </button>
+      <dialog
+        ref={dialogRef}
+        aria-labelledby={titleId}
+        onClose={() => setOpen(false)}
+        onClick={(event) => {
+          // A click on the backdrop reports the dialog itself as the target.
+          if (event.target === dialogRef.current) setOpen(false);
+        }}
+        className="w-[min(32rem,calc(100vw-1.5rem))] rounded-2xl border border-border bg-background p-0 text-foreground shadow-2xl backdrop:bg-slate-950/40 backdrop:backdrop-blur-[2px]"
+      >
+        {open && (
+          <div className="palette-enter flex max-h-[min(78dvh,34rem)] flex-col">
+            <h2 id={titleId} className="sr-only">
+              Cari peserta dan navigasi acara
+            </h2>
 
-            <h2 className="text-lg font-semibold mb-4">Command palette</h2>
-
-            {/* Pencarian peserta */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium mb-2">
-                Cari peserta
-              </label>
+            <div className="flex items-center gap-2 border-b border-border px-4">
+              <Search aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
               <input
-                type="search"
+                ref={inputRef}
+                type="text"
                 value={term}
-                onChange={(e) => setTerm(e.target.value)}
-                placeholder="Nama, referensi, telepon, email, atau kategori…"
-                aria-label="Cari peserta"
-                className="w-full rounded-full border border-background/80 pl-3 pr-10 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-2 focus-visible:outline-offset-2"
-                disabled={showPalette === true}
+                onChange={(event) => {
+                  setTerm(event.target.value);
+                  setHighlight(0);
+                }}
+                onKeyDown={onInputKeyDown}
+                role="combobox"
+                aria-expanded="true"
+                aria-controls={listId}
+                aria-autocomplete="list"
+                aria-activedescendant={actions.length > 0 ? `${listId}-${highlight}` : undefined}
+                aria-label="Cari peserta atau pilih tab"
+                placeholder="Cari peserta atau pilih tab…"
+                className="h-12 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                Tekan Escape untuk menutup, Enter memilih hasil
-              </p>
+              <kbd className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                Esc
+              </kbd>
             </div>
 
-            {/* Hasil pencarian */}
-            {filteredParticipants.length > 0 ? (
-              <ul className="space-y-1 max-h-40 overflow-y-auto">
-                {filteredParticipants.map((p) => (
-                  <li
-                    key={p.id}
-                    className="flex items-center gap-3 cursor-pointer select-none hover:bg-accent/5"
-                    onClick={() => {
-                      navigate(participantsPath(eventId) + `?q=${encodeURIComponent(p.name)}`);
-                      setShowPalette?.(false);
-                    }}
-                  >
-                    <span className="size-4 rounded-full bg-muted flex-shrink-0">
-                      {p.name.charAt(0)}
-                    </span>
-                    <div>
-                      <p className="font-medium">{p.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {p.externalRef} — {p.category}
-                      </p>
-                    </div>
-                  </li>
-                ))}
+            {actions.length > 0 ? (
+              <ul
+                ref={listRef}
+                id={listId}
+                role="listbox"
+                aria-label="Tindakan"
+                className="min-h-0 overflow-y-auto p-1.5"
+              >
+                {actions.map((action, index) => {
+                  const isActive = index === highlight;
+
+                  return (
+                    <li
+                      key={action.id}
+                      id={`${listId}-${index}`}
+                      role="option"
+                      aria-selected={isActive}
+                      onMouseEnter={() => setHighlight(index)}
+                      onClick={() => run(action)}
+                      className={cn(
+                        "flex cursor-pointer select-none items-center gap-2 rounded-xl px-3 py-2 text-sm transition-colors duration-100",
+                        isActive ? "bg-muted text-foreground" : "text-muted-foreground",
+                      )}
+                    >
+                      {action.kind === "search" ? (
+                        <Search aria-hidden="true" className="size-4 shrink-0" />
+                      ) : (
+                        <ArrowRight aria-hidden="true" className="size-4 shrink-0" />
+                      )}
+                      <span className="truncate">{action.label}</span>
+                    </li>
+                  );
+                })}
               </ul>
             ) : (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                Tidak ada peserta yang cocok
+              <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+                Tidak ada tindakan yang cocok.
               </p>
             )}
 
-            {/* Aksi navigasi tab */}
-            <div className="mt-6 pt-6 border-t border-border">
-              <h3 className="text-sm font-medium text-muted-foreground mb-3">
-                Pergi ke tab
-              </h3>
-              <div className="space-y-1">
-                {tabKeys.map((key) => {
-                  const label = tabLabels[key];
-                  return (
-                    <button
-                      key={key}
-                      className="w-full justify-start rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:bg-accent/5"
-                      onClick={() => {
-                        navigate(eventTabPath(eventId, key));
-                        setShowPalette?.(false);
-                      }}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Tombol batal */}
-            <div className="mt-6">
-              <button
-                className="w-full justify-end rounded-md px-3 py-1.5 text-sm font-medium transition-colors hover:bg-gray-200"
-                onClick={() => setShowPalette?.(false)}
-              >
-                Batal
-              </button>
-            </div>
+            <p className="border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
+              ↑↓ memilih · Enter membuka · Esc menutup
+            </p>
           </div>
-        </dialog>
-      )}
-    </div>
+        )}
+      </dialog>
+    </>
   );
+}
+
+/** Mac keyboards use Command; showing "Ctrl K" there would be a lie. */
+function isApplePlatform(): boolean {
+  return /mac|iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+
+/** The shortcut must not fire while the user is typing somewhere else. */
+function isTextField(element: HTMLElement): boolean {
+  if (element.isContentEditable) return true;
+
+  return element.tagName === "INPUT" || element.tagName === "TEXTAREA" || element.tagName === "SELECT";
 }

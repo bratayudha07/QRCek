@@ -71,8 +71,26 @@
   animation: page-enter 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Command palette panel: a short lift, same curve as the rest of the shell. */
+@keyframes palette-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.palette-enter {
+  animation: palette-enter 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .page-enter {
+  .page-enter,
+  .palette-enter {
     animation: none;
   }
 }

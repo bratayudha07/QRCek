@@ -8,7 +8,7 @@ import { EventTabs } from "./event-tabs";
 import { Sidebar } from "./sidebar";
 import { EventStatusBadge } from "./status-badge";
 import { listEvents } from "@/lib/events";
-
+import { formatSchedule } from "@/lib/format";
 import { eventIdOf, eventTabForRoute, navMode, type NavMode } from "@/lib/navigation";
 import { routePath, type AppRoute, type EventTab } from "@/lib/router";
 import { useSession } from "@/lib/session";
@@ -35,10 +35,8 @@ export function AppLayout({ route, children }: { route: AppRoute; children: Reac
   const eventId = eventIdOf(route);
   const activeTab = eventTabForRoute(route);
   const routeKey = routePath(route) ?? route.name;
-  const inEvent = eventId !== null;
-  // Only admins may switch events, but every role benefits from the status chip
-  // and the schedule, so the fetch is not tied to the switcher.
-  const showSwitcher = mode === "admin" && session.status === "authenticated" && inEvent;
+  const showSwitcher =
+    mode === "admin" && session.status === "authenticated" && eventId !== null;
   const [collapsed, setCollapsed] = useState(true);
   const [events, setEvents] = useState<EventSummary[] | null>(null);
   const mainRef = useRef<HTMLElement>(null);
@@ -52,7 +50,6 @@ export function AppLayout({ route, children }: { route: AppRoute; children: Reac
       ? session.memberships.find((membership) => membership.eventId === eventId)
       : undefined;
   const currentEvent = events?.find((event) => event.id === eventId);
-  const [showPalette, setShowPalette] = useState(false);
 
   useEffect(() => {
     if (!showSwitcher) {
@@ -97,24 +94,6 @@ export function AppLayout({ route, children }: { route: AppRoute; children: Reac
     mainRef.current?.focus({ preventScroll: true });
   }, [routeKey, eventId, activeTab]);
 
-  // Handler shortcut keyboard Ctrl / ⌘ K di AppLayout.
-  // Saat ditekan → toggle palette pencarian (showPalette).
-  // Escape ditangani oleh EventSearch secara internal.
-  useEffect(() => {
-    function handler(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        // biarkan EventSearch menangani tutup palette
-        return;
-      }
-      if (e.key === "k" && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        setShowPalette((v) => !v);
-      }
-    }
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [setShowPalette]);
-
   return (
     <div className="min-h-dvh bg-background">
       <a
@@ -143,9 +122,15 @@ export function AppLayout({ route, children }: { route: AppRoute; children: Reac
       >
         {eventId !== null && activeTab !== null && (
           <>
+            {/*
+              Context block (switcher, status, schedule) scrolls away. It has no
+              bottom border: the line used to stop dead at the sidebar edge and
+              made the workspace look bolted onto the shell instead of part of
+              it. Separation now comes from the floating toolbar below.
+            */}
             <div className="app-chrome bg-background">
               <div className="mx-auto w-full max-w-4xl space-y-1 px-4 pb-2 pt-3">
-                <div className="flex min-h-10 items-center justify-between">
+                <div className="flex min-h-10 items-center justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     {showSwitcher ? (
                       <EventSwitcher
@@ -163,17 +148,24 @@ export function AppLayout({ route, children }: { route: AppRoute; children: Reac
                   </div>
                   {currentEvent && <EventStatusBadge status={currentEvent.status} />}
                 </div>
+                {currentEvent && (
+                  <p className="truncate px-3 text-xs text-muted-foreground">
+                    {formatSchedule(currentEvent.startsAt, currentEvent.endsAt, currentEvent.timezone)}
+                  </p>
+                )}
               </div>
             </div>
+
+            {/*
+              Sticky toolbar: search + tabs stay reachable while the page
+              scrolls. Translucency plus backdrop blur is the depth cue, so the
+              bar can float over content without drawing a hard rule.
+            */}
             <div className="app-chrome sticky top-0 z-20 bg-background/85 shadow-[0_12px_28px_-26px_rgba(15,23,42,0.55)] backdrop-blur-md supports-[backdrop-filter]:bg-background/75">
               <div className="mx-auto w-full max-w-4xl px-4 py-2.5">
                 <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-3">
                   <div className="lg:w-56 lg:shrink-0">
-                    <EventSearch
-                      eventId={eventId}
-                      showPalette={showPalette}
-                      setShowPalette={setShowPalette}
-                    />
+                    <EventSearch eventId={eventId} activeTab={activeTab} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <EventTabs eventId={eventId} active={activeTab} />
