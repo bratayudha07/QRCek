@@ -76,19 +76,21 @@ Pertanyaan arsitektur terbuka (`AQ`): `REQUIREMENTS.md` §13.2 / `ARCHITECTURE.m
 | [0004](./adr/0004-sheets-upsert-projection.md) | Sheets proyeksi/upsert per peserta | Ditinjau ulang | `D-017` [A] → AQ-011 |
 | [0005](./adr/0005-d1-outbox-cron.md) | Outbox D1 + Cron | Diterima | `D-017` [A] |
 | [0006](./adr/0006-qr-credential-hash-ciphertext.md) | Kredensial QR hash + ciphertext | Diterima | `D-004` [A], `D-016` [A] |
-| [0007](./adr/0007-event-admin-self-signup.md) | Pendaftaran mandiri admin acara | Ditinjau ulang | `D-018` [A] |
+| [0007](./adr/0007-event-admin-self-signup.md) | Pendaftaran mandiri admin acara | Digantikan oleh ADR-0013 | `D-018` [A] |
 | [0008](./adr/0008-audit-log-retention.md) | Retensi audit append-only | Diterima | `D-023` [A] (kebijakan retensi) |
-| [0009](./adr/0009-events-baseline-hierarchy-mapping.md) | Peta `events` baseline ke Tema → Aktivitas → Sesi | Diusulkan (AQ-001) | `D-003` [A], `D-007` [A] |
-| [0010](./adr/0010-schema-migration-strategy.md) | Strategi skema (additive) menuju model baru | Diusulkan (AQ-010) | `D-007` [A] |
-| [0011](./adr/0011-audit-allowlist-mechanism.md) | Mekanisme allowlist audit | Diusulkan (AQ-014) | `FR-207`, `D-023` [A] |
+| [0009](./adr/0009-events-baseline-hierarchy-mapping.md) | Peta `events` baseline ke Tema → Aktivitas → Sesi | Diterima (AQ-001) | `D-003` [A], `D-007` [A] |
+| [0010](./adr/0010-schema-migration-strategy.md) | Strategi skema (additive) menuju model baru | Diterima (AQ-010) | `D-007` [A] |
+| [0011](./adr/0011-audit-allowlist-mechanism.md) | Mekanisme allowlist audit | Diterima (AQ-014) | `FR-207`, `D-023` [A] |
+| [0012](./adr/0012-activity-session-lifecycle.md) | Tabel transisi lifecycle Aktivitas dan Sesi | Diterima (detail `D-010`) | `D-010` [A], `OQ-033` [A] |
+| [0013](./adr/0013-disable-public-self-signup.md) | Menonaktifkan pendaftaran Admin Acara mandiri | Diterima; menggantikan ADR-0007 | `D-018` [A], `FR-194`, `AC-050` |
 
-Nomor ADR berikutnya: **0009**.
+Nomor ADR berikutnya: **0014**.
 
 ---
 
 ## 4. Pertanyaan arsitektur terbuka (AQ)
 
-Detail opsi: [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6. Semua berstatus **Terbuka**.
+Detail opsi: [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6. Status: **AQ-001, AQ-010, dan AQ-014 dijawab** oleh ADR-0009/0010/0011 (Diterima); AQ lainnya masih **Terbuka**. ADR-0012 tidak menjawab AQ; isinya menetapkan detail tabel transisi untuk `D-010` [A].
 
 | ID | Pertanyaan | Bergantung pada | Memblokir |
 |---|---|---|---|

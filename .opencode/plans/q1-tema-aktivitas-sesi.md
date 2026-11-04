@@ -1,123 +1,322 @@
-# Rencana Q1 — Fondasi Tema → Aktivitas → Sesi (Draf eksekusi)
+# Rencana Q1 — Fondasi Tema → Aktivitas → Sesi (Draf eksekusi, revisi 4 November 2026)
 
-> **Tahap:** Q1 di `docs/IMPLEMENTATION_ROADMAP.md` (saat ini "Belum dibuka").
-> **Aturan:** Jangan eksekusi sampai semua gate Q0 terpenuhi dan ADR-0009/0010/0011 berstatus Diterima, serta roadmap diubah statusnya menjadi "Dibuka" oleh pemilik proyek.
-> **PRD:** `docs/REQUIREMENTS.md`. Kebutuhan: `FR-001`..`FR-012`, `FR-090`..`FR-098`, `FR-182`, `FR-194`, `FR-206`; `BR-001`, `BR-003`..`BR-009`, `BR-047`..`BR-049`, `BR-070`, `BR-078`; acceptance: `AC-001`, `AC-004`, `AC-005`.
+> **Tahap:** Q1 di `docs/IMPLEMENTATION_ROADMAP.md` (status saat ini "Belum dibuka").
+> **Aturan:** Jangan eksekusi sebelum gate Q0 terpenuhi, ADR-0009/0010/0011/0012/0013 berstatus **Diterima**, dan roadmap Q1 diubah menjadi "Dibuka" oleh pemilik proyek.
+> **PRD:** `docs/REQUIREMENTS.md`. Kebutuhan: `FR-001`–`FR-012`, `FR-090`–`FR-098`, `FR-182`, `FR-194`, `FR-206`; `BR-001`, `BR-003`–`BR-009`, `BR-047`–`BR-049`, `BR-070`, `BR-071`, `BR-078`; acceptance: `AC-001`, `AC-004`, `AC-005`, `AC-050`.
+> **Revisi ini menggantikan** draf sebelumnya. Perubahan utama: nama tabel `activity_sessions`, ADR lifecycle baru, alias `/api/themes`, registrasi publik dimatikan + Turnstile dihapus, scope UI = API-only, mapping tes diperbaiki.
 
-## Prasyarat (gate Q0) — yang harus selesai sebelum implementasi
+## 0. Keputusan yang mengikat rencana ini
 
-1. **Product owner** setuju membuka Q1.
-2. ADR-0009 (AQ-001), ADR-0010 (AQ-010), ADR-0011 (AQ-014) berstatus Diterima. Ringkasan pilihan:
-   - ADR-0009: `events` = Tema Acara (Opsi 1), dengan 1 Aktivitas tanpa Sesi sebagai shim.
-   - ADR-0010: migrasi additive `0007_*` dan seterusnya, tabel lama tetap.
-   - ADR-011: allowlist konstanta di `packages/shared` per tipe objek.
-3. Perbarui `docs/REQUIREMENTS.md` §0.3 dan §13.3 (status dokumen turunan sudah dibuat) — dilakukan product owner, bukan agent.
-4. Tandai roadmap Q1 status "Dibuka", ubah `D-009` `[A]`, `D-018` `[A]`, `D-023` `[A]` sudah perlu (sudah).
-5. Buat branch kerja: `git checkout -b q1-foundation`.
+| # | Keputusan | Alasan singkat |
+|---|---|---|
+| 1 | Tabel Sesi bernama **`activity_sessions`**, file `db/activity-sessions.ts` | `sessions` sudah dipakai auth (`0002_auth.sql`) dan `db/sessions.ts` |
+| 2 | Model transisi lifecycle ditetapkan lewat **ADR-0012** | REQUIREMENTS hanya menyebut state machine terpisah; edge-nya belum ada sumbernya |
+| 3 | **`/api/themes` ditambahkan** sebagai alias eksplisit; `/api/events` tetap kanonik | Web baseline masih memakai `/api/events`; rename penuh ditunda |
+| 4 | Q1 **API-only** (tanpa UI Aktivitas/Sesi) | Gate Q1 bersifat struktural; `FR-093` untuk pengguna dicatat sebagai delta ke Q6/Q8/Q9 |
+| 5 | Registrasi publik **dimatikan** dan **Turnstile dihapus** | `D-018` [A]; ADR-0007 mewajibkan ADR baru untuk menggantikannya (**ADR-0013**) |
+| 6 | `event:create` untuk `event_admin` **tetap** | Perilaku disengaja: Admin Acara undangan boleh membuat Tema baru dan menjadi pemiliknya |
 
-## Tujuan (target)
+Nomor ADR: **0012** (lifecycle) dan **0013** (registrasi). Catatan "nomor berikutnya 0009" di `docs/DECISIONS.md` adalah stale dan harus diperbaiki.
 
-- Sistem mempresentasikan Tema dengan Aktivitas dan Sesi, beserta lifecycle terpisah.
-- Tema → Aktivitas → Sesi enforceable (Sesi milik Aktivitas itu, Sesi tidak boleh beda Tema).
-- Lifecycle (Draft, Aktif, Selesai, Diarsipkan untuk Aktivitas; Terjadwal, Berlangsung, Selesai, Dinonaktifkan untuk Sesi) divalidasi server-side.
-- Audit mutasi Tema/Aktivitas/Sesi memakai allowlist field baru.
-- Akses per Tema (`FR-097`, `FR-098`) + undangan (`FR-194`) bila `D-018` diterapkan.
-- Regression: tes auth, dan isolasi acara Q0 yang perlu dipertahankan tetap lulus atau setara digantikan.
+## 1. Prasyarat (gate Q0) — wajib selesai sebelum implementasi
 
-## Bukan cakupan (out of scope)
+1. Product owner menyetujui pembukaan Q1.
+2. ADR berstatus **Diterima**:
+   - ADR-0009 (AQ-001): `events` = Tema Acara.
+   - ADR-0010 (AQ-010): migrasi additive `0007_*` dst.
+   - ADR-0011 (AQ-014): allowlist audit di `packages/shared`.
+   - **ADR-0012 (baru):** tabel transisi lifecycle Aktivitas/Sesi.
+   - **ADR-0013 (baru):** registrasi publik nonaktif; menggantikan ADR-0007.
+3. Dokumen diselaraskan: `DECISIONS.md` (status ADR, AQ ditandai "Dijawab oleh", nomor berikutnya 0014), `ARCHITECTURE.md` §3/§6, `IMPLEMENTATION_ROADMAP.md` Q1 "Dibuka".
+4. `REQUIREMENTS.md` §0.3/§13.3 diperbarui **oleh product owner**, bukan agent.
+5. Branch kerja: `git checkout -b q1-foundation`.
+6. Verifikasi baseline sebelum menyentuh kode: `npm run typecheck && npm run lint && npm run test` (catat jumlah tes aktual; rujukan lama 458 tes).
 
-- Transaksi, entitlement, scanner (Q5–Q7), peserta/kategori (Q2), QR (Q4).
-- Pengarsipan Sesi aktif di Q1 kecuali state arsip dan matriks reject-transaksi disiapkan (`BR-078`, `OQ-033` [A]).
+## 2. Tujuan
 
-## Desain skema (migrasi 0007)
+- Sistem merepresentasikan Tema (`events`) dengan banyak Aktivitas dan Sesi, beserta lifecycle terpisah.
+- Hierarki Tema → Aktivitas → Sesi enforceable: Sesi hanya di bawah Aktivitas-nya, tidak lintas Tema.
+- Lifecycle divalidasi server-side lewat fungsi murni; tidak ada inferensi Sesi dari jam.
+- Audit mutasi Tema/Aktivitas/Sesi memakai allowlist field final.
+- Registrasi Admin Acara hanya via undangan (`D-018`).
+- Regression: tes auth, undangan, dan isolasi acara baseline tetap lulus atau diganti tes setara.
 
-Lokasi: `migrations/0007_q1_theme_activity_session.sql` (additive only):
+## 3. Bukan cakupan
 
-- **Reuse `events` sebagai `themes` shim (ADR-0009).** Jangan buat tabel `themes` bila opsi 1; tambah kolom `theme_id` alias di Aktivitas yang merefer `events.id`.
-- **`activities`**:
-  - `id TEXT PRIMARY KEY`, `theme_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE`
-  - `transaction_type TEXT NOT NULL CHECK (...)` (Attendance/Consumption)
-  - `status TEXT NOT NULL CHECK (...)` (Draft, Aktif, Selesai, Diarsipkan)
-  - `sort_order INTEGER NOT NULL DEFAULT 0`, `notes ...` opsional
-  - timestamp `created_at`, `updated_at` (integer ms)
-- **`sessions`**:
-  - `id TEXT PRIMARY KEY`, `activity_id TEXT NOT NULL REFERENCES activities(id) ON DELETE CASCADE`, `theme_id` denormalisasi opsional (atau join)
-  - `name TEXT NOT NULL`, slot waktu (`starts_at`, `ends_at INTEGER`)
-  - `status TEXT NOT NULL CHECK (...)` (Terjadwal, Berlangsung, Selesai, Dinonaktifkan), `archived_at INTEGER` nullable (state arsip vs status operasional)
-- **Index** yang perlu: `idx_activities_theme_status`, `idx_sessions_activity_status`.
-- **Trigger audit append-only** tetap (ADR-0008) untuk tabel baru bila mutasi dari Q1.
-- Tidak pernah ubah `0001`–`0006`.
+- Transaksi, entitlement, scanner, peserta/kategori, QR (Q2–Q7).
+- UI Aktivitas/Sesi (API-only). `FR-093` dari sisi pengguna dicatat sebagai delta.
+- Aktivitas default (shim) tidak dibuat otomatis di Q1; dibawa ke Q5 saat konteks transaksi mulai diwajibkan.
+- Rename penuh `events` → `themes` (kanonik tetap `/api/events`).
+- Perubahan izin `event:create` (dibiarkan seperti sekarang).
 
-Catatan D1: `ALTER TABLE` terbatas; semua entitas baru via CREATE TABLE baku, tidak ada backfill wajib (`D-007`).
+## 4. Skema — `migrations/0007_q1_activities_sessions.sql` (additive)
 
-## Reuse yang dievaluasi
+Aturan: jangan mengedit `0001`–`0006`; tidak ada backfill (`D-007`). Nilai status disimpan **lowercase English**; terjemahan Indonesia hanya di UI/pesan.
+
+```sql
+CREATE TABLE activities (
+  id               TEXT PRIMARY KEY,
+  theme_id         TEXT NOT NULL REFERENCES events(id) ON DELETE RESTRICT,
+  name             TEXT NOT NULL,
+  description      TEXT,
+  transaction_type TEXT NOT NULL CHECK (transaction_type IN ('attendance','consumption')),
+  status           TEXT NOT NULL DEFAULT 'draft'
+                   CHECK (status IN ('draft','active','completed','archived')),
+  location         TEXT,
+  sort_order       INTEGER NOT NULL DEFAULT 0,
+  created_at       INTEGER NOT NULL,
+  created_by       TEXT REFERENCES users(id),
+  updated_at       INTEGER NOT NULL,
+  updated_by       TEXT REFERENCES users(id),
+  archived_at      INTEGER,
+  CHECK (length(name) BETWEEN 1 AND 120),
+  CHECK (description IS NULL OR length(description) <= 500),
+  CHECK (location IS NULL OR length(location) <= 200),
+  CHECK (created_at > 0),
+  CHECK (updated_at >= created_at),
+  CHECK ((status = 'archived') = (archived_at IS NOT NULL))
+);
+CREATE INDEX idx_activities_theme_status ON activities(theme_id, status, sort_order);
+CREATE INDEX idx_activities_theme_type   ON activities(theme_id, transaction_type);
+
+CREATE TABLE activity_sessions (
+  id          TEXT PRIMARY KEY,
+  activity_id TEXT NOT NULL REFERENCES activities(id) ON DELETE RESTRICT,
+  name        TEXT NOT NULL,
+  location    TEXT,
+  starts_at   INTEGER,
+  ends_at     INTEGER,
+  status      TEXT NOT NULL DEFAULT 'scheduled'
+              CHECK (status IN ('scheduled','in_progress','completed','disabled')),
+  archived_at INTEGER,
+  created_at  INTEGER NOT NULL,
+  created_by  TEXT REFERENCES users(id),
+  updated_at  INTEGER NOT NULL,
+  updated_by  TEXT REFERENCES users(id),
+  CHECK (length(name) BETWEEN 1 AND 120),
+  CHECK (location IS NULL OR length(location) <= 200),
+  CHECK (starts_at IS NULL OR starts_at > 0),
+  CHECK (ends_at IS NULL OR starts_at IS NULL OR ends_at >= starts_at),
+  CHECK (created_at > 0),
+  CHECK (updated_at >= created_at),
+  CHECK (archived_at IS NULL OR archived_at > 0),
+  CONSTRAINT archived_session_is_finished
+    CHECK (archived_at IS NULL OR status IN ('completed','disabled'))
+);
+CREATE INDEX idx_activity_sessions_activity_status
+  ON activity_sessions(activity_id, status, starts_at);
+CREATE INDEX idx_activity_sessions_activity_time
+  ON activity_sessions(activity_id, starts_at);
+```
+
+Catatan desain:
+
+- **Tidak ada `theme_id` denormalisasi** di `activity_sessions`; Tema diturunkan lewat `activity_id` → `activities.theme_id`.
+- **`ON DELETE RESTRICT`**, bukan CASCADE: produk hanya mengenal arsip/nonaktif, bukan hapus. Tidak ada endpoint delete Activity/Session.
+- `deleteEmptyDraft` di `db/events.ts` harus ditambah syarat `NOT EXISTS (SELECT 1 FROM activities ...)`, supaya event draft yang sudah punya Aktivitas tidak terhapus dan tidak memicu error FK → 500.
+- `archived` adalah status operasional **Aktivitas**; untuk **Sesi** arsip adalah `archived_at` terpisah dari status (`FR-206`, `BR-078`).
+- Tidak ada `UNIQUE` nama Sesi; duplikasi boleh memakai nama sama.
+
+## 5. Lifecycle — isi ADR-0012
+
+Tabel transisi final ditulis di `packages/shared/src/lifecycle.ts` (pola `EVENT_TRANSITIONS`), validasi konteks di `apps/api/src/domain/lifecycle.ts`.
+
+**Usulan default yang perlu disetujui di ADR-0012:**
+
+| Entitas | Transisi sah | Final |
+|---|---|---|
+| Aktivitas | `draft → active`, `active → completed`, `completed → archived`, `draft → archived` | `archived` |
+| Sesi | `scheduled → in_progress`, `in_progress → completed`, `scheduled → disabled`, `in_progress → disabled`, `completed → archived`, `disabled → archived` | `archived_at` terisi |
+
+Aturan tambahan:
+
+- Tidak ada reopen (`completed → active`, `disabled → scheduled`); koreksi dilakukan dengan membuat Aktivitas/Sesi baru atau duplikasi.
+- Aktivitas `active → archived` langsung tidak diizinkan; harus `completed` dulu.
+- Arsip Sesi hanya dari `completed`/`disabled`, hanya Admin Acara (`OQ-033` [A]).
+- Arsip tidak menghapus, membalik, atau menyembunyikan transaksi historis.
+- Status tidak pernah disimpulkan dari `starts_at`/`ends_at`; perubahan status selalu lewat endpoint eksplisit (`FR-187`).
+- Duplikasi Sesi: id baru, salin nama/lokasi/jadwal, `status='scheduled'`, `archived_at=NULL`, tanpa transaksi (`FR-094`, `FR-095`, `BR-048`).
+
+## 6. API
+
+Kanonik: `/api/events/:eventId/...`. Alias: `/api/themes/:eventId/...` (dan `/api/calendar/...` yang sudah ada). Alias memakai handler, skema, dan otorisasi yang sama; tidak ada handler duplikat.
+
+```
+GET    /api/events/:eventId/activities
+POST   /api/events/:eventId/activities
+GET    /api/events/:eventId/activities/:activityId
+PATCH  /api/events/:eventId/activities/:activityId
+POST   /api/events/:eventId/activities/:activityId/status
+
+GET    /api/events/:eventId/activities/:activityId/sessions
+POST   /api/events/:eventId/activities/:activityId/sessions
+GET    /api/events/:eventId/activities/:activityId/sessions/:sessionId
+PATCH  /api/events/:eventId/activities/:activityId/sessions/:sessionId
+POST   /api/events/:eventId/activities/:activityId/sessions/:sessionId/status
+POST   /api/events/:eventId/activities/:activityId/sessions/:sessionId/archive
+POST   /api/events/:eventId/activities/:activityId/sessions/:sessionId/duplicate
+```
+
+- Semua route lewat `requireEventAccess` (read → `event:read`, mutasi → `event:update`). Tidak ada action izin baru.
+- Setiap handler memvalidasi bahwa `activityId` milik `eventId`, dan `sessionId` milik `activityId`; pelanggaran → 404 tanpa menulis.
+- Aktivitas Draft/Selesai/Diarsipkan tetap bisa dibaca; penolakan transaksi baru ditegakkan Q5.
+- Respons `{ ok, data | error }` bertipe lewat `packages/shared`.
+- Alias didaftarkan eksplisit di `app.ts` (bukan string-replace ad-hoc); tambahkan tes bahwa `/api/events/...` dan `/api/themes/...` memberi hasil identik dan menolak lintas Tema dengan 404.
+
+## 7. Audit (ADR-0011)
+
+- `packages/shared/src/audit-allowlist.ts`:
+  - `AUDIT_FIELDS.theme/activity/session` berisi field yang boleh dicatat.
+  - `REDACTED = "[REDACTED]"`; field di luar allowlist tidak masuk snapshot, field sensitif dicatat "berubah" tanpa nilai.
+- Mutasi Tema/Aktivitas/Sesi menulis `audit_log` **dalam `db.batch()` yang sama** dengan mutasi.
+- Entity type: `theme`, `activity`, `session` (panjang 3–32 sesuai CHECK `audit_log`).
+- Update memakai pola guard `EXISTS (... WHERE id = ? AND updated_at = ?)` agar audit hanya tertulis bila update benar-benar terjadi.
+- Audit tidak boleh memuat token, secret, atau PII.
+- Baseline: route events saat ini belum menulis audit; Q1 mulai menulis audit untuk mutasi Tema (event), Aktivitas, dan Sesi.
+
+## 8. Registrasi publik & Turnstile (ADR-0013)
+
+**API**
+
+- Hapus `POST /api/auth/register` dari `authRoutes`; request menjadi 404.
+- Hapus handler `register` dan import terkait di `routes/auth.ts`.
+- Hapus `RegisterRequestSchema` dan `turnstileToken` dari `packages/shared/src/schemas/auth.ts`.
+- Hapus `TURNSTILE_FAILED` dari `packages/shared/src/types.ts`.
+- Hapus `apps/api/src/integrations/turnstile.ts` dan `apps/api/src/test/turnstile.test.ts`.
+- `created_via='self_signup'` tetap ada di DB untuk data historis; `0006_self_signup.sql` tidak diedit, tidak ada migrasi baru.
+- `event:create` untuk `event_admin` tidak berubah.
+
+**Web (pembersihan, bukan fitur baru)**
+
+- Hapus `apps/web/src/pages/register.tsx`, case `register` di `App.tsx`, `paths.register`/parser di `lib/router.ts` (+ `router.test.ts`), tautan daftar di `pages/login.tsx`, `registerAccount` di `lib/auth.ts`, `components/turnstile-widget.tsx`.
+- Hapus `VITE_TURNSTILE_SITE_KEY` dari `apps/web/.env.example` dan build env docs.
+
+**Secret & konfigurasi**
+
+- Hapus `TURNSTILE_SECRET_KEY` dari `.dev.vars.example`, `README.md`, `AGENTS.md`, `docs/OPERASIONAL.md`, `.opencode/commands/deploy.md`, `.opencode/agents/security-reviewer.md`.
+- Hapus secret dari Cloudflare saat deploy berikutnya (`wrangler secret delete TURNSTILE_SECRET_KEY`), dicatat di `OPERASIONAL.md`.
+
+**Dokumen**
+
+- ADR-0013 baru: `docs/adr/0013-disable-public-self-signup.md`, status Diterima, mencatat ADR-0007 **digantikan**.
+- `DECISIONS.md`: baris ADR-0007 → "Digantikan oleh ADR-0013"; tambah baris ADR-0013.
+- `ARCHITECTURE.md` §3: status ADR-0007/0013.
+- `DESAIN_API.md`: hapus endpoint register + catatan 404.
+- `RENCANA_PENGUJIAN.md`: hapus I-29…I-33, perbarui jumlah route publik (5 → 4), tambah tes `AC-050`.
+- `REQUIREMENTS.md` tidak disentuh agent; §7.2.4 tetap baseline historis.
+
+**Tes**
+
+- Ganti `auth.register.test.ts` dengan tes: `POST /api/auth/register` → 404, tidak ada baris `users` baru.
+- `authz.unauthenticated.test.ts`: route publik tepat 4 (health, health/ready, activate, recover).
+- Fixture yang tadinya memakai register (mis. `events.crud.test.ts` "event_admin creates event") diganti memakai alur undangan.
+- Tambah tes `AC-050`: admin hanya dibuat via undangan; pencabutan akses mencabut sesi.
+
+## 9. Reuse yang dievaluasi
 
 | Komponen baseline | Strategi Q1 |
 |---|---|
-| `routes/events.ts` | Alias ke Tema; tambah `/api/themes/:id/activities...`; jangan hapus route lama |
-| `db/events.ts` | Tambah function akses Aktivitas/Sesi; pertahankan event helpers sebagai shim |
-| `packages/shared/src/events.ts` | Tambah schema `Theme`, `Activity`, `Session` (zod) |
-| `domain/permissions.ts` | Tambah kewenangan Admin Acara per Tema (Q15 + penugasan menyusul Q6) |
-| `db/audit.ts` | Terapkan allowlist baru (AUD-011) untuk mutasi Tema/Aktivitas/Sesi |
-| `lib/navigation.ts`, `lib/router.ts` | Pola rute diperluas, tidak dihapus |
-| `tests/authz.events.test.ts` | Bertahap: ganti setara atau tangguhkan (regression gate) |
+| `routes/events.ts` | Tetap; tambah audit; tambah alias themes di `app.ts` |
+| `db/events.ts` | Tambah fungsi akses Aktivitas/Sesi; perketat `deleteEmptyDraft` |
+| `packages/shared/src/events.ts` | Tetap; tipe baru di file terpisah |
+| `packages/shared/src/lifecycle.ts` (baru) | Tabel transisi Aktivitas/Sesi, pola `EVENT_TRANSITIONS` |
+| `domain/permissions.ts` | Tidak ada action baru; reuse `event:read`/`event:update` |
+| `db/audit.ts` | Pakai allowlist ADR-0011; tambah statement guard untuk update |
+| `lib/navigation.ts`, `lib/router.ts` | Tidak berubah (API-only) |
+| `test/authz.events.test.ts`, `events.crud.test.ts` | Diperbarui; skenario register diganti undangan |
 
-## Desain domain (pure TS, tanpa I/O)
+## 10. Berkas baru/berubah
 
-- `packages/shared/src/hierarchy.ts` (atau `events.ts` diperluas): skema zod `Theme`, `Activity`, `Session`, `ActivityStatus`, `SessionStatus`.
-- `apps/api/src/domain/lifecycle.ts`: fungsi murni yang memvalidasi transisi Aktivitas/Sesi (tabel lengkap `BR-047`..`BR-049`, `BR-071`). Tes `RENCANA_PENGUJIAN.md` T-001 (§9).
-- `apps/api/src/db/activities.ts`, `db/sessions.ts`: query terindeks.
-- `apps/api/src/routes/themes.ts` (atau tetap ganti `events.ts` dengan alias): parse→validasi→domain→respons `{ ok, data | error }`.
-- Audit before/after: apply allowlist.
+**Baru**
 
-## Audit allowlist (ADR-0011)
+- `migrations/0007_q1_activities_sessions.sql`
+- `apps/api/src/db/activities.ts`, `apps/api/src/db/activity-sessions.ts`
+- `apps/api/src/routes/activities.ts`, `apps/api/src/routes/activity-sessions.ts`
+- `apps/api/src/domain/lifecycle.ts`
+- `packages/shared/src/lifecycle.ts`
+- `packages/shared/src/schemas/activities.ts`, `packages/shared/src/schemas/activity-sessions.ts`
+- `packages/shared/src/activities.ts`, `packages/shared/src/activity-sessions.ts`
+- `packages/shared/src/audit-allowlist.ts`
+- `docs/adr/0012-activity-session-lifecycle.md`, `docs/adr/0013-disable-public-self-signup.md`
+- Tes: `lifecycle.test.ts`, `activities.test.ts`, `activity-sessions.test.ts`, `themes-alias.test.ts`, `audit-allowlist.test.ts`, `register.closed.test.ts`
 
-Buat `packages/shared/src/audit-allowlist.ts` pure TS dengan:
-- `ThemeAllowedFields`, `ActivityAllowedFields`, `SessionAllowedFields`.
-- Field sensitif (token hash/ciphertext, PII) ditandai `REDACTED` tanpa nilai.
+**Berubah**
 
-## Verifikasi / tes wajib (T-xxx)
+- `apps/api/src/app.ts`, `apps/api/src/routes/events.ts`, `apps/api/src/db/events.ts`, `apps/api/src/db/audit.ts`
+- `apps/web/src/App.tsx`, `lib/router.ts`, `lib/router.test.ts`, `lib/auth.ts`, `pages/login.tsx`
+- Konfigurasi/dokumen yang tercantum di §8
 
-`RENCANA_PENGUJIAN.md` §9.1:
-- T-001 lifecycle (tabel lengkap transisi Aktivitas/Sesi) — murni.
-- T-002 Sesi cross-Tema ditolak.
-- T-003 duplikasi Sesi menyalin konfigurasi & status Terjadwal.
-- T-004 akses lintas Tema → 404.
-- T-005 anti-corruption alias route.
-- Audit T-062/T-063 insert/update/mutasi Tema-Aktivitas-Sesi tercatat.
+**Dihapus**
 
-## Iterasi kerja
+- `apps/api/src/integrations/turnstile.ts`, `apps/api/src/test/turnstile.test.ts`, `apps/api/src/test/auth.register.test.ts` (diganti)
+- `apps/web/src/pages/register.tsx`, `apps/web/src/components/turnstile-widget.tsx`
 
-1. Buka ADR + ubah status roadmap Q1 "Dibuka".
-2. Tulis migrasi `0007` dan catat di `docs/DESAIN_DATABASE.md`.
-3. Domain lifecycle pure TS + unit test: `npm run test -- apps/api/src/domain/lifecycle.test.ts`.
-4. `packages/shared` skema + allowlist; typecheck.
-5. `db/activities`, `db/sessions`, audit allowlist; SQL batch for audit insert.
-6. Routes: tambah endpoint Tema/Aktivitas/Sesi; pertahankan events alias.
-7. Web: reusable component (UI deferred ke Q9? small navigation per `lib/navigation.ts` sebatas Q1).
-8. typecheck → lint → test per modul; full suite di akhir.
+## 11. Tes wajib dan pemetaan yang benar
 
-## Perintah verifikasi
+Gate Q1 memakai `docs/RENCANA_PENGUJIAN.md` §9:
+
+| Tes | Isi | Status Q1 |
+|---|---|---|
+| `T-001` ★ | Sesi tidak dapat dibuat/dirujuk di bawah Aktivitas atau Tema lain | Wajib |
+| `T-005` | Tabel transisi Aktivitas/Sesi sah/terlarang, fungsi murni | Wajib |
+| `T-007` ★ | Arsip/nonaktif tidak menghapus atau me-reversal riwayat | Wajib (parsial; penegakan penuh Q5) |
+| `T-008` | Duplikasi Sesi menyalin konfigurasi, id baru, status `scheduled` | Wajib |
+| `T-140` ★ | `UPDATE`/`DELETE` audit ditolak trigger | Regression |
+| `T-141` ★ | Audit tidak memuat token/secret/nilai sensitif | Wajib (mekanisme) |
+| `T-142` | Setiap endpoint mutasi menghasilkan ≥ 1 baris audit | Wajib (route Q1) |
+| `T-002`, `T-003`, `T-004`, `T-006` | Penegakan transaksi/lifecycle | **Q5**, bukan Q1 |
+
+Tambahan tes Q1:
+
+- Alias `/api/themes` identik dengan `/api/events` dan menolak lintas Tema (404).
+- Event draft dengan Aktivitas tidak bisa dihapus.
+- `POST /api/auth/register` → 404 dan tidak menulis user.
+- `AC-050`: registrasi admin hanya via undangan; cabut akses bekerja.
+
+## 12. Iterasi kerja
+
+1. **Dokumen & gate:** tulis ADR-0012/0013, perbarui DECISIONS/ARCHITECTURE/roadmap, minta persetujuan pemilik.
+2. **Migrasi:** `0007` + catat di `DESAIN_DATABASE.md`; `npm run db:migrate:local`.
+3. **Shared:** `lifecycle.ts`, skema/tipe Aktivitas & Sesi, `audit-allowlist.ts` + unit test; `npm run typecheck`.
+4. **Domain:** `domain/lifecycle.ts` + tabel transisi lengkap; tes terfokus.
+5. **DB:** `db/activities.ts`, `db/activity-sessions.ts`, perketat `deleteEmptyDraft`; tes integrasi D1.
+6. **Routes:** activities, activity-sessions, alias themes; audit dalam batch yang sama; tes route + authz.
+7. **Registrasi/Turnstile:** hapus route, UI, integrasi, secret, tes; tambah tes 404 + AC-050. Commit terpisah dari migrasi.
+8. **Dokumen & verifikasi akhir:** DESAIN_API, RENCANA_PENGUJIAN, OPERASIONAL, README, AGENTS; suite penuh + build.
+
+## 13. Perintah verifikasi
 
 ```sh
 npm run db:migrate:local
 npm run typecheck
 npm run lint
-npm run test -- apps/api/src/db apps/api/src/domain apps/api/src/routes
+npm run test -- lifecycle activities activity-sessions themes-alias audit-allowlist events authz.unauthenticated register.closed
 npm run test
+npm run build
 ```
 
-## Gate akhir
+Filter Vitest mencocokkan nama file, bukan direktori; jangan memakai `apps/api/src/...` sebagai filter.
 
-- `AC-001`, `AC-004` (struktural), `AC-005`.
-- Tujuh tes wajib §9.1 lulus, integritas anti-corruption.
-- Audit insert lulus dan tidak memuat PII/secrets.
-- Migrasi disimpan (tidak ada `0001`–`0006` yang diedit).
-- Regression tes auth & isolasi tetap lulus atau diganti setara tercatat di OPERASIONAL.md.
+## 14. Gate akhir Q1
 
-## Risiko / catatan
+- `AC-001`, `AC-004` (struktural), `AC-005`, `AC-050`.
+- `T-001`, `T-005`, `T-007` (parsial), `T-008`, `T-141`, `T-142` lulus; `T-140` regression lulus.
+- Tes integritas gagal bila aturannya dihapus (mis. hapus cek Aktivitas milik Tema → T-001 gagal).
+- Audit Tema/Aktivitas/Sesi tertulis dan bebas PII/token; `entity_type` valid.
+- Migrasi `0007` tercatat; `0001`–`0006` tidak disentuh.
+- Registrasi publik 404; route publik 4; Turnstile tidak lagi dipakai/diminta saat deploy.
+- `typecheck` → `lint` → `test` → `build` hijau; jumlah tes aktual dicatat.
+- Dokumen diperbarui dalam perubahan yang sama (`AC-038`).
+- Tidak ada dependensi baru.
+- Delta API-only (`FR-093` dari sisi pengguna) dicatat di roadmap/OPERASIONAL dan dibawa ke Q6/Q8/Q9.
 
-- Web route legacy (`/events/:id`) perlu compatibility shim (alias) sampai Q8.
-- Derivasi `events.status` ke lifecycle Tema/Aktivitas membutuhkan keringkasan pada mapping; jangan buat state machine di front-end.
-- Waktu lokal 4GB: gunakan tes terfokus di iterasi; suite penuh di akhir.
-- AQ-001 adopsi = opsi 1; jika product owner pilih opsi 2/3, nukleus filing perlu disesuaikan.
+## 15. Risiko dan catatan
+
+- **Nama `sessions`:** jangan pernah membuat tabel/file bernama `sessions`; sudah dipakai auth. Semua kode baru memakai `activity_sessions`/`activity-sessions`.
+- **Alias route:** penambahan `/api/themes` harus lewat helper alias, bukan menduplikasi handler. Tes authz harus memastikan tidak ada route publik baru.
+- **Hapus event:** FK `RESTRICT` + `deleteEmptyDraft` yang diperketat; tanpa itu, event draft ber-Aktivitas memunculkan 500.
+- **T-007 parsial:** Q1 belum punya transaksi; penegakan penuh tetap di Q5. Jangan klaim `AC-005` lebih dari yang diuji.
+- **Aktivitas default:** tidak dibuat di Q1. Saat Q5 mewajibkan konteks Aktivitas, acara lama harus punya Aktivitas eksplisit; tidak ada data produksi (`D-007`), tetapi scanner Q6 wajib meminta pemilihan Aktivitas.
+- **API-only:** jangan menambah komponen UI Aktivitas/Sesi di Q1; itu Q9/Q6.
+- **Mesin dev 4 GB:** iterasi dengan tes terfokus, suite penuh di akhir.
+- **ADR-0009:** perlu catatan saat Diterima bahwa shim "1 Aktivitas default" ditunda ke Q5 dan tidak dibuat otomatis di Q1.

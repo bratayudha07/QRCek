@@ -16,8 +16,7 @@ Permintaan: $ARGUMENTS
 
 1. Lokal hijau: `npm run typecheck` → `npm run lint` → `npm run test` → `npm run build`.
 2. Bila ada migrasi baru: `npm run db:migrate:remote` **lebih dulu**, hanya setelah konfirmasi user dan snapshot `wrangler d1 export`. Deploy Git tidak menjalankan migrasi.
-3. Secret Worker diatur lewat `npx wrangler secret put <NAMA>` dari `apps/api` — jangan pernah menampilkan atau mencatat nilainya: `SESSION_PEPPER`, `QR_PEPPER`, `QR_ENCRYPTION_KEY`, `QR_KEY_VERSION`, `GOOGLE_SA_KEY`, `TURNSTILE_SECRET_KEY`.
-4. `VITE_TURNSTILE_SITE_KEY` harus ada di build environment Cloudflare bila Turnstile dipakai.
+3. Secret Worker diatur lewat `npx wrangler secret put <NAMA>` dari `apps/api` — jangan pernah menampilkan atau mencatat nilainya: `SESSION_PEPPER`, `QR_PEPPER`, `QR_ENCRYPTION_KEY`, `QR_KEY_VERSION`, `GOOGLE_SA_KEY`.
 
 ## Verifikasi setelah deploy
 

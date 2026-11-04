@@ -2,7 +2,7 @@
 
 | Atribut | Nilai |
 |---|---|
-| Status | **Diusulkan** — jawaban AQ-001; menunggu adopsi pemilik proyek sebelum Q1 dibuka |
+| Status | **Diterima** — jawaban AQ-001, disetujui pemilik proyek 4 November 2026 |
 | Terkait AQ | AQ-001 (`docs/ARCHITECTURE.md` §6) |
 | Terkait kebutuhan | `FR-172`–`FR-175`, `D-003` [A], `D-004` [A], `D-007` [A] |
 | Dampak keputusan produk QRCek | Menentukan keterbacaan reuse `routes/events.ts`, `db/events.ts`, `packages/shared/src/events.ts` |
@@ -30,6 +30,6 @@ Jika product owner memilih Opsi 2/3, migrasi perlu skema baru dari awal dan biay
 - Route lama `/api/events/:id/...` dipertahankan sebagai alias ke Tema agar UI lama tidak mati mendadak; nanti deprecated setelah Q8.
 - Reuse yang perlu dievaluasi di Q1: `routes/events.ts`, `db/events.ts`, `packages/shared/src/events.ts`, membership, undangan, `lib/navigation.ts`.
 
-## Belum ditutup
+## Catatan implementasi
 
-Status ADR ini **Diusulkan**, bukan Diterima. Q1 belum dibuka sampai adopsinya dicatat pemilik proyek (`REQUIREMENTS.md` gate Q0: ADR AQ-001).
+ADR ini diterima. Shim "satu Aktivitas default" untuk `events` lama **tidak** dibuat otomatis di Q1; aktivitas default baru dibahas saat Q5 mewajibkan konteks Aktivitas pada transaksi.

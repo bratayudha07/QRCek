@@ -23,7 +23,7 @@
    - `[O]` terbuka dan `AQ-xxx` → **jangan** memilih jawaban sendiri. AQ dijawab lewat ADR baru yang disetujui pemilik proyek.
    - Keputusan `[A]` tidak dibuka kembali tanpa keputusan baru yang eksplisit. Agent tidak mengubah status keputusan di `REQUIREMENTS.md`.
 5. **Aturan integritas data dan keamanan di bawah bersifat permanen.** Jangan dilemahkan demi kecepatan, jangan dipindah ke level UI saja.
-6. **Jangan commit secret.** `SESSION_PEPPER`, `QR_PEPPER`, `QR_ENCRYPTION_KEY`, `QR_KEY_VERSION`, `GOOGLE_SA_KEY`, `TURNSTILE_SECRET_KEY` hanya lewat `.dev.vars` (gitignored) dan `wrangler secret put`.
+6. **Jangan commit secret.** `SESSION_PEPPER`, `QR_PEPPER`, `QR_ENCRYPTION_KEY`, `QR_KEY_VERSION`, `GOOGLE_SA_KEY` hanya lewat `.dev.vars` (gitignored) dan `wrangler secret put`.
 7. **Jangan klaim selesai tanpa bukti.** Endpoint atau komponen yang ada ≠ fitur selesai (`FR-178`). Baseline tidak boleh ditulis sebagai pemenuhan target.
 
 ## Layout (monorepo, npm workspaces)
@@ -77,7 +77,7 @@ Urutan verifikasi sebelum menyatakan selesai: **`typecheck` → `lint` → `test
   - Yang disimpan di D1 **hanya** `HMAC-SHA256(SESSION_PEPPER, token)`; token mentah tidak pernah masuk DB, log, atau bundle frontend.
   - Sesi dikirim sebagai cookie `absensi_session`: `HttpOnly`, `SameSite=Lax`, `Path=/`, `Max-Age` 30 hari, `Secure` saat HTTPS. Frontend tidak menyimpan token di `localStorage`/state yang bisa dibaca skrip.
   - Semua request non-GET wajib `X-Absensi-Csrf: 1` **dan** `Origin` cocok dengan host (cek di Worker sebelum routing). Jangan mengganti ini dengan guard React.
-  - Rate limit login/aktivasi/pemulihan/registrasi dari tabel D1 (per IP-hash), bukan UI atau Cloudflare Rate Limiting Rules.
+  - Rate limit login/aktivasi/pemulihan dari tabel D1 (per IP-hash), bukan UI atau Cloudflare Rate Limiting Rules.
   - Jangan menurunkan entropi token, memperpanjang masa berlaku, atau menonaktifkan CSRF demi kemudahan development. Perubahan pada aturan ini wajib lewat ADR baru.
 - **Rate limiting tanpa layanan berbayar**: tabel D1. Jangan mengandalkan Cloudflare Rate Limiting Rules (berbayar).
 - **State lokal `wrangler dev`** hidup di `.wrangler/state`. Kalau skema terasa "tidak berubah", reset state lokal dulu, jangan menuduh migrasinya salah.

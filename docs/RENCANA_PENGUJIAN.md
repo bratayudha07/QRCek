@@ -6,6 +6,7 @@ Tujuan pengujian di proyek ini **bukan** mengejar angka coverage, tetapi membukt
 
 ## Snapshot verifikasi terkini
 
+- Snapshot 4 November 2026 (Q1, belum di-commit): `typecheck` PASS, `lint` PASS, `test` **520 tes di 52 file** lulus.
 - Commit acuan `157c330` (3 November 2026, `REQUIREMENTS.md` §0.1): `npm run test` → **458 tes di 48 file** lulus. Angka ini snapshot; hitung ulang dengan `npm run test`.
 - Snapshot sebelumnya (2 November 2026): `typecheck` PASS, `lint` PASS, `test` 450 tes di 47 file.
 - Integrasi Worker mencakup scan/duplikasi/lintas acara, koreksi dan audit, alur Sheets
@@ -149,16 +150,18 @@ it("menolak koreksi tanpa alasan yang memadai", () => {
 | I-26 | **`rate-limit.activate`** | Percobaan ke-11 dalam 15 menit → 429 + `Retry-After` | |
 | I-27 | `error.no-stack-trace` | Error internal tidak membocorkan stack/pesan D1 mentah | |
 | I-28 | `pagination.cursor-stable` | Kursor tetap benar saat ada insert baru di antara halaman | |
-| I-29 | **`register.scope-zero`** | Akun hasil daftar sendiri adalah `event_admin` tanpa keanggotaan dan tidak bisa membaca acara orang lain (404) | |
-| I-30 | **`register.role-injection`** | Payload berisi `role` ditolak 400; tidak ada baris `users` yang tertulis | |
-| I-31 | `audit.read-scope` | Admin acara dapat membaca audit acaranya; petugas ditolak; respons tidak memuat hash IP/token | Route nyata + D1 |
-| I-32 | `attendance.export` | Admin dapat mengunduh CSV terfilter; petugas ditolak | Periksa status, MIME, header, isi CSV |
-| I-31 | `register.rate-limit` | Pendaftaran ke-6 dalam 1 jam per IP-hash → 429, tanpa penulisan | |
-| I-32 | `register.creates-owner` | Admin baru membuat acara → baris acara + keanggotaan `event_admin` dalam satu batch | |
-| I-33 | **`turnstile.fail-closed`** | Token kosong / HTTP error / fetch throw → registrasi ditolak; tidak ada penulisan | |
-| I-34 | `health.ready` | `SELECT 1` sukses → 200 `ready`; D1 melempar error → 503 `DB_UNAVAILABLE` (bukan 500) | Stub `env.DB` yang melempar |
-| I-35 | **`usage.superadmin-only`** | `event_admin`/`officer` → 403; superadmin → 200 dengan hitungan; `pending`+`inflight` dihitung sebagai `queued` | Route nyata + D1 |
-| I-36 | `security.headers` | Header keamanan ikut pada respons sukses, error, 404, dan CSV; `public/_headers` identik dengan `SECURITY_HEADERS` | Assert header + tes paritas file |
+| I-29 | **`register.closed`** | `POST /api/auth/register` → 404 `NOT_FOUND`; tidak ada baris `users`/`sessions`/`recovery_codes`; akun `event_admin` hanya lahir dari undangan (`AC-050`) | Route nyata + D1 |
+| I-30 | **`theme.alias`** | `/api/calendar` dan `/api/themes` memberi respons identik dengan `/api/events`, termasuk 401/404 | Iterasi prefix pada route nyata |
+| I-31 | **`activity.lifecycle`** | `draft → active → completed → archived`; `draft → archived`; `active → archived` ditolak; tidak ada reopen; transisi tercatat audit | Route nyata |
+| I-32 | **`activity.cross-theme`** | Aktivitas milik Tema lain → 404 untuk GET/PATCH/status; tidak ada tulisan | Route nyata + D1 |
+| I-33 | **`session.lifecycle`** | `scheduled → in_progress → completed`; `→ disabled`; arsip hanya dari `completed`/`disabled`; arsip final; status tidak disimpulkan dari jam | Route nyata |
+| I-34 | **`session.cross-activity`** | Sesi milik Aktivitas lain → 404 untuk GET/PATCH/status/arsip/duplikasi | Route nyata + D1 |
+| I-35 | **`audit.guarded-write`** | Baris audit hanya tertulis bila mutasi di batch yang sama berhasil; kalah optimistic check → 409 tanpa audit | Route nyata + D1 |
+| I-36 | `audit.read-scope` | Admin acara dapat membaca audit acaranya; petugas ditolak; respons tidak memuat hash IP/token | Route nyata + D1 |
+| I-37 | `attendance.export` | Admin dapat mengunduh CSV terfilter; petugas ditolak | Periksa status, MIME, header, isi CSV |
+| I-38 | `health.ready` | `SELECT 1` sukses → 200 `ready`; D1 melempar error → 503 `DB_UNAVAILABLE` (bukan 500) | Stub `env.DB` yang melempar |
+| I-39 | **`usage.superadmin-only`** | `event_admin`/`officer` → 403; superadmin → 200 dengan hitungan; `pending`+`inflight` dihitung sebagai `queued` | Route nyata + D1 |
+| I-40 | `security.headers` | Header keamanan ikut pada respons sukses, error, 404, dan CSV; `public/_headers` identik dengan `SECURITY_HEADERS` | Assert header + tes paritas file |
 
 #### Status historis per akhir Tahap 3
 
@@ -198,7 +201,7 @@ Kredensial QR dan label menambah tes berikut (semua **PASS**):
 | API | Audit `qr.labels_exported` tanpa token/hash/ciphertext | `labels.api.test.ts` |
 | API | Konfigurasi: default, simpan urutan, sembunyikan nilai kosong, tolak field asing/duplikat/>4, `officer` read-only, `archived` → 422 | `labels.api.test.ts` |
 | DB | Kolom QR nullable; unique hash; `CHECK` panjang/versi; klaim sekali; import tidak merotasi; audit append-only | `qr.db.test.ts` |
-| DB | Daftar migrasi memuat QR, attendance, sync, audit, dan self-signup | `db.integration.test.ts`, `qr.db.test.ts` |
+| DB | Daftar migrasi memuat QR, attendance, sync, audit, self-signup, dan Q1 (activities/activity_sessions) | `db.integration.test.ts`, `qr.db.test.ts` |
 | Web | Helper field/paginasi/CSS cetak | `apps/web/src/lib/qr-labels.test.ts` |
 
 **NOT RUN (butuh browser/perangkat):** tampilan visual halaman label, perilaku `window.print()`,
@@ -218,16 +221,20 @@ Tambahan yang tidak ada di daftar awal tetapi diuji karena Tahap 2 dan 3:
 | Batas 50 undangan aktif per acara → 422 | `authz.events.test.ts` |
 | Undangan yang sudah dipakai tidak bisa dihapus | `authz.events.test.ts` |
 | Tidak bisa mencabut akses sendiri → 422 | `authz.events.test.ts` |
-| Route publik dibatasi tepat 5 (health, health/ready, activate, register, recover) | `authz.unauthenticated.test.ts` |
+| Route publik dibatasi tepat 4 (health, health/ready, activate, recover) | `authz.unauthenticated.test.ts` |
 | Readiness: `SELECT 1` sukses → 200, D1 error → 503 `DB_UNAVAILABLE` | `ops.test.ts` |
 | `/api/admin/usage` superadmin-only; hitungan outbox `queued`/`failed`/`dead` | `ops.test.ts` |
 | Header keamanan pada respons sukses, error, dan 404 API; paritas `_headers` ↔ `SECURITY_HEADERS` | `ops.test.ts`, `apps/web/src/lib/security-headers.test.ts` |
-| Pendaftaran mandiri: sesi + kode pemulihan, peran tidak bisa dipilih, isolasi acara, rate limit | `auth.register.test.ts` |
-| Turnstile gagal-tertutup dan tidak memanggil jaringan saat token kosong | `turnstile.test.ts` |
+| Registrasi publik ditutup: route 404, tanpa baris users/sessions/recovery_codes; akun hanya dari undangan | `register.closed.test.ts` |
+| Alias `/api/calendar` dan `/api/themes` identik dengan `/api/events` (list, detail, 404, 401, mutasi) | `themes-alias.test.ts` |
+| Aktivitas: create/list/patch/status, `transactionType` imutabel, urutan `sort_order`, audit, read-only saat arsip, Tema terarsip → 422, hard-delete Tema dengan Aktivitas ditolak | `activities.api.test.ts` |
+| Sesi: create/list/patch/status/arsip/duplikasi, urutan `starts_at`, validasi jam, arsip hanya dari final, lintas Aktivitas → 404 | `activity-sessions.api.test.ts` |
+| Tabel transisi lifecycle Aktivitas/Sesi lengkap (semua pasangan status) | `packages/shared/src/lifecycle.test.ts` |
+| Allowlist audit: field sensitif di-redact, field asing dibuang | `packages/shared/src/audit-allowlist.test.ts` |
 | Matriks §5.1 lengkap, termasuk aksi baru yang lupa didaftarkan | `permissions.test.ts` |
 | Primitif token: base32, normalisasi kode, HMAC, panjang entropi | `token.test.ts` |
 | Generator ID: panjang 26, urut secara leksikografis, unik dalam 1 ms | `ids.test.ts` |
-| Skema Fase 1 ada, tabel fase berikutnya tidak ada | `db.integration.test.ts` |
+| Skema melalui Q1 ada (activities, activity_sessions), tabel fase berikutnya tidak ada | `db.integration.test.ts` |
 | Lifecycle acara lengkap, `archived` final, `active → archived` ditolak | `event-status.test.ts`, `events.crud.test.ts` |
 | CRUD acara + otorisasi (superadmin/admin/petugas, lintas acara) | `events.crud.test.ts` |
 | Hapus acara hanya draf kosong; selain itu 422 | `events.crud.test.ts` |
@@ -439,6 +446,14 @@ Checklist singkat yang dijalankan pada staging sebelum deploy produksi:
 Daftar ini diturunkan dari `REQUIREMENTS.md` (BR/AC) dan menjadi bagian gate tahap roadmap. Nama tes di sini adalah **perilaku**; nama file ditentukan saat implementasi. Tes yang ditandai **★** adalah tes integritas: wajib ada, wajib gagal bila aturannya dihapus, dan tidak boleh di-`skip`.
 
 Semua keputusan produk D-001…D-024 sudah disetujui `[A]`; AQ arsitektur ditanggapi lewat ADR baru sebelum tahap terkait dibuka.
+
+> **Status per 4 November 2026 (Q1).** `T-005` dan `T-008` sudah diimplementasikan
+> (`packages/shared/src/lifecycle.test.ts`, `apps/api/src/test/activity-sessions.api.test.ts`).
+> `T-001` sudah diuji untuk pembuatan/penunjukan Sesi lintas Aktivitas/Tema
+> (`activity-sessions.api.test.ts`, `activities.api.test.ts`); bagian transaksinya menunggu Q5.
+> `T-004` berlaku sebagian: status Sesi hanya berubah lewat endpoint eksplisit dan tidak
+> disimpulkan dari jam. `T-002`, `T-003`, `T-006`, dan `T-007` tetap menunggu Q5 karena
+> transaksi belum ada.
 
 ### 9.1 Konteks, hierarki, dan lifecycle (Q1, penegakan di Q5)
 

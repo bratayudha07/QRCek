@@ -2,7 +2,7 @@
 
 Dokumen ini mencatat hasil pengukuran, instruksi operasi, status deployment, dan quirk lingkungan yang tidak terlihat dari kode.
 
-> **Konteks (3 November 2026).** Semua pengukuran dan prosedur di sini berlaku untuk **baseline** (model `events` datar, commit acuan `157c330`). Model target QRCek ([`REQUIREMENTS.md`](./REQUIREMENTS.md)) akan menambah tabel, indeks, dan jalur transaksi baru; angka CPU/statement/baris di bawah **tidak** otomatis berlaku untuk model itu dan harus diukur ulang di tahap roadmap terkait ([`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md) Q5 dan Q11). Uji perangkat fisik scanner, akun Google Sheets nyata, dan CPU produksi belum pernah dilakukan (`REQUIREMENTS.md` §7.3). Rujukan "ADR-00N" di dokumen ini = `docs/adr/000N-*.md`.
+> **Konteks (4 November 2026).** Semua pengukuran dan prosedur di sini berlaku untuk baseline (model `events` datar, commit acuan `157c330`) ditambah fondasi Q1 (Aktivitas/Sesi, API-only). Model target QRCek ([`REQUIREMENTS.md`](./REQUIREMENTS.md)) akan menambah tabel, indeks, dan jalur transaksi baru; angka CPU/statement/baris di bawah **tidak** otomatis berlaku untuk model itu dan harus diukur ulang di tahap roadmap terkait ([`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md) Q5 dan Q11). Uji perangkat fisik scanner, akun Google Sheets nyata, dan CPU produksi belum pernah dilakukan (`REQUIREMENTS.md` §7.3). Rujukan "ADR-00N" di dokumen ini = `docs/adr/000N-*.md`.
 
 ## Status operasi saat ini (2 November 2026)
 
@@ -15,9 +15,14 @@ Dokumen ini mencatat hasil pengukuran, instruksi operasi, status deployment, dan
   dan security headers belum ada di respons aset. Artinya versi yang live lebih lama dari
   commit yang menambahkan permukaan Fase 6; endpoint itu muncul setelah push berikutnya.
 - Migrasi remote sampai `0006_self_signup.sql` telah digunakan oleh aplikasi produksi.
-  Migrasi **tidak** dijalankan oleh Workers Builds — lihat §10.3.
-- Secret Turnstile harus cocok dengan **Secret Key** widget yang sama dengan site key publik frontend. `invalid-input-secret` berarti secret tidak cocok atau tidak aktif. Unggah Secret Key yang benar memakai `npx wrangler secret put TURNSTILE_SECRET_KEY` dari `apps/api`. Jangan mencetak nilainya.
-- Browser terbaru mengarahkan request daftar acara ke `/api/calendar` untuk menghindari pemblokiran content blocker yang terlihat pada `/api/events` (Network menampilkan “Blocked By uBlock Origin”). Alias itu ikut ter-deploy bersama kode Worker, jadi statusnya mengikuti commit yang live.
+  `0007_q1_activities_sessions.sql` **belum** diterapkan di remote. Migrasi **tidak**
+  dijalankan oleh Workers Builds — lihat §10.3.
+- Pendaftaran mandiri publik sudah dihapus (ADR-0013). `POST /api/auth/register` → 404, dan
+  tidak ada lagi `TURNSTILE_SECRET_KEY` maupun `VITE_TURNSTILE_SITE_KEY` yang perlu diatur.
+  Akun Admin Acara hanya dibuat lewat undangan Super Admin. Saat deploy pertama setelah
+  perubahan ini, hapus secret lama dengan `npx wrangler secret delete TURNSTILE_SECRET_KEY`
+  dari `apps/api` (tidak wajib untuk runtime, tetapi menghindari secret menganggur).
+- Browser terbaru mengarahkan request daftar acara ke `/api/calendar` untuk menghindari pemblokiran content blocker yang terlihat pada `/api/events` (Network menampilkan “Blocked By uBlock Origin”). Sejak Q1 tersedia pula alias eksplisit `/api/themes`. Keduanya ikut ter-deploy bersama kode Worker, jadi statusnya mengikuti commit yang live.
 
 Lingkungan pengukuran:
 
@@ -43,7 +48,7 @@ Tanggal pengukuran: 30 Oktober 2026.
 | 2 | `RETURNING` pada `INSERT ... ON CONFLICT` | ✅ **terverifikasi** | Didukung, termasuk di dalam `db.batch()` |
 | 3 | Partial unique index | ✅ **terverifikasi** | Didukung dan ditegakkan |
 | 4 | `EXPLAIN QUERY PLAN` query panas | ✅ **terverifikasi** | 10/10 query memakai `SEARCH ... USING INDEX` |
-| 5 | Migrasi D1 pada database kosong | ✅ **terverifikasi** | Migrasi `0001`–`0006`; auth, peserta, QR, attendance, sync, self-signup |
+| 5 | Migrasi D1 pada database kosong | ✅ **terverifikasi** | Migrasi `0001`–`0007`; auth, peserta, QR, attendance, sync, self-signup, activities/activity_sessions |
 | 6 | `Set-Cookie` lewat Static Assets | ✅ **terverifikasi pada penggunaan** | Auth/session produksi bekerja dengan cookie |
 | 7 | CPU p95 ≤ 5 ms | ⚠️ **hanya proksi** | Wall-clock lokal terukur; CPU platform butuh `wrangler tail` pada Worker ter-deploy |
 
@@ -197,7 +202,7 @@ Yang berubah:
 | 15 tabel + 2 trigger | 1 tabel: `app_meta` |
 | 4 tes bergantung pada tabel bisnis | tes memakai tabel sekali-pakai berindeks sama |
 
-> **Status sekarang:** migrasi `0002`–`0006` telah menambahkan skema auth, peserta, QR,
+> **Status sekarang:** migrasi `0002`–`0007` telah menambahkan skema auth, peserta, QR,
 > kehadiran, audit, dan sinkronisasi. Tabel `attendance`, `audit_log`, dan `outbox` bukan lagi
 > cakupan tertunda; referensi di atas merekam keputusan historis pada awal proyek.
 
@@ -218,12 +223,12 @@ Konsekuensi yang disengaja:
 
 ```bash
 npm run db:reset:local    # hapus apps/api/.wrangler/state
-npm run db:migrate:local  # terapkan semua migrasi yang belum diterapkan (0001–0006)
+npm run db:migrate:local  # terapkan semua migrasi yang belum diterapkan (0001–0007)
 npm run db:migrate:local  # "✅ No migrations to apply!" (idempoten)
 ```
 
 Riwayat awal per Tahap 3: 3 migrasi, 10 tabel aplikasi. Skema saat ini sudah berkembang
-melalui migrasi `0004`–`0006`.
+melalui migrasi `0004`–`0007`.
 
 | Migrasi | Tabel |
 |---|---|
@@ -233,6 +238,7 @@ melalui migrasi `0004`–`0006`.
 | `0004_qr.sql` | kolom QR peserta, `event_label_config`, `audit_log` |
 | `0005_attendance_sync.sql` | `attendance`, `sync_state`, `sheet_rows`, `outbox` |
 | `0006_self_signup.sql` | metadata jalur pembuatan akun |
+| `0007_q1_activities_sessions.sql` | `activities`, `activity_sessions`, indeks Q1 |
 
 > `participants` kini memiliki kolom kredensial QR dari `0004_qr.sql`. Migrasi yang sudah
 > diterapkan tidak boleh diedit.
@@ -449,11 +455,9 @@ menambah header di satu sisi tanpa sisi lain akan merah.
 
 Nilai yang perlu diingat saat mengubah UI:
 
-- `script-src 'self' https://challenges.cloudflare.com` dan `frame-src
-  https://challenges.cloudflare.com` diperlukan Turnstile. Jangan menambah domain
-  lain atau inline script tanpa mengubah CSP lebih dulu.
-- `connect-src 'self' https://challenges.cloudflare.com` mengizinkan komunikasi
-  widget dengan layanan Turnstile.
+- `script-src 'self'`; jangan menambah domain luar atau inline script tanpa mengubah CSP
+  lebih dulu. Sejak Turnstile dihapus (ADR-0013), `challenges.cloudflare.com` tidak lagi
+  diizinkan di `script-src`, `connect-src`, maupun `frame-src`.
 - `style-src 'unsafe-inline'` ada karena React menulis atribut `style` dinamis.
 - `Permissions-Policy: camera=(self)` wajib dipertahankan; tanpa itu pemindai QR gagal
   di sebagian browser. Mikrofon dan geolokasi ditutup.
@@ -549,7 +553,7 @@ Sumber: <https://developers.cloudflare.com/workers/ci-cd/builds/limits-and-prici
 |---|---|---|
 | **Migrasi D1** | Workers Builds hanya mengunggah kode | Jalankan `npm run db:migrate:remote` lebih dulu, dengan konfirmasi pemilik. Urutan: migrasi → kode |
 | **Secret runtime** | Secret tidak disimpan di repo | `npx wrangler secret put <NAMA>` dari `apps/api` |
-| **Variabel build frontend** | Dibutuhkan saat Vite membangun bundle | Settings → Build → Variables and Secrets: `VITE_TURNSTILE_SITE_KEY` |
+| **Variabel build frontend** | Dibutuhkan saat Vite membangun bundle | Saat ini tidak ada `VITE_*` wajib; bila ditambah, atur di Settings → Build → Variables and Secrets dan pastikan nilainya publik |
 | **Data D1** | Bukan bagian dari deploy | Backup/PITR D1, lihat §9.3 untuk audit |
 
 ### 10.4 Verifikasi setelah deploy

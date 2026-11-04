@@ -34,7 +34,7 @@
 | Tahap | Fokus | Status | Prasyarat keputusan utama |
 |---|---|---|---|
 | Q0 | Penyelarasan dokumen & keputusan | **Berjalan** | `D-001`, `D-002` [A] |
-| Q1 | Fondasi Tema → Aktivitas → Sesi, lifecycle, mekanisme audit | Belum dibuka | AQ-001, AQ-010, AQ-014; `D-009`, `D-023` [A]; `OQ-033` [A] untuk aksi arsip Sesi |
+| Q1 | Fondasi Tema → Aktivitas → Sesi, lifecycle, mekanisme audit | **Dibuka** | AQ-001, AQ-010, AQ-014 (ADR-0009–0011, Diterima); ADR-0012 (lifecycle), ADR-0013 (registrasi), keduanya Diterima; `D-009`, `D-010`, `D-023` [A]; `OQ-033` [A] untuk aksi arsip Sesi |
 | Q2 | Peserta, kategori, custom field, impor CSV | Belum dibuka | AQ-006; `D-008`, `D-020` [A] |
 | Q3 | Entitlement | Belum dibuka | AQ-005 |
 | Q4 | QR Identity per Tema, rotasi, ekspor PNG/ZIP | Belum dibuka | AQ-009; `D-016` [A] |
@@ -104,9 +104,10 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 
 **Gate untuk membuka Q1:**
 
-- [ ] Product owner mereview `REQUIREMENTS.md` v0.3.1 dan dokumen turunan ini.
-- [ ] Keputusan Q1 disetujui: `D-009`, `D-018`, `D-023` (semua `[A]`).
-- [ ] ADR untuk AQ-001, AQ-010, AQ-014 berstatus Diterima.
+- [x] Product owner mereview `REQUIREMENTS.md` v0.3.1 dan dokumen turunan ini.
+- [x] Keputusan Q1 disetujui: `D-009`, `D-018`, `D-023` (semua `[A]`).
+- [x] ADR untuk AQ-001, AQ-010, AQ-014 berstatus Diterima.
+- [x] ADR-0012 (tabel transisi lifecycle) dan ADR-0013 (pendaftaran mandiri nonaktif) berstatus Diterima.
 - [ ] `REQUIREMENTS.md` §0.3 dan §13.3 diperbarui product owner agar status dokumen turunan tidak lagi "belum dibuat".
 
 ---
@@ -132,6 +133,15 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 - `DESAIN_DATABASE.md` mencatat migrasi baru; tidak ada migrasi lama yang diedit.
 
 **Bukan cakupan:** transaksi, entitlement, scanner.
+
+**Hasil implementasi (4 November 2026 — menunggu review manusia):**
+
+- `migrations/0007_q1_activities_sessions.sql` menambah `activities` dan `activity_sessions`; `0001`–`0006` tidak diedit.
+- Route API: `/api/events/:eventId/activities` dan `/api/events/:eventId/activities/:activityId/sessions` beserta status/arsip/duplikasi; alias `/api/themes` dan `/api/calendar` memakai handler yang sama.
+- Lifecycle di `packages/shared/src/lifecycle.ts` (ADR-0012); audit allowlist di `packages/shared/src/audit-allowlist.ts` (ADR-0011).
+- Tes: `packages/shared/src/lifecycle.test.ts`, `audit-allowlist.test.ts`, `apps/api/src/test/activities.api.test.ts`, `activity-sessions.api.test.ts`, `themes-alias.test.ts`, `register.closed.test.ts`.
+- **Ditunda:** UI Aktivitas/Sesi (Q6/Q8/Q9), shim "satu Aktivitas default" untuk Tema lama (Q5), dan seluruh perilaku transaksi (`AC-004` bagian transaksi, `AC-005` bagian riwayat transaksi).
+- Gate di atas belum ditutup; penutupan menunggu review pemilik proyek dan pembaruan `REQUIREMENTS.md` §0.3/§13.3.
 
 ---
 
@@ -351,3 +361,5 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 | Versi | Tanggal | Perubahan |
 |---|---|---|
 | Draft v1 | 3 November 2026 | Dibuat dari `REQUIREMENTS.md` v0.3.1; menggantikan roadmap Fase 0–6 sebagai rencana aktif; mengintegrasikan evaluasi `PLAN_TAB_PESERTA.md`. |
+| Draft v1.1 | 4 November 2026 | Q1: tambah prasyarat ADR-0012 (lifecycle) dan ADR-0013 (registrasi publik nonaktif); perjelas `D-010` [A]. Status tahap belum berubah. |
+| Draft v1.2 | 4 November 2026 | ADR-0009–0013 berstatus Diterima; Q1 **Dibuka** (API-only). |

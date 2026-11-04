@@ -2,7 +2,7 @@
 
 Database: Cloudflare D1, binding `DB`. Dialek **SQLite**, bukan Postgres.
 
-> **Status dokumen (3 November 2026).** Dokumen ini mencatat **skema aktual (baseline)**: migrasi `0001`–`0006`, semuanya sudah diterapkan di remote dan **tidak boleh diedit**. Model target QRCek (Tema → Aktivitas → Sesi, kategori, custom field, entitlement, transaksi efektif, Reversal/Adjustment, kuota konsumsi) **belum punya skema**. Skema target diputuskan lewat AQ-001–AQ-006, AQ-009, AQ-010, AQ-014 di [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6, lalu dicatat di sini bersama file migrasi barunya. `D-007` [A] menghapus kewajiban migrasi data produksi, **bukan** kewajiban regression test, dan bukan izin mengedit migrasi lama.
+> **Status dokumen (4 November 2026).** Dokumen ini mencatat **skema aktual**: migrasi `0001`–`0007`. `0001`–`0006` sudah diterapkan di remote dan **tidak boleh diedit**; `0007_q1_activities_sessions.sql` adalah migrasi Q1 (Aktivitas/Sesi) yang belum diterapkan di remote. Model target QRCek yang tersisa (kategori, custom field, entitlement, transaksi efektif, Reversal/Adjustment, kuota konsumsi) **belum punya skema**; bentuknya diputuskan lewat AQ-002–AQ-006, AQ-009 di [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6. `D-007` [A] menghapus kewajiban migrasi data produksi, **bukan** kewajiban regression test, dan bukan izin mengedit migrasi lama.
 >
 > Bagian yang bertentangan dengan keputusan produk `[A]` ditandai **Delta**: `attendance` satu baris per `(event_id, participant_id)` (target: per ruang lingkup Aktivitas/Sesi, `D-003`), koreksi via `UPDATE attendance` (target: Reversal/Adjustment, `D-006`), dan kredensial QR per baris peserta per acara (target: per Tema + Peserta, `D-004`).
 
@@ -40,6 +40,7 @@ events ──┬──< event_memberships >── users ──┬──< device_
          │                                  ├──< sessions
          │                                  ├──< recovery_codes
          │                                  └──< invites (sebagai pembuat)
+         ├──< activities ──< activity_sessions
          ├──< participants ──┬──< attendance (1:1 per acara)
          │                   └──< sheet_rows (1:1)
          ├──< invites
@@ -57,7 +58,7 @@ Catatan: `superadmin` bersifat global (`users.role`), sedangkan `event_admin` da
 
 ## 3. DDL
 
-> **Keadaan aktual per 1 November 2026:** migrasi `0001`–`0006` membuat tabel bisnis dan kolom QR, attendance, audit, outbox, Sheets, serta self-signup. DDL di bawah mendokumentasikan skema; file migrasi tetap sumber kebenaran untuk definisi aktual.
+> **Keadaan aktual per 4 November 2026:** migrasi `0001`–`0006` membuat tabel bisnis, kolom QR, attendance, audit, outbox, Sheets, dan metadata self-signup; `0007` menambahkan `activities` dan `activity_sessions` (Q1). DDL di bawah mendokumentasikan skema; file migrasi tetap sumber kebenaran untuk definisi aktual.
 
 File migrasi: satu file per perubahan skema, diberi nomor berurutan di `migrations/`.
 
@@ -319,10 +320,11 @@ CREATE TABLE rate_limits (
 > Migrasi berikutnya tidak boleh mengedit `0003`/`0004`; perubahan skema selalu lewat file baru.
 
 > Nomor file aktual: `0001_init.sql`, `0002_auth.sql`, `0003_participants.sql`,
-> `0004_qr.sql`, `0005_attendance_sync.sql`, `0006_self_signup.sql`. Perubahan berikutnya
-> harus memakai `0007_*.sql` atau nomor berurutan berikutnya.
+> `0004_qr.sql`, `0005_attendance_sync.sql`, `0006_self_signup.sql`,
+> `0007_q1_activities_sessions.sql`. Perubahan berikutnya harus memakai `0008_*.sql` atau
+> nomor berurutan berikutnya.
 
-> **ADR-007 (`0006_self_signup.sql`).** Satu kolom baru pada `users`:
+> **ADR-007 (`0006_self_signup.sql`) dan ADR-0013.** Satu kolom baru pada `users`:
 >
 > ```sql
 > ALTER TABLE users ADD COLUMN created_via TEXT NOT NULL DEFAULT 'invite'
@@ -331,9 +333,10 @@ CREATE TABLE rate_limits (
 > ```
 >
 > `DEFAULT 'invite'` menjaga baris lama tetap valid tanpa penulisan ulang tabel. Nilai
-> `seed` dipakai untuk akun bootstrap superadmin, `invite` untuk aktivasi undangan, dan
-> `self_signup` untuk `POST /api/auth/register`. Kolom ini **bukan** penanda kepercayaan:
-> otorisasi tetap dihitung dari `users.role` + `event_memberships`.
+> `seed` dipakai untuk akun bootstrap superadmin, `invite` untuk aktivasi undangan. Nilai
+> `self_signup` dipertahankan hanya karena `0006` sudah diterapkan di remote dan tidak boleh
+> diedit; sejak ADR-0013 tidak ada jalur aplikasi yang menulisnya. Kolom ini **bukan**
+> penanda kepercayaan: otorisasi tetap dihitung dari `users.role` + `event_memberships`.
 
 File: `migrations/0005_attendance_sync.sql`
 
@@ -385,6 +388,79 @@ CREATE UNIQUE INDEX uq_outbox_pending
 CREATE INDEX idx_outbox_due ON outbox(status, next_attempt_at);
 ```
 
+File: `migrations/0007_q1_activities_sessions.sql` (Q1, ADR-0009/0010/0012)
+
+```sql
+CREATE TABLE activities (
+  id               TEXT PRIMARY KEY,
+  theme_id         TEXT NOT NULL REFERENCES events(id) ON DELETE RESTRICT,
+  name             TEXT NOT NULL,
+  description      TEXT,
+  transaction_type TEXT NOT NULL CHECK (transaction_type IN ('attendance','consumption')),
+  status           TEXT NOT NULL DEFAULT 'draft'
+                   CHECK (status IN ('draft','active','completed','archived')),
+  location         TEXT,
+  sort_order       INTEGER NOT NULL DEFAULT 0,
+  created_at       INTEGER NOT NULL,
+  created_by       TEXT REFERENCES users(id),
+  updated_at       INTEGER NOT NULL,
+  updated_by       TEXT REFERENCES users(id),
+  archived_at      INTEGER,
+  CHECK (length(name) BETWEEN 1 AND 120),
+  CHECK (description IS NULL OR length(description) <= 500),
+  CHECK (location IS NULL OR length(location) <= 200),
+  CHECK (created_at > 0),
+  CHECK (updated_at >= created_at),
+  CHECK ((status = 'archived') = (archived_at IS NOT NULL))
+);
+CREATE INDEX idx_activities_theme_status ON activities(theme_id, status, sort_order);
+CREATE INDEX idx_activities_theme_type   ON activities(theme_id, transaction_type);
+
+CREATE TABLE activity_sessions (
+  id          TEXT PRIMARY KEY,
+  activity_id TEXT NOT NULL REFERENCES activities(id) ON DELETE RESTRICT,
+  name        TEXT NOT NULL,
+  location    TEXT,
+  starts_at   INTEGER,
+  ends_at     INTEGER,
+  status      TEXT NOT NULL DEFAULT 'scheduled'
+              CHECK (status IN ('scheduled','in_progress','completed','disabled')),
+  archived_at INTEGER,
+  created_at  INTEGER NOT NULL,
+  created_by  TEXT REFERENCES users(id),
+  updated_at  INTEGER NOT NULL,
+  updated_by  TEXT REFERENCES users(id),
+  CHECK (length(name) BETWEEN 1 AND 120),
+  CHECK (location IS NULL OR length(location) <= 200),
+  CHECK (starts_at IS NULL OR starts_at > 0),
+  CHECK (ends_at IS NULL OR starts_at IS NULL OR ends_at >= starts_at),
+  CHECK (created_at > 0),
+  CHECK (updated_at >= created_at),
+  CHECK (archived_at IS NULL OR archived_at > 0),
+  CONSTRAINT archived_session_is_finished
+    CHECK (archived_at IS NULL OR status IN ('completed','disabled'))
+);
+CREATE INDEX idx_activity_sessions_activity_status
+  ON activity_sessions(activity_id, status, starts_at);
+CREATE INDEX idx_activity_sessions_activity_time
+  ON activity_sessions(activity_id, starts_at);
+```
+
+> **Catatan 0007.**
+>
+> 1. **`theme_id` menunjuk `events.id`.** `events` adalah Tema Acara (ADR-0009); Q1 tidak
+>    mengganti nama tabel dan tidak memigrasikan data (`D-007` [A]).
+> 2. **`ON DELETE RESTRICT`, bukan `CASCADE`.** Produk hanya mengarsipkan Aktivitas/Sesi;
+>    menghapus Tema hanya boleh saat draf kosong. `DB.batch` audit tetap atomik.
+> 3. **`archived` adalah status Aktivitas**, sedangkan arsip Sesi adalah `archived_at`
+>    terpisah dari status operasional (`FR-206`, `BR-078`). `CHECK` menolak arsip Sesi yang
+>    belum `completed`/`disabled`.
+> 4. **Nama tabel `activity_sessions`.** `sessions` sudah dipakai auth (`0002_auth.sql`);
+>    mencampurnya akan membuat query sesi login dan sesi acara tidak bisa dibedakan.
+> 5. **Tidak ada `UNIQUE` nama.** Dua Aktivitas boleh bernama sama; identitas adalah `id`.
+> 6. `transaction_type` tidak dapat diubah lewat API (schema update tidak memuatnya); nilai
+>    di database tetap satu kolom karena tidak ada riwayat transaksi di Q1.
+
 ---
 
 ## 4. Indeks: alasan dan biaya
@@ -404,6 +480,10 @@ Setiap indeks menambah baris tulis. Indeks di bawah dipilih karena setiap halama
 | `idx_session_token` (UNIQUE implisit) | Verifikasi sesi |
 | `idx_outbox_due` | Cron mengambil antrean |
 | `uq_outbox_pending` (partial) | Coalescing + mencegah duplikasi item |
+| `idx_activities_theme_status` | Daftar Aktivitas per Tema terurut |
+| `idx_activities_theme_type` | Filter/kuota per tipe transaksi (dipakai Q5) |
+| `idx_activity_sessions_activity_status` | Daftar Sesi per Aktivitas + status |
+| `idx_activity_sessions_activity_time` | Urutan Sesi berdasarkan `starts_at` |
 
 **Wajib diverifikasi di Fase 0**: jalankan semua query utama dengan `EXPLAIN QUERY PLAN` dan pastikan memakai indeks (`SEARCH ... USING INDEX`), bukan `SCAN`.
 
@@ -426,6 +506,11 @@ Setiap indeks menambah baris tulis. Indeks di bawah dipilih karena setiap halama
 | Kredensial utuh (hash + ciphertext + nonce + versi) | Per-kolom `CHECK` + kode menulis kelimanya sekaligus | `qr.db.test.ts` — nilai cacat ditolak |
 | Import CSV tidak merotasi QR | `ON CONFLICT ... DO UPDATE` tidak menyentuh kolom QR | `qr.db.test.ts` — kredensial bertahan setelah upsert |
 | Audit tidak bisa diubah/dihapus | Trigger `RAISE(ABORT)` | `qr.db.test.ts` — `UPDATE`/`DELETE` gagal |
+| Aktivitas/Sesi tidak bisa lintas Tema | `findActivity` scope `theme_id`, `findActivitySession` scope `activity_id` | `activities.api.test.ts`, `activity-sessions.api.test.ts` |
+| Sesi hanya bisa diarsipkan setelah selesai/dinonaktifkan | `CHECK archived_session_is_finished` + `WHERE status IN (...)` | `activity-sessions.api.test.ts` |
+| Tema berisi Aktivitas tidak bisa di-hard-delete | `NOT EXISTS (SELECT 1 FROM activities ...)` di statement yang sama | `activities.api.test.ts` |
+| Mutasi Aktivitas/Sesi pada Tema terarsip ditolak | `requireMutableEvent` (Worker) | `activities.api.test.ts` |
+| Audit hanya tertulis bila mutasi mendarat | `INSERT ... WHERE EXISTS (updated_at = ?)` dalam `db.batch` | `activities.api.test.ts`, `activity-sessions.api.test.ts` |
 
 ---
 

@@ -53,8 +53,13 @@ Isi keputusan ada di `adr/`; status dan relasinya dengan keputusan produk ada di
 | [ADR-0004](./adr/0004-sheets-upsert-projection.md) | Sheets = proyeksi/upsert per peserta | Diterima untuk baseline; ditinjau `D-017` [A], AQ-011 |
 | [ADR-0005](./adr/0005-d1-outbox-cron.md) | Outbox D1 + Cron Trigger | Diterima |
 | [ADR-0006](./adr/0006-qr-credential-hash-ciphertext.md) | Kredensial QR: hash + ciphertext AES-GCM | Diterima |
-| [ADR-0007](./adr/0007-event-admin-self-signup.md) | Pendaftaran mandiri admin acara ber-scope nol | Diterima (baseline); ditinjau `D-018` [A] |
+| [ADR-0007](./adr/0007-event-admin-self-signup.md) | Pendaftaran mandiri admin acara ber-scope nol | Digantikan oleh ADR-0013 |
 | [ADR-0008](./adr/0008-audit-log-retention.md) | Audit append-only permanen, arsip manual | Diterima |
+| [ADR-0009](./adr/0009-events-baseline-hierarchy-mapping.md) | `events` = Tema Acara; Aktivitas/Sesi additive | Diterima (AQ-001) |
+| [ADR-0010](./adr/0010-schema-migration-strategy.md) | Migrasi additive `0007_*` dst. | Diterima (AQ-010) |
+| [ADR-0011](./adr/0011-audit-allowlist-mechanism.md) | Allowlist field audit di `packages/shared` | Diterima (AQ-014) |
+| [ADR-0012](./adr/0012-activity-session-lifecycle.md) | Tabel transisi lifecycle Aktivitas/Sesi | Diterima (detail `D-010`) |
+| [ADR-0013](./adr/0013-disable-public-self-signup.md) | Registrasi Admin Acara hanya via undangan; Turnstile dihapus | Diterima; menggantikan ADR-0007 |
 
 ---
 
@@ -91,7 +96,7 @@ Isi keputusan ada di `adr/`; status dan relasinya dengan keputusan produk ada di
 | `routes/` | `apps/api/src/routes/` | Parse → validasi (zod) → panggil domain/db → bentuk respons. Satu file per resource. |
 | `http/` | `apps/api/src/http/` | Router, CSRF/Origin, cookie, auth, error, security headers. |
 | `services/` | `apps/api/src/services/` | Orkestrasi lintas modul (outbox, housekeeping). |
-| `integrations/` | `apps/api/src/integrations/` | Klien pihak ketiga (Turnstile). Gateway Sheets ada di `domain/sheets.ts` di balik interface agar bisa di-fake. |
+| `integrations/` | `apps/api/src/integrations/` | Klien pihak ketiga. Saat ini kosong: klien Turnstile dihapus bersama registrasi publik (ADR-0013), dan gateway Sheets ada di `domain/sheets.ts` di balik interface agar bisa di-fake. |
 | UI | `apps/web/src/` | Presentasi + pemanggilan API. **Tanpa aturan bisnis.** Guard React hanya UX. |
 | Kontrak | `packages/shared/` | Skema zod, tipe request/response, konstanta batas. Dipakai web dan api. |
 
@@ -227,13 +232,14 @@ Matriks lengkap ada di `REQUIREMENTS.md` §8.2; ringkasan dampak arsitekturnya:
 
 ## 6. Pertanyaan arsitektur terbuka (AQ)
 
-Setiap AQ harus dijawab dengan ADR baru (`adr/NNNN-*.md`) **sebelum** fase roadmap yang diblokirnya dibuka. Opsi di bawah adalah bahan diskusi, bukan rekomendasi final. Status semua AQ: **Terbuka**.
+Setiap AQ harus dijawab dengan ADR baru (`adr/NNNN-*.md`) **sebelum** fase roadmap yang diblokirnya dibuka. Opsi di bawah adalah bahan diskusi, bukan rekomendasi final. Status: **AQ-001, AQ-010, dan AQ-014 dijawab** oleh ADR-0009/0010/0011; AQ lainnya **Terbuka**.
 
 ### AQ-001 — Posisi `events` baseline dalam hierarki target
 
 - **Pertanyaan:** `events` menjadi Tema Acara, atau Tema Acara adalah entitas baru dan `events` menjadi Aktivitas/dipensiunkan? (`REQUIREMENTS.md` §3.4)
 - **Opsi:** (a) `events` = Tema — reuse membership, undangan, peserta, QR paling besar; lifecycle acara perlu dipetakan ke lifecycle Tema. (b) Tema baru di atas — model bersih, tetapi hampir semua route `/api/events/:eventId/...` berubah.
 - **Masukan:** `D-003` [A], `D-007` [A] (tanpa kewajiban migrasi data produksi), `FR-172`–`FR-175` (reuse dievaluasi).
+- **Status:** dijawab **ADR-0009** (Opsi 1: `events` = Tema).
 - **Memblokir:** Q1.
 
 ### AQ-002 — Representasi transaksi Attendance dan Consumption
@@ -295,6 +301,7 @@ Setiap AQ harus dijawab dengan ADR baru (`adr/NNNN-*.md`) **sebelum** fase roadm
 
 - **Pertanyaan:** migrasi additive bertahap (`0007_*` dan seterusnya, tabel lama dipensiunkan setelah penggantinya teruji) atau set migrasi baru dengan reset database remote.
 - **Fakta yang mengikat:** remote sudah menerapkan `0001`–`0006`; migrasi yang sudah dijalankan **tidak boleh diedit**; `db:migrate:remote` dan reset remote butuh konfirmasi eksplisit pemilik proyek; constraint duplikasi lama tidak boleh dilepas sebelum penggantinya ada dan teruji. `D-007` [A] menghapus kewajiban migrasi data, bukan kewajiban regression test.
+- **Status:** dijawab **ADR-0010** (Opsi 1: additive).
 - **Memblokir:** Q1.
 
 ### AQ-011 — Proyeksi Google Sheets untuk Sesi dan Consumption
@@ -320,6 +327,7 @@ Setiap AQ harus dijawab dengan ADR baru (`adr/NNNN-*.md`) **sebelum** fase roadm
 - **Pertanyaan:** di mana allowlist field per tipe objek didefinisikan (kandidat: konstanta di `packages/shared`), bagaimana penanda "berubah" untuk field sensitif disimpan, dan bagaimana audit baseline yang menyimpan snapshot diganti.
 - **Alasan diputuskan awal:** setiap fase menambah mutasi yang wajib diaudit (`FR-135`); menunda keputusan ini berarti merombak audit berulang kali.
 - **Masukan:** `FR-207`, `D-023` [A], `NFR-006`.
+- **Status:** dijawab **ADR-0011** (Opsi 1: allowlist konstanta di `packages/shared`).
 - **Memblokir:** Q1 (audit mutasi Tema/Aktivitas/Sesi pertama).
 
 ---
@@ -421,7 +429,7 @@ Hasil bisnis selalu HTTP 200; 4xx/5xx hanya untuk autentikasi/validasi/sistem.
 | Petugas ganti/lupa HP | Admin acara membuat undangan baru; kredensial lama dicabut |
 | Petugas punya kode pemulihan | `POST /api/auth/recover` → kredensial baru + kode baru |
 | Admin acara kehilangan akses | Kode pemulihan sendiri; tanpa kode, tidak dapat dipulihkan |
-| Admin acara baru | Baseline: daftar sendiri di `/daftar` (ADR-0007). Target yang diusulkan: undangan Super Admin (`D-018` [A]) |
+| Admin acara baru | Undangan Super Admin saja (`D-018` [A]); pendaftaran mandiri publik dihapus (ADR-0013), `POST /api/auth/register` → 404 |
 | Superadmin kehilangan akses | Break-glass terdokumentasi di `OPERASIONAL.md`, wajib meninggalkan jejak audit |
 
 ### Proteksi CSRF

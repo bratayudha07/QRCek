@@ -2,7 +2,7 @@
 
 | Atribut | Nilai |
 |---|---|
-| Status | **Diusulkan** — jawaban AQ-010; menunggu adopsi pemilik proyek sebelum Q1 dibuka |
+| Status | **Diterima** — jawaban AQ-010, disetujui pemilik proyek 4 November 2026 |
 | Terkait AQ | AQ-010 (`docs/ARCHITECTURE.md` §6) |
 | Terkait kebutuhan | `D-007` [A] (tanpa kewajiban migrasi data produksi); integritas constraint lama tetap |
 | Dampak keputusan produk QRCek | Menentukan nomor migrasi, tabel baru, dan urutan deprecate tabel lama |
@@ -27,6 +27,6 @@ Opsi 1. Alasan: (a) migrasi lama tidak disentuh (aturan D1), (b) constraint dupl
 - `events` tetap (compatibility) sampai Q8 deprecation; Aktivitas/Sesi dibuat oleh Q1.
 - Audit append-only tetap (ADR-0008); tabel audit tetap satu set.
 
-## Belum ditutup
+## Catatan implementasi
 
-Status ADR ini **Diusulkan**. Q1 belum dibuka sampai adopsinya dicatat pemilik proyek.
+ADR ini diterima. Migrasi Q1 adalah `0007_q1_activities_sessions.sql`; `0001`–`0006` tidak diedit.

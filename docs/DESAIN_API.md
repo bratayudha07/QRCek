@@ -4,7 +4,7 @@ Semua endpoint di bawah `/api`. Otentikasi memakai cookie sesi `HttpOnly` (same-
 
 Sumber kebenaran kontrak: skema zod di `packages/shared/src/schemas/`. Dokumen ini menjelaskan **perilaku**, bukan menggantikan skema.
 
-> **Status dokumen (3 November 2026).** Dokumen ini mencatat **API aktual (baseline)** pada commit `157c330`: 50 definisi route, 87 pola efektif setelah alias `/api/calendar` (`REQUIREMENTS.md` §7.1.1). API target untuk Tema → Aktivitas → Sesi, entitlement, konsumsi, dan koreksi Reversal/Adjustment **belum ada**; bentuk payload-nya diputuskan lewat AQ di [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6 dan ditambahkan ke dokumen ini bersama route-nya. Endpoint yang tercantum di sini bukan bukti bahwa kebutuhan produk terpenuhi (`FR-178`). Bagian yang bertentangan dengan keputusan produk `[A]` ditandai **Delta**.
+> **Status dokumen (4 November 2026).** Dokumen ini mencatat **API aktual**: baseline `157c330` ditambah Q1 (Aktivitas/Sesi, API-only) dan penghapusan registrasi publik. Jumlahnya 61 definisi route dan 159 pola efektif setelah alias `/api/calendar` dan `/api/themes` (`REQUIREMENTS.md` §7.1.1). API target untuk entitlement, konsumsi, koreksi Reversal/Adjustment, dan scanner berkonteks **belum ada**; bentuk payload-nya diputuskan lewat AQ di [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6 dan ditambahkan ke dokumen ini bersama route-nya. Endpoint yang tercantum di sini bukan bukti bahwa kebutuhan produk terpenuhi (`FR-178`). Bagian yang bertentangan dengan keputusan produk `[A]` ditandai **Delta**.
 
 ---
 
@@ -91,7 +91,6 @@ tidak punya baris membership untuk acara yang belum ia masuki; haknya berasal da
 | Method | Path | Peran | Keterangan |
 |---|---|---|---|
 | `POST` | `/api/auth/activate` | publik | Tukar token undangan menjadi sesi |
-| `POST` | `/api/auth/register` | publik | Daftar sendiri sebagai admin acara (ADR-0007; ditinjau `D-018` [A]) |
 | `POST` | `/api/auth/recover` | publik | Tukar kode pemulihan menjadi sesi baru |
 | `GET` | `/api/auth/me` | semua | Profil + daftar acara yang boleh diakses |
 | `POST` | `/api/auth/logout` | semua | Cabut sesi aktif |
@@ -131,37 +130,20 @@ Perilaku:
 - Menerbitkan kode pemulihan baru, ditampilkan sekali.
 - Rate limit ketat: 5 percobaan / 15 menit per IP-hash.
 
-### `POST /api/auth/register`
+### `POST /api/auth/register` — dihapus
 
-```jsonc
-// request
-{ "displayName": "Sari Wulandari", "turnstileToken": "<token Turnstile, opsional>" }
-
-// 201
-{
-  "ok": true,
-  "data": {
-    "user": { "id": "01J...", "displayName": "Sari Wulandari", "role": "event_admin" },
-    "memberships": [],
-    "recoveryCode": "ABCD-EFGH-IJKL-MNOP"
-  }
-}
-```
-
-Perilaku (ADR-007):
-- Publik, tetapi tetap wajib header CSRF + `Origin` yang cocok seperti semua POST.
-- Peran selalu `event_admin`. Klien tidak bisa memilih peran: field asing ditolak `400`.
-- Akun baru **tidak** mendapat keanggotaan acara mana pun; ia hanya bisa membuat acara
-  sendiri dan otomatis menjadi `event_admin` acara itu.
-- Rate limit 5 pendaftaran/jam per IP-hash. Bila `TURNSTILE_SECRET_KEY` diisi, token
-  Turnstile wajib dan diverifikasi sebelum penulisan; kegagalan → `400 TURNSTILE_FAILED`.
-- Sesi 30 hari + kode pemulihan sekali tampil, sama seperti aktivasi.
+Tidak ada lagi pendaftaran mandiri. Route ini **tidak terdaftar**, sehingga permintaan ke
+`/api/auth/register` menghasilkan `404 NOT_FOUND` dari router API — bukan `403`, bukan
+endpoint di balik flag, dan tidak ada baris `users`/`sessions`/`recovery_codes` yang dibuat
+(ADR-0013, `D-018` [A], `AC-050`). Akun Admin Acara hanya lahir dari aktivasi undangan
+Super Admin (`POST /api/auth/activate`). Turnstile ikut dihapus dari Worker, skema, dan CSP;
+tidak ada `TURNSTILE_SECRET_KEY`.
 
 ---
 
 ## 3. Acara
 
-Untuk request dari browser, gunakan prefix `/api/calendar` (mis. `GET /api/calendar`). Worker mengarahkannya ke handler acara yang sama. Prefix lama `/api/events` tetap tersedia sebagai alias kompatibilitas. Penggantian nama path browser menghindari filter content blocker yang pada browser pengguna memblokir `/api/events` (terlihat sebagai “Blocked By uBlock Origin” di Network), sehingga kegagalan tersebut tidak menghasilkan request di Worker tail.
+Untuk request dari browser, gunakan prefix `/api/calendar` (mis. `GET /api/calendar`). Worker mengarahkannya ke handler acara yang sama. Mulai Q1, `/api/themes` juga tersedia sebagai alias eksplisit nama model target (ADR-0009). Prefix lama `/api/events` tetap kanonik dan tetap berfungsi. Ketiga prefix memakai route, handler, skema, dan guard yang sama; alias hanya dihasilkan dari tabel route di `app.ts`. Penggantian nama path browser menghindari filter content blocker yang pada browser pengguna memblokir `/api/events` (terlihat sebagai “Blocked By uBlock Origin” di Network), sehingga kegagalan tersebut tidak menghasilkan request di Worker tail.
 
 | Method | Path | Peran | Keterangan |
 |---|---|---|---|
@@ -171,10 +153,12 @@ Untuk request dari browser, gunakan prefix `/api/calendar` (mis. `GET /api/calen
 | `PATCH` | `/api/calendar/:eventId` | event_admin, superadmin | Nama, deskripsi, jadwal, timezone, `allow_manual` |
 | `POST` | `/api/calendar/:eventId/status` | event_admin, superadmin | Transisi lifecycle |
 | `GET` | `/api/calendar/:eventId/summary` | anggota acara | Hitungan peserta total/aktif/nonaktif |
-| `DELETE` | `/api/calendar/:eventId` | superadmin | **Hanya** draf tanpa peserta; selain itu `422` |
+| `DELETE` | `/api/calendar/:eventId` | superadmin | **Hanya** draf tanpa peserta dan tanpa Aktivitas; selain itu `422` |
 
-`DELETE` sengaja sempit: hard delete hanya untuk draf kosong. Draf yang sudah punya peserta,
-acara aktif, tertutup, dan terarsip ditolak dengan pesan yang mengarahkan ke arsip.
+`DELETE` sengaja sempit: hard delete hanya untuk draf kosong. Draf yang sudah punya peserta
+atau Aktivitas, acara aktif, tertutup, dan terarsip ditolak dengan pesan yang mengarahkan ke
+arsip. Kondisi diperiksa di SQL yang sama dengan `DELETE`, sehingga peserta/Aktivitas yang
+masuk bersamaan tidak ikut terhapus.
 
 Transisi status yang sah (satu sumber di `packages/shared`, ditegakkan Worker di
 `domain/event-status.ts`):
@@ -435,7 +419,127 @@ PUT /api/calendar/:eventId/label-config   body: { fields: [...], showEventName: 
 
 ---
 
-## 6. Pemindaian dan absensi
+## 6. Aktivitas dan Sesi
+
+Q1 menambahkan fondasi Tema → Aktivitas → Sesi (`FR-002`, `FR-005`–`FR-012`, `FR-182`).
+Cakupan Q1 **API-only**: belum ada halaman web untuk mengelola Aktivitas/Sesi (UI menyusul
+di Q6/Q8/Q9). Semua path memakai prefix kanonik `/api/events`; alias `/api/calendar` dan
+`/api/themes` berlaku sama karena dihasilkan dari tabel route yang sama.
+
+Otorisasi: `event_admin` dan `superadmin` untuk mutasi; `officer` hanya `GET` (anggota
+Tema). Non-anggota mendapat `404`, anggota dengan peran kurang mendapat `403`. Tema
+`archived` menolak seluruh mutasi anak dengan `422 BUSINESS_RULE` (`requireMutableEvent`).
+
+### Aktivitas
+
+| Method | Path | Peran | Keterangan |
+|---|---|---|---|
+| `GET` | `/api/events/:eventId/activities` | anggota Tema | Urut `sort_order`, lalu `created_at`, lalu `id` |
+| `POST` | `/api/events/:eventId/activities` | event_admin, superadmin | Buat Aktivitas; status awal `draft` |
+| `GET` | `/api/events/:eventId/activities/:activityId` | anggota Tema | Detail |
+| `PATCH` | `/api/events/:eventId/activities/:activityId` | event_admin, superadmin | Nama, deskripsi, lokasi, `sortOrder` |
+| `POST` | `/api/events/:eventId/activities/:activityId/status` | event_admin, superadmin | Transisi lifecycle |
+
+```jsonc
+// POST request
+{
+  "name": "Kehadiran Hari 1",
+  "description": "Presensi gerbang utama",
+  "transactionType": "attendance",   // attendance | consumption
+  "location": "Aula",
+  "sortOrder": 0
+}
+
+// 201
+{ "ok": true, "data": { "activity": {
+  "id": "01J...", "themeId": "01J...", "name": "Kehadiran Hari 1",
+  "description": "Presensi gerbang utama", "transactionType": "attendance",
+  "status": "draft", "location": "Aula", "sortOrder": 0,
+  "createdAt": 173..., "updatedAt": 173..., "archivedAt": null
+} } }
+```
+
+- `transactionType` **tidak dapat diubah** setelah dibuat; `PATCH` yang memuatnya ditolak
+  `400 VALIDATION_ERROR`. Tipe yang salah dikoreksi dengan membuat Aktivitas baru, bukan
+  dengan mengubah tipe yang sudah punya riwayat.
+- Semua query di-scope `theme_id = ?`; id Aktivitas milik Tema lain → `404`.
+- Transisi sah (ADR-0012, satu sumber di `packages/shared/src/lifecycle.ts`):
+
+```
+draft     → active | archived
+active    → completed
+completed → archived
+archived  → (final, tidak ada transisi)
+```
+
+  `active → archived` sengaja tidak ada: Aktivitas harus diselesaikan dulu. Tidak ada reopen
+  (`completed → active`, `archived → draft`). Melanggar tabel → `422 BUSINESS_RULE`.
+- PATCH memakai pemeriksaan optimistis `updated_at`; kalah balapan → `409 CONFLICT`.
+
+### Sesi
+
+| Method | Path | Peran | Keterangan |
+|---|---|---|---|
+| `GET` | `/api/events/:eventId/activities/:activityId/sessions` | anggota Tema | Urut `starts_at` (null terakhir), lalu `created_at`, lalu `id` |
+| `POST` | `/api/events/:eventId/activities/:activityId/sessions` | event_admin, superadmin | Buat Sesi; status awal `scheduled` |
+| `GET` | `/api/events/:eventId/activities/:activityId/sessions/:sessionId` | anggota Tema | Detail |
+| `PATCH` | `/api/events/:eventId/activities/:activityId/sessions/:sessionId` | event_admin, superadmin | Nama, lokasi, `startsAt`, `endsAt` |
+| `POST` | `/api/events/:eventId/activities/:activityId/sessions/:sessionId/status` | event_admin, superadmin | Transisi lifecycle |
+| `POST` | `/api/events/:eventId/activities/:activityId/sessions/:sessionId/archive` | event_admin, superadmin | Arsipkan Sesi |
+| `POST` | `/api/events/:eventId/activities/:activityId/sessions/:sessionId/duplicate` | event_admin, superadmin | Salin konfigurasi sebagai Sesi baru |
+
+```jsonc
+// POST request
+{ "name": "Gelombang 1", "location": "Gerbang", "startsAt": 173..., "endsAt": 173... }
+
+// 201
+{ "ok": true, "data": { "session": {
+  "id": "01J...", "activityId": "01J...", "name": "Gelombang 1",
+  "location": "Gerbang", "startsAt": 173..., "endsAt": 173...,
+  "status": "scheduled", "archivedAt": null,
+  "createdAt": 173..., "updatedAt": 173...
+} } }
+```
+
+- Sesi selalu diselesaikan lewat Aktivitas: `findActivitySession` di-scope `activity_id = ?`,
+  dan Aktivitas di-scope `theme_id = ?`. Id dari Aktivitas/Tema lain → `404`.
+- `endsAt` sebelum `startsAt` ditolak `400 VALIDATION_ERROR`, baik saat create maupun patch
+  gabungan. `startsAt`/`endsAt` boleh `null`; status **tidak pernah** disimpulkan dari jam.
+- Transisi status sah:
+
+```
+scheduled   → in_progress | disabled
+in_progress → completed  | disabled
+completed   → (final)
+disabled    → (final)
+```
+
+  Tidak ada reopen. Arsip bukan nilai status: `archivedAt` diisi hanya dari `completed` atau
+  `disabled` (`OQ-033` [A]), dan status operasional tetap apa adanya. Sesi terarsip menjadi
+  read-only dan tidak dapat diarsipkan dua kali (`422 BUSINESS_RULE`).
+- `duplicate` menyalin nama, lokasi, dan jam saja; salinan selalu `scheduled`, tanpa
+  `archivedAt`, dengan id baru. Tidak ada transaksi yang ikut tersalin (`BR-048`).
+- PATCH/status/arsip memakai pemeriksaan optimistis `updated_at`; kalah balapan →
+  `409 CONFLICT`.
+
+### Audit
+
+Setiap mutasi menulis `audit_log` di `db.batch()` yang sama, dengan `before`/`after`
+disaring allowlist ADR-0011 (`packages/shared/src/audit-allowlist.ts`):
+
+| Aksi | Entitas |
+|---|---|
+| `theme.created`, `theme.updated`, `theme.status_changed`, `theme.deleted` | Tema (`events`) |
+| `activity.created`, `activity.updated`, `activity.status_changed` | Aktivitas |
+| `session.created`, `session.updated`, `session.status_changed`, `session.archived`, `session.duplicated` | Sesi |
+
+Baris audit hanya ditulis bila mutasi di batch yang sama benar-benar berhasil: helper audit
+memeriksa `updated_at` (Aktivitas/Sesi) atau `status`/keberadaan baris (Tema). Karena itu
+"audit tertulis" berarti "mutasi mendarat".
+
+---
+
+## 7. Pemindaian dan absensi
 
 > **Target (belum ada):** transaksi berkonteks Aktivitas/Sesi dengan result code `SUCCESS`, `DUPLICATE`, `NOT_ENTITLED`, `INVALID_QR`, `SYSTEM_ERROR` (`FR-088`, `D-011` [A]); pemetaan dari hasil baseline di bawah adalah AQ-008. Halaman scan petugas baseline (`StaffScanPage` di `apps/web/src/pages/staff.tsx`, rute `/staff/scan`) sudah memanggil endpoint ini; `apps/web/src/pages/staff-scan.tsx` adalah file lama yang tidak diimpor di mana pun.
 
@@ -538,7 +642,7 @@ Dipakai sebagai fallback saat HP petugas tidak bisa memindai (mis. QR rusak). Te
 
 ---
 
-## 7. Audit
+## 8. Audit
 
 Worker menulis audit untuk pemindaian, koreksi, dan pencetakan label. Tabel `audit_log`
 append-only dan dilindungi trigger database.
@@ -553,7 +657,7 @@ dapat diakses pengguna.
 
 ---
 
-## 8. Sinkronisasi Google Sheets
+## 9. Sinkronisasi Google Sheets
 
 | Method | Path | Peran | Keterangan |
 |---|---|---|---|
@@ -589,7 +693,7 @@ Batas laju: `POST /sync/run` 1×/menit per acara (mencegah admin menekan tombol 
 
 ---
 
-## 9. Kesehatan dan operasional
+## 10. Kesehatan dan operasional
 
 | Method | Path | Peran | Keterangan |
 |---|---|---|---|
@@ -632,7 +736,7 @@ keputusannya dicatat di [ADR-0008](./adr/0008-audit-log-retention.md).
 
 ---
 
-## 10. Rate limiting (tanpa layanan berbayar)
+## 11. Rate limiting (tanpa layanan berbayar)
 
 Berbasis tabel `rate_limits` dengan jendela tetap.
 
@@ -662,7 +766,7 @@ berakhir lebih dari 1 jam dihapus, maksimum 500 baris per siklus.
 
 ---
 
-## 11. Cron
+## 12. Cron
 
 ```ts
 export default {
@@ -685,7 +789,7 @@ satu dicatat (`cron_job_failed`) dan tidak membatalkan yang lain.
 
 ---
 
-## 12. Hal yang perlu diverifikasi
+## 13. Hal yang perlu diverifikasi
 
 Status verifikasi diperbarui 1 November 2026; item manual dan deployment dicatat terpisah.
 

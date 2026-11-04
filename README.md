@@ -84,9 +84,9 @@ Dua lapis, dipisah tegas: **secret Worker tidak pernah masuk bundle frontend**.
 
 | Lapis | File | Isi | Git |
 |---|---|---|---|
-| Worker (secret) | `apps/api/.dev.vars` | `SESSION_PEPPER`, `QR_PEPPER`, `QR_ENCRYPTION_KEY`, `QR_KEY_VERSION`, `GOOGLE_SA_KEY`, `TURNSTILE_SECRET_KEY` | **tidak** di-commit |
+| Worker (secret) | `apps/api/.dev.vars` | `SESSION_PEPPER`, `QR_PEPPER`, `QR_ENCRYPTION_KEY`, `QR_KEY_VERSION`, `GOOGLE_SA_KEY` | **tidak** di-commit |
 | Worker (contoh) | `.dev.vars.example` | daftar kunci dengan nilai kosong | di-commit |
-| Web (publik) | `apps/web/.env.local` | `VITE_API_BASE_URL`, `VITE_TURNSTILE_SITE_KEY` | **tidak** di-commit |
+| Web (publik) | `apps/web/.env.local` | `VITE_API_BASE_URL` (opsional) | **tidak** di-commit |
 | Web (contoh) | `apps/web/.env.example` | dokumentasi variabel | di-commit |
 
 `VITE_API_BASE_URL` **kosong secara default** dan itu memang yang diinginkan: SPA dan Worker berbagi origin (ADR-001), jadi tidak ada URL production yang di-hardcode. Isi hanya kalau frontend benar-benar disajikan dari origin lain (mis. preview ke Worker staging).
@@ -227,11 +227,11 @@ walau build hijau.
   jalankan `npm run db:migrate:remote` secara sadar (butuh konfirmasi pemilik proyek).
   Urutannya: migrasi dulu, baru kode yang bergantung padanya.
 - **Secret tidak ikut ter-deploy.** `SESSION_PEPPER`, `QR_PEPPER`, `QR_ENCRYPTION_KEY`,
-  `QR_KEY_VERSION`, `GOOGLE_SA_KEY`, `TURNSTILE_SECRET_KEY` tetap lewat
+  `QR_KEY_VERSION`, `GOOGLE_SA_KEY` tetap lewat
   `npx wrangler secret put <NAMA>` dari `apps/api`. Jangan menampilkan atau mencatat nilainya.
-- **`VITE_TURNSTILE_SITE_KEY` harus ada di build environment** Cloudflare (Settings → Build →
-  Variables and Secrets) kalau Turnstile dipakai; kalau tidak, bundle frontend ter-build tanpa
-  site key.
+- **Tidak ada variabel build frontend yang wajib.** `VITE_API_BASE_URL` kosong secara default
+  karena SPA dan Worker berbagi origin. Bila suatu saat menambah `VITE_*`, nilainya harus
+  publik dan diatur di Settings → Build → Variables and Secrets.
 
 Deploy manual tetap mungkin sebagai fallback:
 

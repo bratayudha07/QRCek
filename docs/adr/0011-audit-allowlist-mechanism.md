@@ -2,7 +2,7 @@
 
 | Atribut | Nilai |
 |---|---|
-| Status | **Diusulkan** — jawaban AQ-014; menunggu adopsi pemilik proyek sebelum Q1 dibuka |
+| Status | **Diterima** — jawaban AQ-014, disetujui pemilik proyek 4 November 2026 |
 | Terkait AQ | AQ-014 (`docs/ARCHITECTURE.md` §6) |
 | Terkait kebutuhan | `FR-135`, `FR-207`, `D-023` [A], `NFR-006` |
 | Dampak keputusan produk QRCek | Struktur audit sejak Q1 |
@@ -27,6 +27,6 @@ Opsi 1. Allowlist per tipe objek di `packages/shared/src/audit-allowlist.ts` (pu
 - Tes integritas audit (T-062…T-067) disesuaikan; UAT: token/secret/PII tidak muncul.
 - Penambahan mutasi baru di Q2+ memerlukan update allowlist + review sebelum deploy.
 
-## Belum ditutup
+## Catatan implementasi
 
-Status ADR ini **Diusulkan**. Q1 belum dibuka sampai adopsinya dicatat pemilik proyek.
+ADR ini diterima. Implementasi Q1: `packages/shared/src/audit-allowlist.ts`, dipakai `routes/events.ts`, `routes/activities.ts`, dan `routes/activity-sessions.ts`.
