@@ -29,7 +29,7 @@ const EDGE_MARGIN = 8;
  * Event workspace navigation built from the shadcn/ui `Tabs` primitives.
  *
  * Each trigger renders a real `<AppLink>`, so the tab is still a link: deep
- * links, middle-click, and "open in new tab" keep working. Radix supplies the
+ * links, middle-click, and "open in new tab" keep working. Base UI supplies the
  * roving tabindex and the ARIA state; the router remains the source of truth
  * for which tab is active.
  *
@@ -99,20 +99,20 @@ export function EventTabs({ eventId, active }: { eventId: string; active: EventT
                 <TabsTrigger
                   key={tab.key}
                   value={tab.key}
-                  asChild
+                  render={
+                    <AppLink
+                      href={eventTabPath(eventId, tab.key)}
+                      aria-current={isActive ? "page" : undefined}
+                    >
+                      <Icon aria-hidden="true" className="size-4 shrink-0" />
+                      <span className="whitespace-nowrap">{tab.label}</span>
+                    </AppLink>
+                  }
                   className={cn(
                     "flex-col gap-1 rounded-full px-2 py-1.5 text-[11px] sm:flex-row sm:gap-2 sm:px-3 sm:py-2 sm:text-sm",
                     isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground",
                   )}
-                >
-                  <AppLink
-                    href={eventTabPath(eventId, tab.key)}
-                    aria-current={isActive ? "page" : undefined}
-                  >
-                    <Icon aria-hidden="true" className="size-4 shrink-0" />
-                    <span className="whitespace-nowrap">{tab.label}</span>
-                  </AppLink>
-                </TabsTrigger>
+                />
               );
             })}
           </TabsList>

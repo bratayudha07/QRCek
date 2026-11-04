@@ -18,6 +18,7 @@ import {
   SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   isGlobalNavActive,
   sidebarItems,
@@ -50,6 +51,7 @@ export function Sidebar({
   children: ReactNode;
 }) {
   const items = sidebarItems(mode);
+  const isMobile = useIsMobile();
   const sidebarRef = useRef<HTMLDivElement | null>(null);
   const closeTimer = useRef<number | null>(null);
   const [hoverOpen, setHoverOpen] = useState(false);
@@ -112,20 +114,30 @@ export function Sidebar({
       }
     >
       <SidebarRoot
-        ref={sidebarRef}
+        ref={isMobile ? undefined : sidebarRef}
         id="app-sidebar"
         collapsible="icon"
-        onPointerEnter={(event) => pointerEnter(event.pointerType)}
-        onPointerLeave={(event) => pointerLeave(event.pointerType)}
-        onFocusCapture={() => {
-          clearCloseTimer();
-          setFocusOpen(true);
-          setSuppressAutoOpen(false);
-        }}
-        onBlurCapture={(event) => handleBlur(event.relatedTarget)}
+        // The mobile branch renders a Sheet, so pointer/focus handlers only
+        // apply to the desktop rail that actually expands on hover.
+        {...(isMobile
+          ? {}
+          : {
+              onPointerEnter: (event) => pointerEnter(event.pointerType),
+              onPointerLeave: (event) => pointerLeave(event.pointerType),
+              onFocusCapture: () => {
+                clearCloseTimer();
+                setFocusOpen(true);
+                setSuppressAutoOpen(false);
+              },
+              onBlurCapture: (event) => handleBlur(event.relatedTarget),
+            })}
         className={cn(
           // Capsule geometry: float the rail instead of spanning the viewport.
           "left-4 top-4 bottom-4 h-auto max-h-[calc(100dvh-2rem)]",
+          // Keep the reserved gap at the rail width while the rail is pinned
+          // collapsed, so the hover preview overlays the page instead of
+          // reflowing it.
+          collapsed && "[&>[data-slot=sidebar-gap]]:w-(--sidebar-width-icon)",
           "group-data-[side=left]:border-r-0 group-data-[side=right]:border-l-0",
           "[&>[data-slot=sidebar-inner]]:rounded-3xl",
           "[&>[data-slot=sidebar-inner]]:border [&>[data-slot=sidebar-inner]]:border-border/60",
@@ -190,7 +202,22 @@ function SidebarLink({
 
   return (
     <SidebarMenuButton
-      asChild
+      render={
+        <AppLink
+          href={item.href}
+          aria-current={active ? "page" : undefined}
+          className="flex items-center gap-3"
+        >
+          <NavIcon
+            name={item.key}
+            className={cn(
+              "size-5 shrink-0 transition-transform duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+              compact && "translate-x-[6px]",
+            )}
+          />
+          <span className="truncate group-data-[collapsible=icon]:hidden">{item.label}</span>
+        </AppLink>
+      }
       isActive={active}
       tooltip={item.label}
       className={cn(
@@ -200,22 +227,7 @@ function SidebarLink({
           ? "bg-primary/10 font-semibold text-foreground"
           : "text-muted-foreground hover:text-foreground",
       )}
-    >
-      <AppLink
-        href={item.href}
-        aria-current={active ? "page" : undefined}
-        className="flex items-center gap-3"
-      >
-        <NavIcon
-          name={item.key}
-          className={cn(
-            "size-5 shrink-0 transition-transform duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-            compact && "translate-x-[6px]",
-          )}
-        />
-        <span className="truncate group-data-[collapsible=icon]:hidden">{item.label}</span>
-      </AppLink>
-    </SidebarMenuButton>
+    />
   );
 }
 
