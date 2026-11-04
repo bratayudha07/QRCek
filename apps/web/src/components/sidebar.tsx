@@ -144,7 +144,7 @@ function SidebarLink({ item, route }: { item: GlobalNavItem; route: AppRoute }) 
       render={<AppLink href={item.href} aria-current={active ? "page" : undefined} />}
       isActive={active}
       tooltip={item.label}
-      className="h-10 gap-3 px-3 [&_svg]:size-5"
+      className="h-10 gap-3 px-3 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center [&_svg]:size-5"
     >
       <NavIcon name={item.key} />
       <span className="group-data-[collapsible=icon]:hidden">{item.label}</span>
@@ -163,7 +163,7 @@ function CollapseToggle({ collapsed }: { collapsed: boolean }) {
       aria-controls="app-sidebar"
       aria-expanded={!collapsed}
       aria-pressed={!collapsed}
-      className="h-10 gap-3 px-3 [&_svg]:size-5"
+      className="h-10 gap-3 px-3 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center [&_svg]:size-5"
     >
       {collapsed ? <PanelLeftOpen aria-hidden="true" /> : <PanelLeftClose aria-hidden="true" />}
       <span className="group-data-[collapsible=icon]:hidden">{label}</span>
