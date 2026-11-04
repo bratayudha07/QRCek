@@ -7,12 +7,12 @@ import { EventSwitcher } from "./event-switcher";
 import { EventTabs } from "./event-tabs";
 import { Sidebar } from "./sidebar";
 import { EventStatusBadge } from "./status-badge";
+import { SidebarInset } from "@/components/ui/sidebar";
 import { listEvents, onEventsChanged } from "@/lib/events";
 import { formatSchedule } from "@/lib/format";
 import { eventIdOf, eventTabForRoute, navMode, type NavMode } from "@/lib/navigation";
 import { routePath, type AppRoute, type EventTab } from "@/lib/router";
 import { useSession } from "@/lib/session";
-import { cn } from "@/lib/utils";
 
 /**
  * Frame for every authenticated screen: global navigation (desktop sidebar,
@@ -123,18 +123,13 @@ export function AppLayout({ route, children }: { route: AppRoute; children: Reac
         route={route}
         collapsed={collapsed}
         onToggle={() => setCollapsed((value) => !value)}
-      />
-
-      <main
-        ref={mainRef}
-        id="main-content"
-        tabIndex={-1}
-        className={cn(
-          "min-h-dvh pb-[calc(4.5rem+env(safe-area-inset-bottom))] outline-none transition-[padding-left] duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none lg:pb-0 print:pb-0 print:pl-0",
-          // Capsule geometry: 1rem margin + rail width + 1rem breathing room.
-          collapsed ? "lg:pl-[104px]" : "lg:pl-[264px]",
-        )}
       >
+        <SidebarInset
+          ref={mainRef}
+          id="main-content"
+          tabIndex={-1}
+          className="min-h-dvh pb-[calc(4.5rem+env(safe-area-inset-bottom))] outline-none lg:pb-0 lg:pl-8 print:pb-0 print:pl-0"
+        >
         {eventId !== null && activeTab !== null && (
           <>
             {/*
@@ -212,7 +207,8 @@ export function AppLayout({ route, children }: { route: AppRoute; children: Reac
         <div key={routeKey} className="page-enter">
           {children}
         </div>
-      </main>
+        </SidebarInset>
+      </Sidebar>
 
       <BottomNav mode={mode} route={route} />
     </div>
