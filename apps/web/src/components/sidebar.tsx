@@ -57,7 +57,7 @@ export function Sidebar({
 }) {
   return (
     <SidebarProvider open={!collapsed} onOpenChange={onToggle}>
-      <SidebarRoot id="app-sidebar" collapsible="icon">
+      <SidebarRoot id="app-sidebar" collapsible="icon" variant="sidebar">
         <SidebarHeader>
           <SidebarMenu>
             <SidebarMenuItem>

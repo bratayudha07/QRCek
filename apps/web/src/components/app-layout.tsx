@@ -7,7 +7,7 @@ import { EventSwitcher } from "./event-switcher";
 import { EventTabs } from "./event-tabs";
 import { Sidebar } from "./sidebar";
 import { EventStatusBadge } from "./status-badge";
-import { SidebarInset } from "@/components/ui/sidebar";
+import { cn } from "@/lib/utils";
 import { listEvents, onEventsChanged } from "@/lib/events";
 import { formatSchedule } from "@/lib/format";
 import { eventIdOf, eventTabForRoute, navMode, type NavMode } from "@/lib/navigation";
@@ -127,11 +127,11 @@ export function AppLayout({ route, children }: { route: AppRoute; children: Reac
         collapsed={collapsed}
         onToggle={() => setCollapsed((value) => !value)}
       >
-        <SidebarInset
+         <main
           ref={mainRef}
           id="main-content"
           tabIndex={-1}
-          className="min-h-dvh pb-[calc(4.5rem+env(safe-area-inset-bottom))] outline-none lg:pb-0 print:pb-0"
+          className={cn("min-h-dvh pb-[calc(4.5rem+env(safe-area-inset-bottom))] outline-none lg:pb-0 print:pb-0", collapsed ? "lg:pl-12" : "lg:pl-64")}
         >
         {eventId !== null && activeTab !== null && (
           <>
@@ -210,7 +210,7 @@ export function AppLayout({ route, children }: { route: AppRoute; children: Reac
         <div key={routeKey} className="page-enter">
           {children}
         </div>
-        </SidebarInset>
+        </main>
       </Sidebar>
 
       <BottomNav mode={mode} route={route} />
