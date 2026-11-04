@@ -33,6 +33,7 @@ describe("D1 integration", () => {
       "0004_qr.sql",
       "0005_attendance_sync.sql",
       "0006_self_signup.sql",
+      "0007_q1_activities_sessions.sql",
     ]);
   });
 
@@ -41,7 +42,7 @@ describe("D1 integration", () => {
       .bind("schema_version")
       .first<{ value: string }>();
 
-    expect(row?.value).toBe("6");
+    expect(row?.value).toBe("7");
   });
 
   it("stores and updates a key", async () => {
@@ -83,14 +84,17 @@ describe("D1 integration", () => {
    * Tahap 3 (Fase 2, non-QR) owns participants. Tahap 4 (Fase 2, QR) adds the
    * QR credential columns, `event_label_config`, and `audit_log`. Tahap 5
    * (Fase 3–4) adds attendance, the sync outbox, `sheet_rows`, and `sync_state`.
+   * Q1 adds activities and activity_sessions.
    */
-  it("ships every table through Tahap 5 and nothing later", async () => {
+  it("ships every table through Q1 and nothing later", async () => {
     const { results } = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
       .all<{ name: string }>();
 
     const tables = results.map((r) => r.name);
 
     for (const expected of [
+      "activities",
+      "activity_sessions",
       "attendance",
       "audit_log",
       "device_credentials",

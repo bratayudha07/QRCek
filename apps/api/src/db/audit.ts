@@ -179,3 +179,140 @@ export function insertAuditAfterAttendanceUpdateStatement(
       status,
     );
 }
+
+/** Tables that carry an `updated_at` version column usable as an audit guard. */
+type VersionedAuditTable = "activities" | "activity_sessions";
+
+/**
+ * Audit insert that only fires when the versioned row from the same
+ * `db.batch` reached the expected `updated_at`. A lost optimistic update writes
+ * no audit row, which is what makes "audit written" mean "mutation landed".
+ */
+function insertAuditAfterVersionedUpdateStatement(
+  db: D1Database,
+  entry: AuditEntry,
+  table: VersionedAuditTable,
+  entityId: string,
+  updatedAt: number,
+): D1PreparedStatement {
+  return db
+    .prepare(
+      `INSERT INTO audit_log
+         (id, event_id, actor_user_id, action, entity_type, entity_id,
+          before_json, after_json, reason, request_id, ip_hash, created_at)
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        WHERE EXISTS (SELECT 1 FROM ${table} WHERE id = ? AND updated_at = ?)`,
+    )
+    .bind(
+      entry.id,
+      entry.eventId,
+      entry.actorUserId,
+      entry.action,
+      entry.entityType,
+      entry.entityId ?? null,
+      jsonOrNull(entry.before),
+      jsonOrNull(entry.after),
+      entry.reason ?? null,
+      entry.requestId ?? null,
+      entry.ipHash ?? null,
+      entry.createdAt,
+      entityId,
+      updatedAt,
+    );
+}
+
+export function insertAuditAfterActivityUpdateStatement(
+  db: D1Database,
+  entry: AuditEntry,
+  activityId: string,
+  updatedAt: number,
+): D1PreparedStatement {
+  return insertAuditAfterVersionedUpdateStatement(db, entry, "activities", activityId, updatedAt);
+}
+
+export function insertAuditAfterSessionUpdateStatement(
+  db: D1Database,
+  entry: AuditEntry,
+  sessionId: string,
+  updatedAt: number,
+): D1PreparedStatement {
+  return insertAuditAfterVersionedUpdateStatement(
+    db,
+    entry,
+    "activity_sessions",
+    sessionId,
+    updatedAt,
+  );
+}
+
+/**
+ * `events` has no `updated_at` column, so the guard uses the status the caller
+ * expects to be current. A concurrent status change makes it fail; a plain
+ * patch passes because it leaves the status unchanged.
+ */
+export function insertAuditAfterThemeStatusStatement(
+  db: D1Database,
+  entry: AuditEntry,
+  eventId: string,
+  status: string,
+): D1PreparedStatement {
+  return db
+    .prepare(
+      `INSERT INTO audit_log
+         (id, event_id, actor_user_id, action, entity_type, entity_id,
+          before_json, after_json, reason, request_id, ip_hash, created_at)
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        WHERE EXISTS (SELECT 1 FROM events WHERE id = ? AND status = ?)`,
+    )
+    .bind(
+      entry.id,
+      entry.eventId,
+      entry.actorUserId,
+      entry.action,
+      entry.entityType,
+      entry.entityId ?? null,
+      jsonOrNull(entry.before),
+      jsonOrNull(entry.after),
+      entry.reason ?? null,
+      entry.requestId ?? null,
+      entry.ipHash ?? null,
+      entry.createdAt,
+      eventId,
+      status,
+    );
+}
+
+/**
+ * Delete audit only fires when the event is actually gone after the delete
+ * statement earlier in the same batch. `deleteEmptyDraft` still owns the
+ * "draft + empty" condition, so the two cannot drift.
+ */
+export function insertAuditAfterThemeDeleteStatement(
+  db: D1Database,
+  entry: AuditEntry,
+  eventId: string,
+): D1PreparedStatement {
+  return db
+    .prepare(
+      `INSERT INTO audit_log
+         (id, event_id, actor_user_id, action, entity_type, entity_id,
+          before_json, after_json, reason, request_id, ip_hash, created_at)
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        WHERE NOT EXISTS (SELECT 1 FROM events WHERE id = ?)`,
+    )
+    .bind(
+      entry.id,
+      entry.eventId,
+      entry.actorUserId,
+      entry.action,
+      entry.entityType,
+      entry.entityId ?? null,
+      jsonOrNull(entry.before),
+      jsonOrNull(entry.after),
+      entry.reason ?? null,
+      entry.requestId ?? null,
+      entry.ipHash ?? null,
+      entry.createdAt,
+      eventId,
+    );
+}

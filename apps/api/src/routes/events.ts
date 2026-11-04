@@ -17,18 +17,24 @@ import {
   InviteCreateRequestSchema,
   InviteIdSchema,
   UserIdSchema,
+  filterAuditFields,
 } from "@absensi/shared";
 
 import type { EventRow } from "../db/events";
 import {
   countParticipantsByStatus,
-  deleteEmptyDraft,
+  deleteEmptyDraftStatement,
   findAccessibleEvent,
   insertEventStatement,
   listAccessibleEvents,
-  updateEvent,
-  updateEventStatus,
+  updateEventStatement,
+  updateEventStatusStatement,
 } from "../db/events";
+import {
+  insertAuditAfterThemeDeleteStatement,
+  insertAuditAfterThemeStatusStatement,
+  insertAuditStatement,
+} from "../db/audit";
 import { listMembers, revokeMembership, upsertMembershipStatement } from "../db/users";
 import {
   countActiveInvites,
@@ -42,7 +48,7 @@ import { newId } from "../domain/ids";
 import { eventSlug } from "../domain/slug";
 import { hmacSha256, randomToken } from "../domain/token";
 import { authOf, requireEventAccess, requireGlobalAction } from "../http/auth";
-import { businessRule, notFound, validationError } from "../http/errors";
+import { businessRule, conflict, notFound, validationError } from "../http/errors";
 import type { RouteContext, RouteDefinition, RouteResult } from "../http/router";
 import { parseJsonBody, parsePathParams } from "../http/validate";
 
@@ -84,6 +90,19 @@ function toEventSummary(
   };
 }
 
+/** Tema audit snapshot, filtered by the ADR-0011 allowlist. */
+function themeSnapshot(row: EventRow): Record<string, unknown> | null {
+  return filterAuditFields("theme", {
+    name: row.name,
+    description: row.description,
+    timezone: row.timezone,
+    startsAt: row.starts_at,
+    endsAt: row.ends_at,
+    status: row.status,
+    allowManual: row.allow_manual === 1,
+  });
+}
+
 async function listEvents(ctx: RouteContext): Promise<RouteResult> {
   const auth = authOf(ctx);
   const rows = await listAccessibleEvents(ctx.env.DB, {
@@ -104,25 +123,53 @@ async function createEvent(ctx: RouteContext): Promise<RouteResult> {
 
   const body = await parseJsonBody(ctx.request, EventCreateRequestSchema);
   const id = newId(ctx.now);
+  const slug = eventSlug(body.name, id);
+
+  const created: EventRow = {
+    id,
+    slug,
+    name: body.name,
+    description: body.description ?? null,
+    timezone: body.timezone,
+    starts_at: body.startsAt ?? null,
+    ends_at: body.endsAt ?? null,
+    status: "draft",
+    allow_manual: body.allowManual ? 1 : 0,
+    created_at: ctx.now,
+    created_by: auth.user.id,
+    archived_at: null,
+  };
 
   const writes = [
     insertEventStatement(ctx.env.DB, {
       id,
-      slug: eventSlug(body.name, id),
+      slug,
       name: body.name,
-      description: body.description ?? null,
+      description: created.description,
       timezone: body.timezone,
-      startsAt: body.startsAt ?? null,
-      endsAt: body.endsAt ?? null,
+      startsAt: created.starts_at,
+      endsAt: created.ends_at,
       allowManual: body.allowManual,
       createdAt: ctx.now,
       createdBy: auth.user.id,
     }),
+    insertAuditStatement(ctx.env.DB, {
+      id: newId(ctx.now),
+      eventId: id,
+      actorUserId: auth.user.id,
+      action: "theme.created",
+      entityType: "theme",
+      entityId: id,
+      after: themeSnapshot(created),
+      createdAt: ctx.now,
+    }),
   ];
 
-  // ADR-007: a self-registered admin owns what it creates. The membership row
-  // is written in the same batch as the event, so an event can never exist
-  // without an owner and the owner can never be locked out of its own event.
+  // ADR-0013: an invited admin owns what it creates. Accounts no longer come
+  // from public self-signup, but an `event_admin` still becomes the owner of a
+  // Tema it creates. The membership row is written in the same batch as the
+  // event, so an event can never exist without an owner and the owner can never
+  // be locked out of its own event.
   if (auth.user.role !== "superadmin") {
     writes.push(
       upsertMembershipStatement(ctx.env.DB, {
@@ -181,7 +228,42 @@ async function patchEvent(ctx: RouteContext): Promise<RouteResult> {
     });
   }
 
-  await updateEvent(ctx.env.DB, eventId, body);
+  const updated: EventRow = {
+    ...existing,
+    name: body.name ?? existing.name,
+    description:
+      body.description === undefined ? existing.description : body.description,
+    timezone: body.timezone ?? existing.timezone,
+    starts_at: startsAt,
+    ends_at: endsAt,
+    allow_manual:
+      body.allowManual === undefined ? existing.allow_manual : body.allowManual ? 1 : 0,
+  };
+
+  const results = await ctx.env.DB.batch([
+    updateEventStatement(ctx.env.DB, eventId, body),
+    insertAuditAfterThemeStatusStatement(
+      ctx.env.DB,
+      {
+        id: newId(ctx.now),
+        eventId,
+        actorUserId: auth.user.id,
+        action: "theme.updated",
+        entityType: "theme",
+        entityId: eventId,
+        before: themeSnapshot(existing),
+        after: themeSnapshot(updated),
+        createdAt: ctx.now,
+      },
+      eventId,
+      existing.status,
+    ),
+  ]);
+
+  if ((results[0]?.meta.changes ?? 0) === 0) {
+    throw conflict("Acara berubah di perangkat lain. Muat ulang lalu coba lagi.");
+  }
+
   const row = await findAccessibleEvent(ctx.env.DB, eventId);
   if (!row) throw notFound("Acara tidak ditemukan");
 
@@ -208,7 +290,36 @@ async function changeEventStatus(ctx: RouteContext): Promise<RouteResult> {
     );
   }
 
-  await updateEventStatus(ctx.env.DB, eventId, body.status, ctx.now);
+  const updated: EventRow = {
+    ...existing,
+    status: body.status,
+    archived_at: body.status === "archived" ? ctx.now : null,
+  };
+
+  const results = await ctx.env.DB.batch([
+    updateEventStatusStatement(ctx.env.DB, eventId, body.status, ctx.now),
+    insertAuditAfterThemeStatusStatement(
+      ctx.env.DB,
+      {
+        id: newId(ctx.now),
+        eventId,
+        actorUserId: auth.user.id,
+        action: "theme.status_changed",
+        entityType: "theme",
+        entityId: eventId,
+        before: themeSnapshot(existing),
+        after: themeSnapshot(updated),
+        createdAt: ctx.now,
+      },
+      eventId,
+      body.status,
+    ),
+  ]);
+
+  if ((results[0]?.meta.changes ?? 0) === 0) {
+    throw conflict("Acara berubah di perangkat lain. Muat ulang lalu coba lagi.");
+  }
+
   const row = await findAccessibleEvent(ctx.env.DB, eventId);
   if (!row) throw notFound("Acara tidak ditemukan");
 
@@ -226,10 +337,27 @@ async function deleteEvent(ctx: RouteContext): Promise<RouteResult> {
   const existing = await findAccessibleEvent(ctx.env.DB, eventId);
   if (!existing) throw notFound("Acara tidak ditemukan");
 
-  const changes = await deleteEmptyDraft(ctx.env.DB, eventId);
-  if (changes === 0) {
+  const results = await ctx.env.DB.batch([
+    deleteEmptyDraftStatement(ctx.env.DB, eventId),
+    insertAuditAfterThemeDeleteStatement(
+      ctx.env.DB,
+      {
+        id: newId(ctx.now),
+        eventId,
+        actorUserId: auth.user.id,
+        action: "theme.deleted",
+        entityType: "theme",
+        entityId: eventId,
+        before: themeSnapshot(existing),
+        createdAt: ctx.now,
+      },
+      eventId,
+    ),
+  ]);
+
+  if ((results[0]?.meta.changes ?? 0) === 0) {
     throw businessRule(
-      "Hanya acara berstatus draft tanpa peserta yang dapat dihapus. Arsipkan acara lain.",
+      "Hanya acara berstatus draft tanpa peserta dan tanpa aktivitas yang dapat dihapus. Arsipkan acara lain.",
     );
   }
 

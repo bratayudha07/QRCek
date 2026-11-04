@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-/** Runtime schemas for the Sheets sync admin surface (DESAIN_API.md §8). */
+/** Runtime schemas for the Sheets sync admin surface (DESAIN_API.md §9). */
 
 /**
  * A spreadsheet id is the opaque value between `/d/` and `/edit` in a Sheets

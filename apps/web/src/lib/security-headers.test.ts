@@ -51,12 +51,11 @@ describe("public/_headers", () => {
     expect(staticHeaders["permissions-policy"]).toContain("camera=(self)");
   });
 
-  it("allows only same-origin scripts and the Cloudflare Turnstile origin", () => {
+  it("allows only same-origin scripts", () => {
     const csp = staticHeaders["content-security-policy"] ?? "";
 
-    expect(csp).toContain("script-src 'self' https://challenges.cloudflare.com");
-    expect(csp).toContain("frame-src https://challenges.cloudflare.com");
-    expect(csp).toContain("connect-src 'self' https://challenges.cloudflare.com");
+    expect(csp).toContain("script-src 'self'");
+    expect(csp).not.toContain("challenges.cloudflare.com");
     expect(csp).not.toContain("'unsafe-eval'");
     expect(csp).not.toContain("script-src 'unsafe-inline'");
   });

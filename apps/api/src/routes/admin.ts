@@ -5,7 +5,7 @@ import { authOf, requireGlobalAction } from "../http/auth";
 import type { RouteContext, RouteDefinition, RouteResult } from "../http/router";
 
 /**
- * Cross-event operational data (DESAIN_API.md §9).
+ * Cross-event operational data (DESAIN_API.md §10).
  *
  * Superadmin only: counts describe every tenant at once, so an event admin must
  * not see them. `requireGlobalAction` keeps the rule in `domain/permissions.ts`

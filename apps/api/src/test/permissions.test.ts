@@ -60,7 +60,7 @@ describe("authorization matrix", () => {
     }
   });
 
-  /** ADR-007: self-registered admins must be able to start their own event. */
+  /** ADR-0013: an invited admin can still start its own Tema. */
   it("lets a global event_admin create an event without any membership", () => {
     expect(isAllowed({ role: "event_admin", action: "event:create", membershipRole: null })).toBe(
       true,

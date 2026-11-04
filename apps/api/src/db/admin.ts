@@ -1,7 +1,7 @@
 import type { AdminUsagePayload } from "@absensi/shared";
 
 /**
- * Usage snapshot for capacity planning (DESAIN_API.md §9, Fase 6).
+ * Usage snapshot for capacity planning (DESAIN_API.md §10, Fase 6).
  *
  * Read-only and deliberately small: one `db.batch` so the whole snapshot costs a
  * single round trip. `COUNT(*)` still reads the table, so this endpoint is for a

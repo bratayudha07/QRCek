@@ -43,7 +43,7 @@ import { clientIpHash } from "../http/security";
 import { parseJsonBody, parsePathParams, parseQuery } from "../http/validate";
 
 /**
- * Attendance history, manual entry, and corrections (DESAIN_API.md §6).
+ * Attendance history, manual entry, and corrections (DESAIN_API.md §7).
  *
  * Every query is event-scoped. A participant or attendance id from another
  * event resolves to 404 because the SQL includes `event_id`.

@@ -16,6 +16,8 @@ import { testEnv } from "./env";
  * mysteriously green authorization test.
  */
 const TABLES_CHILDREN_FIRST = [
+  "activity_sessions",
+  "activities",
   "attendance",
   "outbox",
   "sheet_rows",

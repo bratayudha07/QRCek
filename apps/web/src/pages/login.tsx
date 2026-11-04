@@ -7,7 +7,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
 import { recoverAccount } from "@/lib/auth";
-import { paths } from "@/lib/router";
 
 /**
  * `/masuk` — login with a recovery code.
@@ -108,10 +107,6 @@ export function LoginPage() {
           </Button>
         </form>
       )}
-
-      <AppLink className="text-sm underline underline-offset-4" href={paths.register}>
-        Belum punya akun? Daftar sebagai admin acara
-      </AppLink>
 
       <AppLink className="text-sm underline underline-offset-4" href="/">
         Kembali ke beranda

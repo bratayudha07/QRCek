@@ -1,13 +1,14 @@
 import type { EventRole } from "@absensi/shared";
 
 import type { Env } from "../env";
+import type { EventRow } from "../db/events";
 import { findActiveMembership } from "../db/users";
-import { findEventName } from "../db/events";
+import { findEventById, findEventName } from "../db/events";
 import { findSessionByTokenHash, touchSession } from "../db/sessions";
 import { hmacSha256 } from "../domain/token";
 import type { Action } from "../domain/permissions";
 import { isAllowed } from "../domain/permissions";
-import { forbidden, notFound, unauthenticated } from "./errors";
+import { businessRule, forbidden, notFound, unauthenticated } from "./errors";
 import { SESSION_COOKIE, readCookie } from "./cookies";
 
 /**
@@ -122,4 +123,26 @@ export async function requireEventAccess(
   }
 
   throw forbidden("Anda tidak berwenang untuk tindakan ini pada acara tersebut");
+}
+
+/**
+ * Mutation guard for Tema-scoped resources (Aktivitas/Sesi).
+ *
+ * Archiving a Tema makes every child resource read-only; checking it here keeps
+ * each new route from re-implementing the rule (and from forgetting it).
+ */
+export async function requireMutableEvent(
+  env: Env,
+  auth: AuthContext,
+  eventId: string,
+): Promise<EventRow> {
+  await requireEventAccess(env, auth, eventId, "event:update");
+
+  const event = await findEventById(env.DB, eventId);
+  if (!event) throw notFound("Acara tidak ditemukan");
+  if (event.status === "archived") {
+    throw businessRule("Acara yang sudah diarsipkan tidak dapat diubah");
+  }
+
+  return event;
 }
