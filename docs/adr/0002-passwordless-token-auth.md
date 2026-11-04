@@ -5,7 +5,7 @@
 | Status | **Diterima** — diterapkan sejak Tahap 2; menggantikan aturan PBKDF2 lama di `AGENTS.md` |
 | Asal | `docs/ARSITEKTUR.md` ADR-002 (diekstrak 3 November 2026 tanpa perubahan keputusan) |
 | Terkait kebutuhan | `NFR-002`, `NFR-003`, `NFR-004`, `NFR-010` di [`../REQUIREMENTS.md`](../REQUIREMENTS.md) |
-| Dampak keputusan produk QRCek | Nama cookie `absensi_session` dan header `X-Absensi-Csrf` dipertahankan menurut rekomendasi `D-019` [P]. Alur pendaftaran Admin Acara ditinjau oleh `D-018` [P] (lihat ADR-0007), bukan oleh ADR ini. |
+| Dampak keputusan produk QRCek | Nama cookie `absensi_session` dan header `X-Absensi-Csrf` dipertahankan menurut rekomendasi `D-019` [A]. Alur pendaftaran Admin Acara ditinjau oleh `D-018` [A] (lihat ADR-0007), bukan oleh ADR ini. |
 
 ## Konteks
 

@@ -33,5 +33,5 @@ Opsi 3. Token peserta 32 byte acak (256 bit). Dua secret dengan tugas terpisah:
 ## Konsekuensi
 
 - Setiap cetak ulang melakukan dekripsi AES-GCM per label. Batch dibatasi 50 label/request (`QR_LABEL_BATCH_MAX`) setelah pengukuran menunjukkan 100 label melewati budget CPU ±10 ms.
-- Ekspor PNG/ZIP target (`FR-063`/`FR-064`, rekomendasi `D-016` [P]) dapat memakai jalur dekripsi yang sama: backend mengotorisasi dan mengembalikan payload; browser merender. Batas batch ini tetap berlaku.
+- Ekspor PNG/ZIP target (`FR-063`/`FR-064`, rekomendasi `D-016` [A]) dapat memakai jalur dekripsi yang sama: backend mengotorisasi dan mengembalikan payload; browser merender. Batas batch ini tetap berlaku.
 - Rotasi kunci enkripsi berbeda dari rotasi token per peserta (`FR-059`); yang kedua mengganti hash dan ciphertext sekaligus dan harus tercatat di audit (`FR-062`).

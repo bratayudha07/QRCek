@@ -2,7 +2,7 @@
 
 | Atribut | Nilai |
 |---|---|
-| Status | **Diterima untuk baseline. Ditinjau ulang** oleh `D-017` [P] dan AQ-011 (bentuk proyeksi setelah ada Sesi dan Consumption). |
+| Status | **Diterima untuk baseline. Ditinjau ulang** oleh `D-017` [A] dan AQ-011 (bentuk proyeksi setelah ada Sesi dan Consumption). |
 | Asal | `docs/ARSITEKTUR.md` ADR-004 (diekstrak 3 November 2026 tanpa perubahan keputusan) |
 | Terkait kebutuhan | `FR-193`, `AC-051` di [`../REQUIREMENTS.md`](../REQUIREMENTS.md) |
 | Menutup | Keputusan terbuka lama `AGENTS.md` #2 ("mode sinkronisasi Sheets") untuk model satu-kehadiran-per-acara |
@@ -28,5 +28,5 @@ Opsi 2. Pemetaan `participant_id → row_index` disimpan di D1 (`sheet_rows`), b
 
 ## Catatan terhadap target QRCek
 
-- `D-017` [P] merekomendasikan Sheets **opsional per Tema**, bukan sumber kebenaran, dan kegagalannya tidak boleh memblokir transaksi inti. Rekomendasi ini konsisten dengan ADR ini tetapi belum disetujui.
+- `D-017` [A] merekomendasikan Sheets **opsional per Tema**, bukan sumber kebenaran, dan kegagalannya tidak boleh memblokir transaksi inti. Rekomendasi ini konsisten dengan ADR ini tetapi belum disetujui.
 - Model "satu sel kehadiran per peserta" tidak cukup untuk banyak Aktivitas/Sesi dan Consumption. Bentuk proyeksi baru adalah AQ-011 dan harus diputuskan lewat ADR baru sebelum roadmap Q10.

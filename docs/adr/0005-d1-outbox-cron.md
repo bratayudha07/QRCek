@@ -5,7 +5,7 @@
 | Status | **Diterima** — diterapkan (`migrations/0005_attendance_sync.sql`, `apps/api/src/services/outbox.ts`) |
 | Asal | `docs/ARSITEKTUR.md` ADR-005 (diekstrak 3 November 2026; konteks dan konsekuensi dilengkapi dari `docs/ARSITEKTUR.md` §8) |
 | Terkait kebutuhan | `FR-193`, `NFR-009`, `NFR-011` di [`../REQUIREMENTS.md`](../REQUIREMENTS.md) |
-| Dampak keputusan produk QRCek | `D-017` [P] merekomendasikan mempertahankan fondasi outbox D1 bila layak. |
+| Dampak keputusan produk QRCek | `D-017` [A] merekomendasikan mempertahankan fondasi outbox D1 bila layak. |
 
 ## Konteks
 

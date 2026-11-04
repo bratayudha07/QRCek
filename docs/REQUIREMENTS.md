@@ -5,7 +5,7 @@
 > **Language:** Bahasa Indonesia dengan istilah teknis Inggris
 > **Commit acuan verifikasi:** `157c330`
 > **Tanggal verifikasi repository:** 3 November 2026
-> **Sumber kebutuhan:** Product Requirements Document yang diberikan product owner pada 3 November 2026, koreksi aturan koreksi transaksi pada tanggal yang sama, keputusan produk dan rekomendasi revisi v0.3, serta koreksi konsistensi v0.3.1.
+> **Sumber kebutuhan:** Product Requirements Document yang diberikan product owner pada 3 November 2026, koreksi aturan koreksi transaksi pada tanggal yang sama, keputusan produk dan rekomendasi revisi v0.3, koreksi konsistensi v0.3.1, serta keputusan dan koreksi faktual v0.3.2 (struktur dokumen disepakati, `D-024` disepakati, koreksi baseline scanner).
 > **Sifat dokumen:** Sumber utama untuk kebutuhan produk, ruang lingkup, aturan bisnis, dan kriteria penerimaan. Dokumen ini **bukan** keputusan arsitektur, skema database, atau rencana implementasi.
 
 ---
@@ -18,11 +18,12 @@
 |---|---|
 | Nama dokumen | Product Requirements |
 | Produk | QRCek |
-| Versi | 0.3.1 |
+| Versi | 0.3.2 |
 | Status | Draft — Pending Product Owner Review |
 | Pemilik keputusan produk | Product owner QRCek |
 | Tanggal dibuat | 3 November 2026 |
 | Tanggal revisi v0.3.1 | 3 November 2026 |
+| Tanggal revisi v0.3.2 | 3 November 2026 |
 | Commit repository yang diverifikasi | `157c330` |
 | Metode verifikasi | Pembacaan source code, migrations, schema, route, dan test; eksekusi `npm run test` |
 | Hasil verifikasi | 48 file test, 458 test lulus |
@@ -69,18 +70,18 @@ Kode kebutuhan:
 | Dokumen | Peran |
 |---|---|
 | `docs/REQUIREMENTS.md` | Sumber utama kebutuhan produk. Dokumen ini. |
-| `docs/ARCHITECTURE.md` | Rancangan arsitektur dan model sistem. Belum diperbarui untuk QRCek. |
-| `docs/DECISIONS.md` | Indeks keputusan arsitektur dan produk. Belum dibuat. |
-| `docs/adr/` | Catatan keputusan individual. Belum dibuat; ADR historis saat ini tercatat di `docs/ARSITEKTUR.md`. |
-| `docs/IMPLEMENTATION_ROADMAP.md` | Urutan implementasi. Belum dibuat. |
-| `.opencode/plans/` | Rencana eksekusi teknis per tahap. Belum diperbarui. |
+| `docs/ARCHITECTURE.md` | Rancangan arsitektur dan model sistem. Draft v1, diselaraskan dengan dokumen ini pada 3 November 2026; menggantikan `docs/ARSITEKTUR.md`. |
+| `docs/DECISIONS.md` | Indeks keputusan produk, ADR, dan pertanyaan arsitektur (AQ). Dibuat 3 November 2026. |
+| `docs/adr/` | Catatan keputusan arsitektur individual. ADR-0001–0008 diekstrak dari `docs/ARSITEKTUR.md` pada 3 November 2026 tanpa perubahan keputusan. |
+| `docs/IMPLEMENTATION_ROADMAP.md` | Urutan implementasi tahap Q0–Q11 dan gate. Draft v1, dibuat 3 November 2026. |
+| `.opencode/plans/` | Rencana eksekusi teknis per tahap. Rencana Q0 diperbarui 3 November 2026; tahap lain ditulis setelah dibuka. |
 | `docs/DESAIN_API.md` | Kontrak API aktual. |
 | `docs/DESAIN_DATABASE.md` | Desain database aktual. |
 | `docs/RENCANA_PENGUJIAN.md` | Strategi pengujian aktual. |
 | `docs/OPERASIONAL.md` | Prosedur operasional dan catatan lingkungan. |
-| `COSTS_AND_LIMITS.md` | Batasan free tier. Lokasi final menunggu `OQ-027` [O]. |
+| `COSTS_AND_LIMITS.md` | Batasan free tier. Lokasi final: root (`/COSTS_AND_LIMITS.md`); `OQ-027` ditutup. |
 
-Dokumen teknis yang sudah ada dipertahankan selama masih relevan. Perubahan nama, lokasi, dan status dokumen harus dikoordinasikan melalui pembaruan dokumentasi dan `AGENTS.md` (`D-001` [A]).
+Dokumen teknis yang sudah ada dipertahankan selama masih relevan. Perubahan nama, lokasi, dan status dokumen harus dikoordinasikan melalui pembaruan dokumentasi dan `AGENTS.md` (`D-001` [A]). Struktur dokumen di tabel ini disepakati product owner pada 3 November 2026 (v0.3.2).
 
 ### 0.4 Prinsip integrasi dokumen ini
 
@@ -157,8 +158,8 @@ Admin dapat mengunduh QR Code dalam format PNG, kemudian menggunakannya secara m
 2. Pencabutan tugas tidak menghapus transaksi historis.
 3. Setiap transaksi mencatat identitas Petugas yang melakukan tindakan.
 4. Kewenangan Reversal dan Adjustment hanya dimiliki Admin Acara. Petugas tidak memiliki kewenangan tersebut, termasuk terhadap transaksi miliknya sendiri atau Petugas lain.
-5. Kewenangan Super Admin untuk melakukan Reversal atau Adjustment masih berupa rekomendasi proposed (`D-024` [P]) dan menunggu keputusan product owner (`OQ-025` [P]).
-6. Pendaftaran Admin Acara melalui undangan Super Admin merupakan rekomendasi proposed (`D-018` [P]) dan menunggu keputusan (`OQ-022` [P]).
+5. Super Admin tidak memiliki kewenangan Reversal atau Adjustment; Super Admin hanya dapat melihat transaksi dan audit lintas Tema, dan tidak ada emergency override pada rilis awal (`D-024` [A]).
+6. Pendaftaran Admin Acara melalui undangan Super Admin merupakan rekomendasi proposed (`D-018` [A]) dan menunggu keputusan (`OQ-022` [A]).
 
 ---
 
@@ -261,7 +262,7 @@ Semua hal tersebut harus diputuskan di `docs/ARCHITECTURE.md`, `docs/DECISIONS.m
 | `FR-006` | Aktivitas harus dapat berdiri sendiri tanpa Sesi atau memiliki satu/beberapa Sesi. | PRD §2.2; `D-003` [A] |
 | `FR-007` | Aktivitas harus menentukan konteks operasional scanner. | PRD §2.3, §2.4 |
 | `FR-008` | Aktivitas tanpa Sesi harus menjadi konteks transaksi langsung; transaksi harus terhubung ke Aktivitas tersebut. | PRD §2.4; `D-003` [A] |
-| `FR-182` | Setiap Aktivitas harus memiliki satu tipe transaksi utama: Attendance atau Consumption. Aktivitas tidak boleh mencampur kedua tipe dalam satu Aktivitas. | PRD §7.2; `D-009` [P] |
+| `FR-182` | Setiap Aktivitas harus memiliki satu tipe transaksi utama: Attendance atau Consumption. Aktivitas tidak boleh mencampur kedua tipe dalam satu Aktivitas. | PRD §7.2; `D-009` [A] |
 
 ### 4.3 Sesi
 
@@ -331,15 +332,15 @@ Semua hal tersebut harus diputuskan di `docs/ARCHITECTURE.md`, `docs/DECISIONS.m
 | ID | Requirement | Sumber |
 |---|---|---|
 | `FR-046` | Sistem harus mendukung impor peserta melalui CSV. | PRD §3.4 |
-| `FR-047` | Alur impor harus mencakup: unggah CSV → pemetaan kolom → validasi → peninjauan duplikat → konfirmasi admin → laporan hasil. | PRD §3.4; `D-008` [P] |
-| `FR-048` | Sistem harus mendukung penanganan duplikat berupa Skip dan Update; Update hanya boleh dilakukan setelah konfirmasi admin. | PRD §3.4; `D-008` [P] |
+| `FR-047` | Alur impor harus mencakup: unggah CSV → pemetaan kolom → validasi → peninjauan duplikat → konfirmasi admin → laporan hasil. | PRD §3.4; `D-008` [A] |
+| `FR-048` | Sistem harus mendukung penanganan duplikat berupa Skip dan Update; Update hanya boleh dilakukan setelah konfirmasi admin. | PRD §3.4; `D-008` [A] |
 | `FR-049` | Update data peserta hanya boleh dilakukan setelah konfirmasi admin. | PRD §3.4 |
 | `FR-050` | Sistem tidak boleh memperbarui data peserta secara otomatis tanpa persetujuan admin. | PRD §3.4 |
 | `FR-051` | Participant ID harus dibuat oleh QRCek, bukan diambil begitu saja dari CSV. | PRD §3.4 |
-| `FR-052` | Pencocokan peserta harus menggunakan External Reference dalam Tema yang sama. Jika External Reference cocok satu peserta, tawarkan Skip atau Update. Jika External Reference kosong atau tidak tersedia, anggap baris sebagai peserta baru dan tampilkan kemungkinan duplikat (nama, email, phone) untuk review manual. Jika External Reference cocok banyak kandidat, admin harus memilih secara eksplisit; sistem tidak boleh memilih atau menggabungkan secara otomatis. Nama, email, dan phone adalah sinyal peringatan saja, bukan identity key otomatis. | PRD §3.4; `D-008` [P] |
-| `FR-053` | Nama, email, atau phone yang sama harus menghasilkan warning, bukan merge otomatis. Tidak boleh ada penggabungan profil peserta otomatis. | PRD §3.4; `D-008` [P] |
-| `FR-197` | Impor CSV harus dibatasi maksimum 2 MB dan 1.000 baris data di luar header; error harus jelas dan actionable. | PRD §3.4; `D-020` [P] |
-| `FR-205` | Field CSV yang kosong tidak boleh menghapus data peserta yang sudah tersimpan; nilai kosong diperlakukan sebagai tidak ada perubahan kecuali admin secara eksplisit memilih menghapus nilai. | PRD §3.4; `D-008` [P] |
+| `FR-052` | Pencocokan peserta harus menggunakan External Reference dalam Tema yang sama. Jika External Reference cocok satu peserta, tawarkan Skip atau Update. Jika External Reference kosong atau tidak tersedia, anggap baris sebagai peserta baru dan tampilkan kemungkinan duplikat (nama, email, phone) untuk review manual. Jika External Reference cocok banyak kandidat, admin harus memilih secara eksplisit; sistem tidak boleh memilih atau menggabungkan secara otomatis. Nama, email, dan phone adalah sinyal peringatan saja, bukan identity key otomatis. | PRD §3.4; `D-008` [A] |
+| `FR-053` | Nama, email, atau phone yang sama harus menghasilkan warning, bukan merge otomatis. Tidak boleh ada penggabungan profil peserta otomatis. | PRD §3.4; `D-008` [A] |
+| `FR-197` | Impor CSV harus dibatasi maksimum 2 MB dan 1.000 baris data di luar header; error harus jelas dan actionable. | PRD §3.4; `D-020` [A] |
+| `FR-205` | Field CSV yang kosong tidak boleh menghapus data peserta yang sudah tersimpan; nilai kosong diperlakukan sebagai tidak ada perubahan kecuali admin secara eksplisit memilih menghapus nilai. | PRD §3.4; `D-008` [A] |
 
 ### 4.9 QR Identity
 
@@ -354,10 +355,10 @@ Semua hal tersebut harus diputuskan di `docs/ARCHITECTURE.md`, `docs/DECISIONS.m
 | `FR-060` | Rotasi QR tidak boleh mengubah riwayat transaksi. | PRD §5.2; `D-004` [A] |
 | `FR-061` | QR milik peserta nonaktif harus ditolak. | PRD §5.2 |
 | `FR-062` | Perubahan atau rotasi QR harus dicatat dalam audit log. | PRD §5.2 |
-| `FR-063` | Admin harus dapat mengunduh QR Code individual dalam format PNG. Backend harus mengotorisasi dan menyediakan data token yang diperlukan; generasi PNG dilakukan di browser. | PRD §5.3; `D-016` [P] |
-| `FR-064` | Admin harus dapat mengunduh ZIP berisi file PNG QR setiap peserta. Backend mengotorisasi; browser melakukan packaging dengan batas batch dan memory. | PRD §5.3; `D-016` [P] |
+| `FR-063` | Admin harus dapat mengunduh QR Code individual dalam format PNG. Backend harus mengotorisasi dan menyediakan data token yang diperlukan; generasi PNG dilakukan di browser. | PRD §5.3; `D-016` [A] |
+| `FR-064` | Admin harus dapat mengunduh ZIP berisi file PNG QR setiap peserta. Backend mengotorisasi; browser melakukan packaging dengan batas batch dan memory. | PRD §5.3; `D-016` [A] |
 | `FR-065` | Setiap file hasil ekspor harus dapat diidentifikasi dengan peserta yang benar. | PRD §5.3 |
-| `FR-200` | QR token tidak boleh diekspos dalam konteks yang tidak berwenang; backend harus mengotorisasi setiap permintaan data token. | PRD §5.2; `D-016` [P] |
+| `FR-200` | QR token tidak boleh diekspos dalam konteks yang tidak berwenang; backend harus mengotorisasi setiap permintaan data token. | PRD §5.2; `D-016` [A] |
 
 ### 4.10 Attendance Management
 
@@ -369,12 +370,12 @@ Semua hal tersebut harus diputuskan di `docs/ARCHITECTURE.md`, `docs/DECISIONS.m
 | `FR-069` | Pemindaian pada Sesi berbeda harus tetap dapat diterima apabila peserta memiliki entitlement. | PRD §6.4 |
 | `FR-070` | Backend harus menjadi sumber kebenaran transaksi. | PRD §6.2 |
 | `FR-071` | Keberhasilan hanya boleh ditampilkan setelah backend mengonfirmasi transaksi. | PRD §6.2 |
-| `FR-072` | Sistem harus memisahkan Transaction Source (QR Scan atau Manual Entry) dari Correction Operation (Reversal atau Adjustment). Koreksi bukan Transaction Source. | PRD §6.3; `D-011` [P] |
-| `FR-073` | Manual Check-in hanya boleh dilakukan oleh Petugas yang ditugaskan pada Aktivitas/Sesi tersebut apabila Admin Acara mengaktifkan kemampuan ini, atau oleh Admin Acara yang berwenang. Izin Manual Check-in untuk Super Admin belum ditetapkan (`OQ-034` [O]); legacy permission `attendance:correct` tidak boleh diinferensikan sebagai otorisasi target. | PRD §6.3; `D-022` [P], `OQ-034` [O] |
-| `FR-074` | Transaksi Manual Entry harus mencatat akun pelaku dan source Manual Entry. | PRD §6.3; `D-022` [P] |
+| `FR-072` | Sistem harus memisahkan Transaction Source (QR Scan atau Manual Entry) dari Correction Operation (Reversal atau Adjustment). Koreksi bukan Transaction Source. | PRD §6.3; `D-011` [A] |
+| `FR-073` | Manual Check-in hanya boleh dilakukan oleh Petugas yang ditugaskan pada Aktivitas/Sesi tersebut apabila Admin Acara mengaktifkan kemampuan ini, atau oleh Admin Acara yang berwenang. Izin Manual Check-in untuk Super Admin belum ditetapkan (`OQ-034` [A]); legacy permission `attendance:correct` tidak boleh diinferensikan sebagai otorisasi target. | PRD §6.3; `D-022` [A], `OQ-034` [A] |
+| `FR-074` | Transaksi Manual Entry harus mencatat akun pelaku dan source Manual Entry. | PRD §6.3; `D-022` [A] |
 | `FR-075` | Pencegahan duplikasi harus dilakukan di backend dan database, bukan hanya melalui frontend. | PRD §6.4 |
 | `FR-076` | Reversal harus membatalkan efek transaksi tanpa menghapus transaksi asli. | PRD §6.5; `D-006` [A] |
-| `FR-077` | Reversal dan Adjustment hanya boleh dilakukan oleh Admin Acara. Petugas tidak memiliki kewenangan koreksi. Kewenangan Super Admin masih proposed (`D-024` [P]) dan belum disetujui. | PRD §6.5; koreksi product owner 3 Nov 2026; `D-006` [A], `D-024` [P] |
+| `FR-077` | Reversal dan Adjustment hanya boleh dilakukan oleh Admin Acara. Petugas dan Super Admin tidak memiliki kewenangan koreksi; Super Admin hanya dapat melihat transaksi dan audit lintas Tema. | PRD §6.5; koreksi product owner 3 Nov 2026; `D-006` [A], `D-024` [A] |
 | `FR-078` | Reversal dan Adjustment wajib memiliki alasan. | PRD §6.5; `D-006` [A] |
 | `FR-079` | Reversal harus menghasilkan catatan pembalikan; Adjustment harus mencatat perubahan dengan nilai before/after. Tidak boleh menimpa riwayat secara diam-diam. | PRD §6.5; `D-006` [A] |
 | `FR-080` | Audit log koreksi harus mencatat pelaku, waktu, alasan, objek yang dikoreksi, dan nilai before/after hanya untuk field yang diizinkan allowlist audit. | PRD §6.5; `D-006` [A], `FR-207` |
@@ -388,13 +389,13 @@ Semua hal tersebut harus diputuskan di `docs/ARCHITECTURE.md`, `docs/DECISIONS.m
 | `FR-081` | Sistem harus mendukung distribusi konsumsi atau barang dengan kuota pengambilan. | PRD §7 |
 | `FR-082` | Setiap jenis distribusi, seperti sarapan, makan siang, atau snack, harus merupakan transaksi independen. | PRD §7 |
 | `FR-083` | Peserta harus aktif, QR valid, dan memiliki entitlement agar dapat menukar konsumsi. | PRD §7.1 |
-| `FR-084` | Kuota konsumsi harus dapat dikonfigurasi: default di Aktivitas, override kategori, dan override individual. Nilai kuota boleh 0, 1, atau lebih. | PRD §7.1; `D-014` [P] |
+| `FR-084` | Kuota konsumsi harus dapat dikonfigurasi: default di Aktivitas, override kategori, dan override individual. Nilai kuota boleh 0, 1, atau lebih. | PRD §7.1; `D-014` [A] |
 | `FR-085` | Setiap penukaran harus dicatat sebagai transaksi. | PRD §7.1 |
-| `FR-086` | Penukaran ganda harus dicegah berdasarkan transaksi efektif (`D-006` [A]); transaksi yang di-reversal tidak menghabiskan kuota (`D-014` [P]). | PRD §7.1; `D-006` [A], `D-014` [P] |
+| `FR-086` | Penukaran ganda harus dicegah berdasarkan transaksi efektif (`D-006` [A]); transaksi yang di-reversal tidak menghabiskan kuota (`D-014` [A]). | PRD §7.1; `D-006` [A], `D-014` [A] |
 | `FR-087` | Riwayat penukaran tidak boleh dihapus karena perubahan entitlement. | PRD §7.1; `D-005` [A] |
-| `FR-088` | Backend harus mengembalikan result code stabil: `SUCCESS`, `DUPLICATE`, `NOT_ENTITLED`, `INVALID_QR`, dan `SYSTEM_ERROR`. Result code harus terpisah dari pesan user-facing. | PRD §7.2, §10.3; `D-011` [P] |
-| `FR-089` | Attendance dan Consumption harus menggunakan Transaction Type yang berbeda; satu Aktivitas hanya memiliki satu tipe utama. | PRD §7.2; `D-009` [P] |
-| `FR-203` | Pesan duplikat harus kontekstual: Attendance “Sudah tercatat hadir”; Consumption “Sudah diambil”. | PRD §7.2; `D-011` [P] |
+| `FR-088` | Backend harus mengembalikan result code stabil: `SUCCESS`, `DUPLICATE`, `NOT_ENTITLED`, `INVALID_QR`, dan `SYSTEM_ERROR`. Result code harus terpisah dari pesan user-facing. | PRD §7.2, §10.3; `D-011` [A] |
+| `FR-089` | Attendance dan Consumption harus menggunakan Transaction Type yang berbeda; satu Aktivitas hanya memiliki satu tipe utama. | PRD §7.2; `D-009` [A] |
+| `FR-203` | Pesan duplikat harus kontekstual: Attendance “Sudah tercatat hadir”; Consumption “Sudah diambil”. | PRD §7.2; `D-011` [A] |
 
 ### 4.12 Activity and Session Lifecycle
 
@@ -407,19 +408,19 @@ Semua hal tersebut harus diputuskan di `docs/ARCHITECTURE.md`, `docs/DECISIONS.m
 | `FR-094` | Penggandaan Sesi hanya boleh menyalin konfigurasi; riwayat transaksi tidak boleh ikut disalin. | PRD §8.3 |
 | `FR-095` | Sesi hasil duplikasi harus memiliki identitas baru dan status awal Terjadwal. | PRD §8.3 |
 | `FR-096` | Perubahan konfigurasi atau status Aktivitas/Sesi tidak boleh menghapus transaksi historis. | PRD §8.3 |
-| `FR-183` | Backend harus menolak transaksi pada Aktivitas berstatus Draft, Selesai, atau Diarsipkan. | PRD §8.1; `D-010` [P] |
-| `FR-184` | Aktivitas Aktif tanpa Sesi harus menerima transaksi yang terhubung langsung ke Aktivitas. | PRD §8.1; `D-010` [P] |
-| `FR-185` | Aktivitas Aktif dengan Sesi harus mewajibkan pemilihan Sesi valid yang berada di bawah Aktivitas tersebut. | PRD §8.2; `D-010` [P] |
-| `FR-186` | Transaksi hanya diterima pada Sesi berstatus Berlangsung; Sesi Terjadwal, Selesai, Dinonaktifkan, atau diarsipkan harus ditolak. | PRD §8.2; `D-010` [P] |
-| `FR-187` | Sistem tidak boleh menyimpulkan Sesi secara otomatis dari waktu jam. | PRD §8.2; `D-010` [P] |
-| `FR-188` | Backend harus menolak kombinasi Aktivitas/Sesi yang tidak konsisten. | PRD §8.2; `D-003` [A], `D-010` [P] |
-| `FR-206` | Arsip Sesi harus menjadi state administratif terpisah dari status operasional. Sesi yang diarsipkan harus menolak transaksi baru, tetapi transaksi historisnya tetap dapat diakses, tidak dihapus, dan tidak di-reversal otomatis. Syarat kapan pengarsipan boleh dilakukan belum ditetapkan dan dicatat pada `OQ-033` [O]. | PRD §8.3; `OQ-033` [O] |
+| `FR-183` | Backend harus menolak transaksi pada Aktivitas berstatus Draft, Selesai, atau Diarsipkan. | PRD §8.1; `D-010` [A] |
+| `FR-184` | Aktivitas Aktif tanpa Sesi harus menerima transaksi yang terhubung langsung ke Aktivitas. | PRD §8.1; `D-010` [A] |
+| `FR-185` | Aktivitas Aktif dengan Sesi harus mewajibkan pemilihan Sesi valid yang berada di bawah Aktivitas tersebut. | PRD §8.2; `D-010` [A] |
+| `FR-186` | Transaksi hanya diterima pada Sesi berstatus Berlangsung; Sesi Terjadwal, Selesai, Dinonaktifkan, atau diarsipkan harus ditolak. | PRD §8.2; `D-010` [A] |
+| `FR-187` | Sistem tidak boleh menyimpulkan Sesi secara otomatis dari waktu jam. | PRD §8.2; `D-010` [A] |
+| `FR-188` | Backend harus menolak kombinasi Aktivitas/Sesi yang tidak konsisten. | PRD §8.2; `D-003` [A], `D-010` [A] |
+| `FR-206` | Arsip Sesi harus menjadi state administratif terpisah dari status operasional. Sesi yang diarsipkan harus menolak transaksi baru, tetapi transaksi historisnya tetap dapat diakses, tidak dihapus, dan tidak di-reversal otomatis. Syarat kapan pengarsipan boleh dilakukan belum ditetapkan dan dicatat pada `OQ-033` [A]. | PRD §8.3; `OQ-033` [A] |
 
 ### 4.13 User Roles and Access Control
 
 | ID | Requirement | Sumber |
 |---|---|---|
-| `FR-097` | Super Admin harus memiliki akses ke seluruh Tema Acara, pengelolaan pengguna, pengaturan sistem, seluruh laporan, seluruh audit log, dan melihat transaksi lintas Tema. Kewenangan Reversal/Adjustment tidak termasuk dalam akses ini; lihat `FR-077` dan `D-024` [P]. | PRD §9.1; `D-006` [A], `D-024` [P] |
+| `FR-097` | Super Admin harus memiliki akses ke seluruh Tema Acara, pengelolaan pengguna, pengaturan sistem, seluruh laporan, seluruh audit log, dan melihat transaksi lintas Tema. Kewenangan Reversal/Adjustment tidak termasuk dalam akses ini; lihat `FR-077` dan `D-024` [A]. | PRD §9.1; `D-006` [A], `D-024` [A] |
 | `FR-098` | Admin Acara harus memiliki akses terhadap Tema Acara yang ditugaskan untuk mengelola peserta, kategori, entitlement, Aktivitas, Sesi, Petugas, laporan, serta Reversal dan Adjustment. | PRD §9.2; `D-006` [A] |
 | `FR-099` | Petugas harus ditugaskan pada Aktivitas atau Sesi tertentu. | PRD §9.3 |
 | `FR-100` | Petugas hanya boleh mengakses scanner dalam lingkup tugasnya. | PRD §9.3 |
@@ -429,7 +430,7 @@ Semua hal tersebut harus diputuskan di `docs/ARCHITECTURE.md`, `docs/DECISIONS.m
 | `FR-104` | Pencabutan tugas tidak boleh menghapus transaksi historis. | PRD §9.3 |
 | `FR-105` | Satu perangkat scanner boleh digunakan beberapa Petugas, tetapi masing-masing harus menggunakan akun sendiri. | PRD §9.3 |
 | `FR-106` | Petugas tidak memiliki kewenangan Reversal atau Adjustment. | Koreksi product owner 3 Nov 2026; `D-006` [A] |
-| `FR-194` | Pendaftaran Admin Acara harus melalui undangan Super Admin; pendaftaran mandiri publik harus dinonaktifkan; Super Admin harus dapat mencabut akses. | `D-018` [P] |
+| `FR-194` | Pendaftaran Admin Acara harus melalui undangan Super Admin; pendaftaran mandiri publik harus dinonaktifkan; Super Admin harus dapat mencabut akses. | `D-018` [A] |
 
 ### 4.14 Scanner / Kiosk Interface
 
@@ -447,7 +448,7 @@ Semua hal tersebut harus diputuskan di `docs/ARCHITECTURE.md`, `docs/DECISIONS.m
 | `FR-116` | Scanner harus memiliki cooldown/debounce pemindaian. | PRD §10.2 |
 | `FR-117` | Scanner harus menangani duplikasi. | PRD §10.2 |
 | `FR-118` | Scanner harus kembali ke kondisi standby setelah hasil scan. | PRD §10.2 |
-| `FR-119` | Scanner harus menampilkan lima keadaan utama: Success, Duplicate/Already Attended, Not Entitled, Invalid QR, dan System Error, untuk Attendance maupun Consumption. | PRD §7.2, §10.3; `D-011` [P] |
+| `FR-119` | Scanner harus menampilkan lima keadaan utama: Success, Duplicate/Already Attended, Not Entitled, Invalid QR, dan System Error, untuk Attendance maupun Consumption. | PRD §7.2, §10.3; `D-011` [A] |
 | `FR-120` | Pesan scanner harus dapat dikonfigurasi admin pada tingkat Tema Acara. | PRD §10.3 |
 | `FR-121` | Variabel pesan yang direncanakan harus mencakup `{nama}`, `{id}`, `{acara}`, dan `{waktu}`. | PRD §10.3 |
 | `FR-122` | Scanner harus online; tidak boleh ada antrean transaksi offline. | PRD §10.4 |
@@ -457,10 +458,10 @@ Semua hal tersebut harus diputuskan di `docs/ARCHITECTURE.md`, `docs/DECISIONS.m
 | `FR-126` | Kesalahan jaringan harus dibedakan dari QR tidak valid. | PRD §10.4 |
 | `FR-127` | Petugas hanya boleh menggunakan scanner sesuai Aktivitas/Sesi yang ditugaskan. | PRD §10.5 |
 | `FR-128` | Pemilihan konteks scanner harus sesuai dengan izin Petugas. | PRD §10.5 |
-| `FR-189` | Scanner harus menampilkan hasil scan lalu otomatis kembali ke standby; durasi feedback disarankan sekitar dua detik. Pemrosesan scan harus terkunci selama feedback ditampilkan dan tidak memerlukan konfirmasi manual setiap scan. | PRD §10.2; `D-012` [P] |
-| `FR-190` | Scanner harus menampilkan konteks Aktivitas/Sesi yang aktif dan memvalidasi penugasan Petugas. URL parameter boleh memilih konteks awal, tetapi tidak boleh memberi otorisasi. | PRD §10.5; `D-012` [P] |
-| `FR-191` | Petugas harus terautentikasi; tidak boleh ada URL scanning publik tanpa autentikasi. Konteks harus terkunci selama scanning, dan perubahan konteks memerlukan revalidasi. | `D-012` [P] |
-| `FR-192` | Feedback visual/audio harus dapat dikonfigurasi pada tingkat Tema Acara, memiliki mute lokal per perangkat, tidak boleh mengandalkan warna saja, dan harus menyertakan teks dan/atau ikon. Scanner harus tetap usable tanpa audio. | PRD §10.3; `D-013` [P] |
+| `FR-189` | Scanner harus menampilkan hasil scan lalu otomatis kembali ke standby; durasi feedback disarankan sekitar dua detik. Pemrosesan scan harus terkunci selama feedback ditampilkan dan tidak memerlukan konfirmasi manual setiap scan. | PRD §10.2; `D-012` [A] |
+| `FR-190` | Scanner harus menampilkan konteks Aktivitas/Sesi yang aktif dan memvalidasi penugasan Petugas. URL parameter boleh memilih konteks awal, tetapi tidak boleh memberi otorisasi. | PRD §10.5; `D-012` [A] |
+| `FR-191` | Petugas harus terautentikasi; tidak boleh ada URL scanning publik tanpa autentikasi. Konteks harus terkunci selama scanning, dan perubahan konteks memerlukan revalidasi. | `D-012` [A] |
+| `FR-192` | Feedback visual/audio harus dapat dikonfigurasi pada tingkat Tema Acara, memiliki mute lokal per perangkat, tidak boleh mengandalkan warna saja, dan harus menyertakan teks dan/atau ikon. Scanner harus tetap usable tanpa audio. | PRD §10.3; `D-013` [A] |
 
 #### 4.14.1 Detail feedback scanner
 
@@ -472,7 +473,7 @@ Semua hal tersebut harus diputuskan di `docs/ARCHITECTURE.md`, `docs/DECISIONS.m
 | Invalid QR | “QR tidak dikenali.” | “QR tidak dikenali.” | Merah |
 | System Error | Pesan kesalahan sistem atau jaringan | Pesan kesalahan sistem atau jaringan | Netral/error |
 
-Warna di atas adalah rekomendasi proposed (`D-013` [P]); bukan keputusan final. Status tidak boleh disampaikan hanya melalui warna; harus ada teks dan/atau ikon. System Error harus dibedakan dari QR tidak valid dan tidak boleh menampilkan keberhasilan palsu. Pesan dapat dikonfigurasi admin pada tingkat Tema Acara. Variabel yang direncanakan: `{nama}`, `{id}`, `{acara}`, `{waktu}`.
+Warna di atas adalah rekomendasi proposed (`D-013` [A]); bukan keputusan final. Status tidak boleh disampaikan hanya melalui warna; harus ada teks dan/atau ikon. System Error harus dibedakan dari QR tidak valid dan tidak boleh menampilkan keberhasilan palsu. Pesan dapat dikonfigurasi admin pada tingkat Tema Acara. Variabel yang direncanakan: `{nama}`, `{id}`, `{acara}`, `{waktu}`.
 
 ### 4.15 Dashboard and Navigation
 
@@ -489,14 +490,14 @@ Warna di atas adalah rekomendasi proposed (`D-013` [P]); bukan keputusan final. 
 
 | ID | Requirement | Sumber |
 |---|---|---|
-| `FR-135` | Audit log harus mencatat tindakan penting, termasuk pembuatan/perubahan peserta, penonaktifan peserta, perubahan kategori, perubahan entitlement, pembuatan/rotasi/ekspor QR, pembuatan/perubahan Aktivitas/Sesi, penugasan Petugas, Manual Check-in, Reversal, Adjustment, impor, ekspor laporan, dan tindakan administratif/keamanan. | PRD §12; `D-023` [P] |
-| `FR-136` | Setiap catatan audit harus mencakup Actor, Action, Object type, Object ID, Timestamp, dan Context/reason bila relevan. Before/after hanya boleh dicatat untuk field yang masuk allowlist audit; audit tidak boleh menyimpan snapshot objek penuh secara otomatis. | PRD §12.1; `D-023` [P], `FR-207` |
+| `FR-135` | Audit log harus mencatat tindakan penting, termasuk pembuatan/perubahan peserta, penonaktifan peserta, perubahan kategori, perubahan entitlement, pembuatan/rotasi/ekspor QR, pembuatan/perubahan Aktivitas/Sesi, penugasan Petugas, Manual Check-in, Reversal, Adjustment, impor, ekspor laporan, dan tindakan administratif/keamanan. | PRD §12; `D-023` [A] |
+| `FR-136` | Setiap catatan audit harus mencakup Actor, Action, Object type, Object ID, Timestamp, dan Context/reason bila relevan. Before/after hanya boleh dicatat untuk field yang masuk allowlist audit; audit tidak boleh menyimpan snapshot objek penuh secara otomatis. | PRD §12.1; `D-023` [A], `FR-207` |
 | `FR-137` | Audit log harus bersifat append-only. | PRD §12.1 |
 | `FR-138` | Super Admin harus dapat mengakses seluruh audit log lintas Tema. | PRD §12.2 |
 | `FR-139` | Admin Acara harus dapat mengakses audit log Tema yang dikelola. | PRD §12.2 |
 | `FR-140` | Petugas tidak boleh memiliki akses ke audit log. | PRD §12.2 |
-| `FR-195` | Audit log tidak boleh memuat token QR plaintext, password, atau secret; PII harus diminimalkan atau dimask. Untuk perubahan pada field peserta yang sensitif, audit hanya mencatat bahwa field tersebut berubah tanpa menampilkan nilai lama atau nilai baru. | PRD §12.1; `D-023` [P], `FR-207` |
-| `FR-207` | Audit harus memakai strategi field allowlist: hanya field yang diperlukan untuk audit dan secara eksplisit diizinkan yang boleh disimpan sebagai before/after. Field PII atau sensitif di luar allowlist harus dikeluarkan atau dimask, dan perubahan padanya dicatat sebagai status "berubah" tanpa nilai. Actor, timestamp, action, object reference, dan reason tetap dipertahankan; audit tetap append-only. | PRD §12.1; `D-023` [P], `NFR-006` |
+| `FR-195` | Audit log tidak boleh memuat token QR plaintext, password, atau secret; PII harus diminimalkan atau dimask. Untuk perubahan pada field peserta yang sensitif, audit hanya mencatat bahwa field tersebut berubah tanpa menampilkan nilai lama atau nilai baru. | PRD §12.1; `D-023` [A], `FR-207` |
+| `FR-207` | Audit harus memakai strategi field allowlist: hanya field yang diperlukan untuk audit dan secara eksplisit diizinkan yang boleh disimpan sebagai before/after. Field PII atau sensitif di luar allowlist harus dikeluarkan atau dimask, dan perubahan padanya dicatat sebagai status "berubah" tanpa nilai. Actor, timestamp, action, object reference, dan reason tetap dipertahankan; audit tetap append-only. | PRD §12.1; `D-023` [A], `NFR-006` |
 
 ### 4.17 Reporting and Export
 
@@ -507,11 +508,11 @@ Warna di atas adalah rekomendasi proposed (`D-013` [P]); bukan keputusan final. 
 | `FR-143` | Sistem harus menyediakan Distribution Report yang memuat jenis distribusi, total peserta berhak, total sudah mengambil, dan total belum mengambil. | PRD §13.1 |
 | `FR-144` | Sistem harus menyediakan Activity Summary yang memuat ringkasan Aktivitas, status Aktivitas, dan ringkasan transaksi. | PRD §13.1 |
 | `FR-145` | Laporan harus dapat difilter berdasarkan Aktivitas, Sesi, kategori, rentang tanggal, dan status peserta. | PRD §13.2 |
-| `FR-146` | Laporan harus dapat diekspor dalam format CSV pada rilis awal. | PRD §13.3; `D-015` [P] |
-| `FR-147` | Laporan harus dapat diekspor dalam format Excel (.xlsx) pada tahap implementasi berikutnya; XLSX tidak boleh dihapus dari kebutuhan jangka panjang. | PRD §13.3; `D-015` [P] |
+| `FR-146` | Laporan harus dapat diekspor dalam format CSV pada rilis awal. | PRD §13.3; `D-015` [A] |
+| `FR-147` | Laporan harus dapat diekspor dalam format Excel (.xlsx) pada tahap implementasi berikutnya; XLSX tidak boleh dihapus dari kebutuhan jangka panjang. | PRD §13.3; `D-015` [A] |
 | `FR-148` | Ekspor laporan harus mempertahankan konsistensi dengan filter yang sedang diterapkan. | PRD §13.3 |
 | `FR-149` | Ekspor laporan harus dicatat dalam audit log. | PRD §13.3 |
-| `FR-193` | Integrasi Google Sheets harus opsional per Tema, bukan sumber kebenaran; kegagalan sinkronisasi tidak boleh memblokir transaksi inti QRCek, dan integrasi tidak boleh diklaim production-ready sebelum diuji dengan akun Google nyata. | `D-017` [P] |
+| `FR-193` | Integrasi Google Sheets harus opsional per Tema, bukan sumber kebenaran; kegagalan sinkronisasi tidak boleh memblokir transaksi inti QRCek, dan integrasi tidak boleh diklaim production-ready sebelum diuji dengan akun Google nyata. | `D-017` [A] |
 
 ### 4.18 User Interface and Design System
 
@@ -519,9 +520,9 @@ Warna di atas adalah rekomendasi proposed (`D-013` [P]); bukan keputusan final. 
 |---|---|---|
 | `FR-150` | Arah desain harus minimal, modern, responsif, mudah digunakan, dan konsisten. | PRD §14 |
 | `FR-151` | Referensi inspirasi harus mencakup Linear, Vercel, Supabase, dan shadcn/ui, sebagai inspirasi dan bukan target menyalin. | PRD §14 |
-| `FR-152` | Desain harus mendukung light mode dan dark mode menggunakan CSS variables/design tokens. | PRD §14.1; `D-021` [P] |
+| `FR-152` | Desain harus mendukung light mode dan dark mode menggunakan CSS variables/design tokens. | PRD §14.1; `D-021` [A] |
 | `FR-153` | Palet warna harus biru/slate. | PRD §14.1 |
-| `FR-154` | Tipografi harus menggunakan Geist dengan aset lokal atau dependency; tidak boleh bergantung pada runtime CDN. | PRD §14.1; `D-021` [P] |
+| `FR-154` | Tipografi harus menggunakan Geist dengan aset lokal atau dependency; tidak boleh bergantung pada runtime CDN. | PRD §14.1; `D-021` [A] |
 | `FR-155` | shadcn/ui harus menjadi komponen utama. | PRD §14.1 |
 | `FR-156` | Ikon harus menggunakan Lucide. | PRD §14.1 |
 | `FR-157` | Desain harus menggunakan border halus, shadow minimal, dan rounded corner sekitar 8–12 px. | PRD §14.1 |
@@ -529,7 +530,7 @@ Warna di atas adalah rekomendasi proposed (`D-013` [P]); bukan keputusan final. 
 | `FR-159` | Setiap baris tabel tidak boleh dijadikan card. | PRD §14.1 |
 | `FR-160` | Dashboard admin harus menggunakan pendekatan responsive dashboard. | PRD §14.2 |
 | `FR-161` | Scanner harus menggunakan antarmuka khusus yang berorientasi kamera dan beradaptasi dengan portrait maupun landscape. | PRD §14.2 |
-| `FR-204` | Implementasi UI harus memakai ulang CSS/token yang ada bila memungkinkan dan tidak boleh menambah runtime CDN. | `D-021` [P] |
+| `FR-204` | Implementasi UI harus memakai ulang CSS/token yang ada bila memungkinkan dan tidak boleh menambah runtime CDN. | `D-021` [A] |
 
 ### 4.19 Data Integrity and Security Principles
 
@@ -557,7 +558,7 @@ Warna di atas adalah rekomendasi proposed (`D-013` [P]); bukan keputusan final. 
 | `FR-176` | Dokumentasi lama yang masih relevan harus dipertahankan sebagai referensi teknis. | PRD §16.1 |
 | `FR-177` | Status implementasi harus dibedakan dari kebutuhan produk. | PRD §16.1 |
 | `FR-178` | Dokumentasi tidak boleh mengklaim fitur selesai hanya karena endpoint atau komponen backend sudah tersedia. | PRD §16.1 |
-| `FR-196` | Identifier teknis lama (`@absensi/*`, `absensi_session`, `X-Absensi-Csrf`, `absensi:v1:`) harus dipertahankan kecuali ada alasan teknis yang terbukti; nama produk tetap QRCek. | `D-019` [P] |
+| `FR-196` | Identifier teknis lama (`@absensi/*`, `absensi_session`, `X-Absensi-Csrf`, `absensi:v1:`) harus dipertahankan kecuali ada alasan teknis yang terbukti; nama produk tetap QRCek. | `D-019` [A] |
 | `FR-198` | Tidak ada kewajiban migrasi data produksi; struktur database boleh dirancang ulang, dan kode/fitur lama boleh dipakai ulang setelah evaluasi. | `D-007` [A] |
 
 ### 4.21 Documentation Governance
@@ -587,7 +588,7 @@ Business rule di bawah adalah invariant yang harus tetap benar terlepas dari pil
 | `BR-007` | Riwayat transaksi tidak boleh hilang ketika Aktivitas atau Sesi dinonaktifkan maupun diarsipkan. Pengarsipan Sesi hanya menolak transaksi baru; transaksi historis tetap tersedia dan tidak diubah. | PRD §8.3; `FR-206` |
 | `BR-008` | Aktivitas yang tidak memiliki Sesi tetap harus memiliki konteks transaksi yang jelas, yaitu Aktivitas itu sendiri. | PRD §2.4; `D-003` [A] |
 | `BR-009` | Struktur database tidak boleh ditentukan hanya berdasarkan dokumen kebutuhan ini; tidak ada kewajiban migrasi data produksi, tetapi reuse dan regression test harus dievaluasi. | `D-007` [A] |
-| `BR-070` | Setiap Aktivitas hanya memiliki satu tipe transaksi utama: Attendance atau Consumption. | PRD §7.2; `D-009` [P] |
+| `BR-070` | Setiap Aktivitas hanya memiliki satu tipe transaksi utama: Attendance atau Consumption. | PRD §7.2; `D-009` [A] |
 
 ### 5.2 Peserta dan custom field
 
@@ -633,14 +634,14 @@ Business rule di bawah adalah invariant yang harus tetap benar terlepas dari pil
 | `BR-031` | Syarat kehadiran: peserta aktif, QR valid, memiliki entitlement, dan konteks Aktivitas/Sesi valid. | PRD §6.2; `D-003` [A] |
 | `BR-032` | Duplikasi dihitung berdasarkan transaksi efektif pada ruang lingkup yang sama: Aktivitas tanpa Sesi atau Sesi tertentu. Sesi berbeda dapat diterima bila berhak. | PRD §6.4; `D-006` [A] |
 | `BR-033` | Pencegahan duplikasi ditegakkan di backend dan database, bukan hanya di frontend. | PRD §6.4 |
-| `BR-034` | Manual Check-in hanya oleh Petugas yang ditugaskan dan diaktifkan Admin Acara, atau Admin Acara berwenang; pelaku dan source harus dicatat. Izin Manual Check-in untuk Super Admin belum ditetapkan (`OQ-034` [O]); legacy permission `attendance:correct` tidak boleh dianggap sebagai otorisasi target. | PRD §6.3; `D-022` [P], `OQ-034` [O] |
+| `BR-034` | Manual Check-in hanya oleh Petugas yang ditugaskan dan diaktifkan Admin Acara, atau Admin Acara berwenang; pelaku dan source harus dicatat. Izin Manual Check-in untuk Super Admin belum ditetapkan (`OQ-034` [A]); legacy permission `attendance:correct` tidak boleh dianggap sebagai otorisasi target. | PRD §6.3; `D-022` [A], `OQ-034` [A] |
 | `BR-035` | Keberhasilan transaksi hanya ditampilkan setelah backend mengonfirmasi. | PRD §6.2 |
-| `BR-036` | Reversal dan Adjustment hanya boleh dilakukan oleh Admin Acara. Petugas tidak memiliki kewenangan koreksi. Kewenangan Super Admin masih proposed (`D-024` [P]). | PRD §6.5; koreksi product owner 3 Nov 2026; `D-006` [A], `D-024` [P] |
+| `BR-036` | Reversal dan Adjustment hanya boleh dilakukan oleh Admin Acara. Petugas dan Super Admin tidak memiliki kewenangan koreksi. | PRD §6.5; koreksi product owner 3 Nov 2026; `D-006` [A], `D-024` [A] |
 | `BR-037` | Reversal dan Adjustment wajib memiliki alasan. | PRD §6.5; `D-006` [A] |
 | `BR-038` | Reversal membatalkan efek transaksi tanpa menghapus transaksi asli; Adjustment menyimpan before/after dan tidak menimpa riwayat secara diam-diam. | PRD §6.5; `D-006` [A] |
 | `BR-039` | Koreksi dicatat dalam audit log dengan pelaku, waktu, alasan, objek, dan before/after bila relevan. | PRD §6.5; `D-006` [A] |
 | `BR-040` | Koreksi tidak boleh menghapus riwayat transaksi; transaksi yang di-reversal tidak lagi menghalangi check-in baru yang valid. | PRD §6.5; `D-006` [A] |
-| `BR-072` | Result code backend harus stabil dan terpisah dari pesan user-facing; respons backend yang masih pending tidak boleh ditampilkan sebagai sukses. | PRD §10.4; `D-011` [P] |
+| `BR-072` | Result code backend harus stabil dan terpisah dari pesan user-facing; respons backend yang masih pending tidak boleh ditampilkan sebagai sukses. | PRD §10.4; `D-011` [A] |
 
 ### 5.6 Distribusi konsumsi
 
@@ -648,11 +649,11 @@ Business rule di bawah adalah invariant yang harus tetap benar terlepas dari pil
 |---|---|---|
 | `BR-041` | Setiap jenis distribusi konsumsi merupakan transaksi independen. | PRD §7 |
 | `BR-042` | Penukaran memerlukan peserta aktif, QR valid, dan entitlement yang sesuai. | PRD §7.1 |
-| `BR-043` | Kuota konsumsi harus dapat dikonfigurasi dengan default Aktivitas, override kategori, dan override individual; nilai boleh 0, 1, atau lebih. | PRD §7.1; `D-014` [P] |
+| `BR-043` | Kuota konsumsi harus dapat dikonfigurasi dengan default Aktivitas, override kategori, dan override individual; nilai boleh 0, 1, atau lebih. | PRD §7.1; `D-014` [A] |
 | `BR-044` | Penukaran ganda harus dicegah berdasarkan transaksi efektif. | PRD §7.1; `D-006` [A] |
 | `BR-045` | Riwayat penukaran tetap ada setelah perubahan entitlement. | PRD §7.1; `D-005` [A] |
-| `BR-046` | Attendance dan Consumption adalah Transaction Type yang berbeda; satu Aktivitas hanya memiliki satu tipe utama. | PRD §7.2; `D-009` [P] |
-| `BR-073` | Transaksi Consumption yang di-reversal tidak menghabiskan kuota dan kuota yang dibebaskan dapat dipakai transaksi valid berikutnya. Ini adalah perilaku kuota proposed, bukan bagian dari keputusan Reversal yang sudah disepakati. | PRD §7.1; `D-014` [P] |
+| `BR-046` | Attendance dan Consumption adalah Transaction Type yang berbeda; satu Aktivitas hanya memiliki satu tipe utama. | PRD §7.2; `D-009` [A] |
+| `BR-073` | Transaksi Consumption yang di-reversal tidak menghabiskan kuota dan kuota yang dibebaskan dapat dipakai transaksi valid berikutnya. Ini adalah perilaku kuota proposed, bukan bagian dari keputusan Reversal yang sudah disepakati. | PRD §7.1; `D-014` [A] |
 
 ### 5.7 Lifecycle
 
@@ -661,14 +662,14 @@ Business rule di bawah adalah invariant yang harus tetap benar terlepas dari pil
 | `BR-047` | State machine Aktivitas dan Sesi terpisah. | PRD §8.2 |
 | `BR-048` | Penggandaan Sesi hanya menyalin konfigurasi, membuat identitas baru, dan memakai status awal Terjadwal. | PRD §8.3 |
 | `BR-049` | Perubahan konfigurasi/status tidak menghapus transaksi historis. | PRD §8.3 |
-| `BR-071` | Backend harus menolak kombinasi lifecycle yang tidak valid: Aktivitas Draft/Selesai/Diarsipkan, Sesi Terjadwal/Selesai/Dinonaktifkan/diarsipkan, atau Sesi yang bukan milik Aktivitas tersebut. Sesi tidak boleh disimpulkan dari waktu jam. | PRD §8.1, §8.2; `D-010` [P] |
-| `BR-078` | Status operasional Sesi dan state arsip adalah dua hal berbeda. Sesi yang diarsipkan menolak transaksi baru tanpa menghapus, membalik, atau menyembunyikan transaksi historis; syarat kapan pengarsipan boleh dilakukan masih terbuka (`OQ-033` [O]). | PRD §8.3; `FR-206`, `OQ-033` [O] |
+| `BR-071` | Backend harus menolak kombinasi lifecycle yang tidak valid: Aktivitas Draft/Selesai/Diarsipkan, Sesi Terjadwal/Selesai/Dinonaktifkan/diarsipkan, atau Sesi yang bukan milik Aktivitas tersebut. Sesi tidak boleh disimpulkan dari waktu jam. | PRD §8.1, §8.2; `D-010` [A] |
+| `BR-078` | Status operasional Sesi dan state arsip adalah dua hal berbeda. Sesi yang diarsipkan menolak transaksi baru tanpa menghapus, membalik, atau menyembunyikan transaksi historis; syarat kapan pengarsipan boleh dilakukan masih terbuka (`OQ-033` [A]). | PRD §8.3; `FR-206`, `OQ-033` [A] |
 
 ### 5.8 Peran dan scanner
 
 | ID | Rule | Basis |
 |---|---|---|
-| `BR-050` | Petugas ditugaskan pada Aktivitas/Sesi tertentu; scanner dibatasi pada penugasan itu. Aktivitas tanpa Sesi memakai konteks Aktivitas; Aktivitas dengan Sesi memerlukan pemilihan Sesi eksplisit. | PRD §9.3, §10.5; `D-012` [P] |
+| `BR-050` | Petugas ditugaskan pada Aktivitas/Sesi tertentu; scanner dibatasi pada penugasan itu. Aktivitas tanpa Sesi memakai konteks Aktivitas; Aktivitas dengan Sesi memerlukan pemilihan Sesi eksplisit. | PRD §9.3, §10.5; `D-012` [A] |
 | `BR-051` | Petugas tidak dapat mengubah entitlement atau konfigurasi Aktivitas. | PRD §9.3 |
 | `BR-052` | Pencabutan tugas tidak menghapus transaksi historis. | PRD §9.3 |
 | `BR-053` | Perangkat scanner bersama tetap memerlukan akun masing-masing Petugas. | PRD §9.3 |
@@ -684,8 +685,8 @@ Business rule di bawah adalah invariant yang harus tetap benar terlepas dari pil
 | `BR-058` | Audit log bersifat append-only. | PRD §12.1 |
 | `BR-059` | Ekspor laporan dicatat dalam audit log. | PRD §13.3 |
 | `BR-060` | Ekspor laporan harus konsisten dengan filter yang sedang diterapkan. | PRD §13.3 |
-| `BR-074` | Audit log tidak boleh memuat token QR plaintext, password, atau secret; PII harus diminimalkan atau dimask; akses audit mengikuti peran. | PRD §12.1; `D-023` [P] |
-| `BR-079` | Audit hanya menyimpan before/after untuk field yang ada dalam allowlist. Snapshot objek penuh, nilai PII mentah, dan kredensial tidak boleh disimpan; perubahan field sensitif dicatat sebagai "berubah" tanpa nilai lama/baru. | PRD §12.1; `D-023` [P], `FR-207` |
+| `BR-074` | Audit log tidak boleh memuat token QR plaintext, password, atau secret; PII harus diminimalkan atau dimask; akses audit mengikuti peran. | PRD §12.1; `D-023` [A] |
+| `BR-079` | Audit hanya menyimpan before/after untuk field yang ada dalam allowlist. Snapshot objek penuh, nilai PII mentah, dan kredensial tidak boleh disimpan; perubahan field sensitif dicatat sebagai "berubah" tanpa nilai lama/baru. | PRD §12.1; `D-023` [A], `FR-207` |
 
 ### 5.10 Import
 
@@ -693,9 +694,9 @@ Business rule di bawah adalah invariant yang harus tetap benar terlepas dari pil
 |---|---|---|
 | `BR-061` | Sistem tidak boleh memperbarui peserta secara otomatis tanpa persetujuan admin. | PRD §3.4 |
 | `BR-062` | Participant ID dibuat oleh QRCek, bukan diambil dari CSV. | PRD §3.4 |
-| `BR-063` | Pencocokan impor menggunakan External Reference dalam Tema yang sama. Baris tanpa External Reference dianggap peserta baru dengan warning kemungkinan duplikat (nama/email/phone) untuk review manual. External Reference yang cocok banyak kandidat memerlukan pilihan eksplisit oleh admin; tidak ada pemilihan atau merge otomatis. Nama/email/phone tidak boleh menjadi identity key otomatis. Tidak ada penggabungan profil otomatis. | PRD §3.4; `D-008` [P] |
-| `BR-076` | Impor CSV dibatasi 2 MB dan 1.000 baris data di luar header; error harus jelas dan actionable. | PRD §3.4; `D-020` [P] |
-| `BR-077` | Field CSV kosong tidak boleh menghapus data peserta yang sudah ada; nilai kosong berarti tidak ada perubahan kecuali admin memilih menghapus nilai secara eksplisit. | PRD §3.4; `D-008` [P] |
+| `BR-063` | Pencocokan impor menggunakan External Reference dalam Tema yang sama. Baris tanpa External Reference dianggap peserta baru dengan warning kemungkinan duplikat (nama/email/phone) untuk review manual. External Reference yang cocok banyak kandidat memerlukan pilihan eksplisit oleh admin; tidak ada pemilihan atau merge otomatis. Nama/email/phone tidak boleh menjadi identity key otomatis. Tidak ada penggabungan profil otomatis. | PRD §3.4; `D-008` [A] |
+| `BR-076` | Impor CSV dibatasi 2 MB dan 1.000 baris data di luar header; error harus jelas dan actionable. | PRD §3.4; `D-020` [A] |
+| `BR-077` | Field CSV kosong tidak boleh menghapus data peserta yang sudah ada; nilai kosong berarti tidak ada perubahan kecuali admin memilih menghapus nilai secara eksplisit. | PRD §3.4; `D-008` [A] |
 
 ### 5.11 Integritas dan kompatibilitas
 
@@ -712,18 +713,18 @@ Business rule di bawah adalah invariant yang harus tetap benar terlepas dari pil
 
 ## 6. Non-Functional Requirements
 
-> **Catatan referensi historis.** ADR-002, ADR-003, ADR-006, dan ADR-007 adalah keputusan yang saat ini tercatat di `docs/ARSITEKTUR.md`. File `docs/adr/NNNN-*.md` belum ada. Referensi ADR di bagian ini menunjuk keputusan historis tersebut, bukan ADR baru yang sudah tersedia. Migrasi ke `docs/adr/` mengikuti `D-001` [A] dan roadmap.
+> **Catatan referensi ADR.** Sejak v0.3.2, ADR historis yang semula tercatat inline di `docs/ARSITEKTUR.md` sudah diekstrak tanpa perubahan keputusan ke `docs/adr/`: ADR-002 → `docs/adr/0002-passwordless-token-auth.md`, ADR-003 → `docs/adr/0003-opaque-qr-token.md`, ADR-006 → `docs/adr/0006-qr-credential-hash-ciphertext.md`, ADR-007 → `docs/adr/0007-event-admin-self-signup.md`. `docs/ARSITEKTUR.md` sekarang bernama `docs/ARCHITECTURE.md`.
 
 | ID | Requirement | Sumber |
 |---|---|---|
-| `NFR-001` | Otorisasi harus dievaluasi di backend pada setiap endpoint yang relevan. | PRD §15; `AGENTS.md` dan `docs/ARSITEKTUR.md` |
-| `NFR-002` | Sesi harus menggunakan cookie `HttpOnly`, `SameSite=Lax`, `Path=/`, dan `Secure` saat HTTPS. | ADR-002 historis; tercatat di `docs/ARSITEKTUR.md` |
-| `NFR-003` | Semua request non-GET harus memakai header CSRF khusus dan `Origin` yang cocok dengan host. Nama header mengikuti `OQ-026` [P]. | `AGENTS.md` dan `docs/ARSITEKTUR.md`; `D-019` [P] |
-| `NFR-004` | Rate limiting login, aktivasi, pemulihan, dan scan harus memakai penyimpanan D1, bukan layanan berbayar. | `AGENTS.md` dan `docs/ARSITEKTUR.md` |
-| `NFR-005` | Secret Google Sheets, penandatanganan QR, dan secret sesi tidak boleh sampai ke bundle frontend. | `AGENTS.md` dan `docs/ARSITEKTUR.md` |
-| `NFR-006` | Log dan audit trail tidak boleh memuat PII, nama, email, nomor telepon, atau token QR mentah; nilai before/after untuk field sensitif tidak boleh disimpan dan hanya dicatat sebagai perubahan. | `AGENTS.md` dan `docs/ARSITEKTUR.md`; `FR-207` |
+| `NFR-001` | Otorisasi harus dievaluasi di backend pada setiap endpoint yang relevan. | PRD §15; `AGENTS.md` dan `docs/ARCHITECTURE.md` |
+| `NFR-002` | Sesi harus menggunakan cookie `HttpOnly`, `SameSite=Lax`, `Path=/`, dan `Secure` saat HTTPS. | ADR-0002 (`docs/adr/0002-passwordless-token-auth.md`) |
+| `NFR-003` | Semua request non-GET harus memakai header CSRF khusus dan `Origin` yang cocok dengan host. Nama header mengikuti `OQ-026` [A]. | `AGENTS.md` dan ADR-0002; `D-019` [A] |
+| `NFR-004` | Rate limiting login, aktivasi, pemulihan, dan scan harus memakai penyimpanan D1, bukan layanan berbayar. | `AGENTS.md` dan `docs/ARCHITECTURE.md` |
+| `NFR-005` | Secret Google Sheets, penandatanganan QR, dan secret sesi tidak boleh sampai ke bundle frontend. | `AGENTS.md` dan `docs/ARCHITECTURE.md` |
+| `NFR-006` | Log dan audit trail tidak boleh memuat PII, nama, email, nomor telepon, atau token QR mentah; nilai before/after untuk field sensitif tidak boleh disimpan dan hanya dicatat sebagai perubahan. | `AGENTS.md` dan `docs/ARCHITECTURE.md`; `FR-207` |
 | `NFR-007` | Token QR harus memiliki entropi yang memadai dan tidak dapat diprediksi. | PRD §5.2 |
-| `NFR-008` | Penyimpanan QR harus memakai hash untuk lookup dan ciphertext untuk cetak ulang, tanpa plaintext. | ADR-003 dan ADR-006 historis; tercatat di `docs/ARSITEKTUR.md` |
+| `NFR-008` | Penyimpanan QR harus memakai hash untuk lookup dan ciphertext untuk cetak ulang, tanpa plaintext. | ADR-0003 dan ADR-0006 (`docs/adr/`) |
 | `NFR-009` | Solusi tidak boleh memerlukan layanan berbayar; seluruh komponen harus berada dalam free tier. | `AGENTS.md` |
 | `NFR-010` | Desain harus memperhitungkan batas CPU Workers Free 10 ms per request. | `COSTS_AND_LIMITS.md` |
 | `NFR-011` | Desain harus memperhitungkan batas D1 Free 50 query per invokasi Worker dan memakai batch untuk operasi atomik. | `COSTS_AND_LIMITS.md` |
@@ -736,15 +737,17 @@ Business rule di bawah adalah invariant yang harus tetap benar terlepas dari pil
 | `NFR-018` | Setiap aturan integritas penting harus memiliki test yang gagal bila aturan dihapus. | `AGENTS.md` |
 | `NFR-019` | Setiap perubahan perilaku harus disertai pembaruan dokumentasi terkait. | `AGENTS.md` |
 | `NFR-020` | Tidak boleh menambah dependensi tanpa justifikasi tertulis dan tanpa mengevaluasi Web API atau kode sendiri. | `AGENTS.md` |
-| `NFR-021` | Aset font dan UI harus disajikan lokal atau dibundel; tidak boleh bergantung pada runtime CDN. | `D-021` [P] |
-| `NFR-022` | Scanner harus tetap dapat digunakan tanpa audio; status tidak boleh disampaikan hanya melalui warna. | `D-013` [P] |
-| `NFR-023` | Retensi audit harus mempertimbangkan batas D1 free tier dan tidak boleh mengorbankan sifat append-only atau memuat PII berlebihan. | `COSTS_AND_LIMITS.md`; `D-023` [P] |
+| `NFR-021` | Aset font dan UI harus disajikan lokal atau dibundel; tidak boleh bergantung pada runtime CDN. | `D-021` [A] |
+| `NFR-022` | Scanner harus tetap dapat digunakan tanpa audio; status tidak boleh disampaikan hanya melalui warna. | `D-013` [A] |
+| `NFR-023` | Retensi audit harus mempertimbangkan batas D1 free tier dan tidak boleh mengorbankan sifat append-only atau memuat PII berlebihan. | `COSTS_AND_LIMITS.md`; `D-023` [A] |
 
 ---
 
 ## 7. Baseline Implementasi Terverifikasi
 
 > Bagian ini **bukan kebutuhan**. Ini adalah potret implementasi pada commit `157c330`, diverifikasi 3 November 2026. Baseline tetap berlaku sebagai fakta historis dan tidak diubah oleh keputusan v0.3. Tidak ada klaim bahwa fitur sudah selesai end-to-end.
+>
+> **Koreksi faktual v0.3.2.** Baris "Scanner UI" (§7.2), §7.3 #4, dan baris "Scanner/kiosk" (§8.2) dikoreksi karena bukti v0.3.1 keliru: `apps/web/src/pages/staff-scan.tsx` tidak diimpor di mana pun, sedangkan rute `/staff/scan` merender `StaffScanPage` di `apps/web/src/pages/staff.tsx` yang memanggil endpoint scan. Ini koreksi fakta pada commit yang sama, bukan penyesuaian baseline terhadap target (§14 #15).
 
 ### 7.1 Ringkasan eksekusi
 
@@ -775,7 +778,7 @@ Business rule di bawah adalah invariant yang harus tetap benar terlepas dari pil
 |---|---|---|
 | Autentikasi | Passwordless berbasis token, aktivasi undangan, kode pemulihan, sesi cookie, revoke sesi, rate limit. | `apps/api/src/routes/auth.ts`, `apps/api/src/test/auth.*.test.ts`, `migrations/0002_auth.sql` |
 | Peran dan membership | Tiga peran: `superadmin`, `event_admin`, `officer`; membership per acara. | `apps/api/src/domain/permissions.ts`, `apps/api/src/test/permissions.test.ts` |
-| Pendaftaran mandiri | Admin acara dapat mendaftar sendiri (ADR-007 historis; tercatat di `docs/ARSITEKTUR.md`). | `apps/api/src/routes/auth.ts`, `migrations/0006_self_signup.sql`, `apps/api/src/test/auth.register.test.ts` |
+| Pendaftaran mandiri | Admin acara dapat mendaftar sendiri (ADR-0007, `docs/adr/0007-event-admin-self-signup.md`). | `apps/api/src/routes/auth.ts`, `migrations/0006_self_signup.sql`, `apps/api/src/test/auth.register.test.ts` |
 | Acara | CRUD acara, status `draft/active/closed/archived`, ringkasan, anggota, undangan. | `apps/api/src/routes/events.ts`, `apps/api/src/test/events.crud.test.ts` |
 | Peserta | CRUD peserta, status `active/inactive`, field `external_ref`, `full_name`, `phone`, `email`, `category` (teks), `note`. | `apps/api/src/routes/participants.ts`, `migrations/0003_participants.sql`, `apps/api/src/test/participants.crud.test.ts` |
 | Impor CSV | Header tetap 6 kolom, batas 2 MB dan 1.000 baris, pratinjau `dry_run`, upsert berdasarkan `external_ref`. | `apps/api/src/domain/participant-import.ts`, `packages/shared/src/schemas/participants.ts`, `apps/api/src/test/participants.import.test.ts` |
@@ -795,7 +798,7 @@ Business rule di bawah adalah invariant yang harus tetap benar terlepas dari pil
 | Laporan | Ekspor CSV kehadiran dan CSV peserta; belum ada XLSX atau laporan distribusi. | `apps/api/src/routes/attendance.ts`, `apps/api/src/routes/participants.ts` |
 | Sinkronisasi Google Sheets | Outbox persisten D1, proyeksi satu baris per peserta, cron, retry. Tidak dibahas di PRD. | `migrations/0005_attendance_sync.sql`, `apps/api/src/services/outbox.ts`, `apps/api/src/routes/sync.ts`, `apps/api/src/routes/sync.test.ts` |
 | Kesehatan dan operasional | `GET /api/health`, `GET /api/health/ready`, `GET /api/admin/usage`, security headers. | `apps/api/src/routes/health.ts`, `apps/api/src/routes/admin.ts`, `apps/api/src/test/ops.test.ts` |
-| Scanner UI | `staff-scan.tsx` masih placeholder dan belum memanggil endpoint scan. `QrScanner` hanya menyediakan kamera dan debounce; belum ada audio, pemilihan kamera, indikator jaringan, atau mode kiosk. | `apps/web/src/pages/staff-scan.tsx` baris 23, `apps/web/src/components/qr-scanner.tsx` |
+| Scanner UI | Rute `/staff/scan` merender `StaffScanPage` (`staff.tsx`): pemilihan acara dari keanggotaan, kamera, pemanggilan `POST /api/events/:eventId/scan`, kunci selama request, toast hasil, dan pesan koneksi bermasalah. `QrScanner` memakai kamera belakang (`facingMode: environment`) dan debounce; belum ada audio, pemilihan kamera depan/belakang, indikator status jaringan, konteks Aktivitas/Sesi, atau mode kiosk. `staff-scan.tsx` adalah placeholder lama yang tidak diim| `apps/web/src/pages/staff-scan.tsx` baris 23, `apps/web/src/components/qr-scanner.tsx` |
 | Navigasi admin | Dashboard, Acara, Aktivitas, Pengaturan; tab acara: Ringkasan, Peserta, Petugas, Absensi, Laporan. | `apps/web/src/lib/navigation.ts` |
 | Desain | Token monokrom, font sistem, light mode saja, belum ada Geist atau dark mode. | `apps/web/src/index.css` |
 | Nama teknis | Paket `@absensi/*`, cookie `absensi_session`, header `X-Absensi-Csrf`, prefix QR `absensi:v1:`; Worker bernama `qrcek`. | `package.json`, `apps/api/wrangler.jsonc`, `apps/api/src/domain/qr-token.ts` |
@@ -828,31 +831,31 @@ Business rule di bawah adalah invariant yang harus tetap benar terlepas dari pil
 | Area | Status | Delta utama | Bukti |
 |---|---|---|---|
 | Tema Acara | Bertentangan | Tidak ada entitas Tema Acara terpisah; hanya `events` datar. Target hierarki ditetapkan `D-003` [A]; tidak ada kewajiban migrasi data produksi (`D-007` [A]). | `migrations/0002_auth.sql` |
-| Aktivitas | Belum ada | Tidak ada tabel, route, atau UI Aktivitas. Target `D-003` [A] dan `D-009` [P]. | `migrations/` |
+| Aktivitas | Belum ada | Tidak ada tabel, route, atau UI Aktivitas. Target `D-003` [A] dan `D-009` [A]. | `migrations/` |
 | Sesi | Belum ada | Tidak ada tabel, route, atau UI Sesi. Target `D-003` [A]. | `migrations/` |
 | Kehadiran per Sesi | Bertentangan | `UNIQUE (event_id, participant_id)` membatasi satu kehadiran per acara, bukan per Aktivitas/Sesi. Target `D-003` [A]. | `migrations/0005_attendance_sync.sql` baris 31 |
 | Field inti peserta | Sebagian | Field inti tersedia, tetapi `category` masih teks bebas dan nullable; belum ada validasi wajib kategori. | `migrations/0003_participants.sql`, `packages/shared/src/schemas/participants.ts` |
 | Custom fields | Belum ada | Tidak ada definisi field, nilai, atau UI. | `migrations/` |
 | Kategori peserta | Bertentangan | Kategori hanya string; tidak ada entitas, CRUD, atau relasi. | `migrations/0003_participants.sql` |
 | Entitlement | Belum ada | Tidak ada model lima tingkat, override, atau validasi akses per Aktivitas/Sesi. Target `D-005` [A]. | Tidak ada implementasi |
-| Impor CSV | Sebagian | Sudah ada pratinjau dan upsert `external_ref`, tetapi belum ada pemetaan kolom, peninjauan duplikat Skip/Update, atau persetujuan update per baris. Target `D-008` [P], `D-020` [P]. | `apps/api/src/domain/participant-import.ts`, `apps/api/src/routes/participants.ts` |
+| Impor CSV | Sebagian | Sudah ada pratinjau dan upsert `external_ref`, tetapi belum ada pemetaan kolom, peninjauan duplikat Skip/Update, atau persetujuan update per baris. Target `D-008` [A], `D-020` [A]. | `apps/api/src/domain/participant-import.ts`, `apps/api/src/routes/participants.ts` |
 | QR Identity | Sesuai | Token opaque, hash, ciphertext, rotasi, audit. Scope target Tema + Peserta ditetapkan `D-004` [A]; token saat ini terbit per event. | `apps/api/src/domain/qr-token.ts`, `migrations/0004_qr.sql` |
-| Ekspor QR PNG/ZIP | Belum ada | Yang ada adalah preview dan cetak browser (A4/sticker), bukan unduhan PNG individual atau ZIP. Target `D-016` [P]. | `apps/web/src/components/label-sheet.tsx`, `apps/api/src/routes/labels.ts` |
+| Ekspor QR PNG/ZIP | Belum ada | Yang ada adalah preview dan cetak browser (A4/sticker), bukan unduhan PNG individual atau ZIP. Target `D-016` [A]. | `apps/web/src/components/label-sheet.tsx`, `apps/api/src/routes/labels.ts` |
 | Attendance | Bertentangan | Model saat ini per acara, bukan per Aktivitas/Sesi. Target `D-003` [A]. | `migrations/0005_attendance_sync.sql` |
 | Pencegahan duplikat | Sebagian | Ditegakkan di database, tetapi pada level acara, bukan Aktivitas/Sesi; belum memperhitungkan transaksi efektif dan Reversal. Target `D-006` [A]. | `migrations/0005_attendance_sync.sql` |
-| Manual check-in | Sebagian | Tersedia, tetapi hanya untuk admin acara/superadmin; rekomendasi Petugas berizin masih `D-022` [P]. | `apps/api/src/routes/attendance.ts`, `apps/api/src/domain/permissions.ts` |
-| Koreksi transaksi | Bertentangan | Saat ini menimpa baris `attendance`; target `D-006` [A] meminta Reversal/Adjustment yang mempertahankan transaksi asli. Otorisasi Admin Acara sudah sesuai; Super Admin masih proposed `D-024` [P]. | `apps/api/src/db/attendance.ts` baris 238, `apps/api/src/routes/attendance.ts` |
-| Distribusi konsumsi | Belum ada | Tidak ada model, route, UI, atau laporan. Target `D-009` [P], `D-014` [P]. | Tidak ada implementasi |
-| Lifecycle Aktivitas/Sesi | Belum ada | Hanya lifecycle acara. Target `D-010` [P]. | `migrations/0002_auth.sql` |
-| Peran dan penugasan | Sebagian | Tiga peran tersedia, tetapi Petugas ditugaskan per acara, bukan per Aktivitas/Sesi. Target `D-012` [P]. | `apps/api/src/domain/permissions.ts`, `migrations/0002_auth.sql` |
-| Scanner/kiosk | Sebagian | Halaman placeholder, belum memanggil API; belum ada audio, pemilihan kamera, indikator jaringan, atau pemilihan konteks. Target `D-012` [P], `D-013` [P]. | `apps/web/src/pages/staff-scan.tsx`, `apps/web/src/components/qr-scanner.tsx` |
+| Manual check-in | Sebagian | Tersedia, tetapi hanya untuk admin acara/superadmin; rekomendasi Petugas berizin masih `D-022` [A]. | `apps/api/src/routes/attendance.ts`, `apps/api/src/domain/permissions.ts` |
+| Koreksi transaksi | Bertentangan | Saat ini menimpa baris `attendance`; target `D-006` [A] meminta Reversal/Adjustment yang mempertahankan transaksi asli. Otorisasi Admin Acara sudah sesuai; Super Admin masih proposed `D-024` [A]. | `apps/api/src/db/attendance.ts` baris 238, `apps/api/src/routes/attendance.ts` |
+| Distribusi konsumsi | Belum ada | Tidak ada model, route, UI, atau laporan. Target `D-009` [A], `D-014` [A]. | Tidak ada implementasi |
+| Lifecycle Aktivitas/Sesi | Belum ada | Hanya lifecycle acara. Target `D-010` [A]. | `migrations/0002_auth.sql` |
+| Peran dan penugasan | Sebagian | Tiga peran tersedia, tetapi Petugas ditugaskan per acara, bukan per Aktivitas/Sesi. Target `D-012` [A]. | `apps/api/src/domain/permissions.ts`, `migrations/0002_auth.sql` |
+| Scanner/kiosk | Sebagian | Halaman placeholder, belum memanggil API; belum ada audio, pemilihan kamera, indikator jaringan, atau pemilihan konteks. Target `D-012` [A], `D-013` [A]. | `apps/web/src/pages/staff-scan.tsx`, `apps/web/src/components/qr-scanner.tsx` |
 | Dashboard | Sebagian | Sudah ada statistik dan daftar, tetapi belum memuat Aktivitas, Sesi, atau distribusi konsumsi. | `apps/api/src/routes/dashboard.ts` |
 | Navigasi | Bertentangan | Navigasi admin saat ini belum memiliki Peserta, Kategori Peserta, dan Laporan sebagai level global. | `apps/web/src/lib/navigation.ts` |
-| Audit | Sebagian | Append-only dan beberapa aksi sudah tercatat; cakupan aksi target dan privasi audit masih `D-023` [P]. | `apps/api/src/db/audit.ts`, `apps/api/src/routes/audit.ts` |
-| Laporan | Sebagian | CSV peserta dan kehadiran tersedia; XLSX, laporan distribusi, dan filter lanjutan belum ada. Target `D-015` [P]. | `apps/api/src/routes/attendance.ts`, `apps/api/src/routes/participants.ts` |
-| Desain | Bertentangan | Monokrom, font sistem, tanpa dark mode, belum Geist. Target `D-021` [P]. | `apps/web/src/index.css` |
-| Nama produk | Sebagian | Produk disebut QRCek, tetapi identifier teknis masih `absensi`. Rekomendasi mempertahankan identifier ada di `D-019` [P]. | `package.json`, `apps/api/wrangler.jsonc`, `apps/api/src/domain/qr-token.ts` |
-| Google Sheets | Menunggu keputusan | Fitur berjalan, tetapi belum jelas apakah dipertahankan dan bagaimana bentuknya setelah ada Sesi/konsumsi. Rekomendasi `D-017` [P]. | `apps/api/src/routes/sync.ts`, `migrations/0005_attendance_sync.sql` |
+| Audit | Sebagian | Append-only dan beberapa aksi sudah tercatat; cakupan aksi target dan privasi audit masih `D-023` [A]. | `apps/api/src/db/audit.ts`, `apps/api/src/routes/audit.ts` |
+| Laporan | Sebagian | CSV peserta dan kehadiran tersedia; XLSX, laporan distribusi, dan filter lanjutan belum ada. Target `D-015` [A]. | `apps/api/src/routes/attendance.ts`, `apps/api/src/routes/participants.ts` |
+| Desain | Bertentangan | Monokrom, font sistem, tanpa dark mode, belum Geist. Target `D-021` [A]. | `apps/web/src/index.css` |
+| Nama produk | Sebagian | Produk disebut QRCek, tetapi identifier teknis masih `absensi`. Rekomendasi mempertahankan identifier ada di `D-019` [A]. | `package.json`, `apps/api/wrangler.jsonc`, `apps/api/src/domain/qr-token.ts` |
+| Google Sheets | Menunggu keputusan | Fitur berjalan, tetapi belum jelas apakah dipertahankan dan bagaimana bentuknya setelah ada Sesi/konsumsi. Rekomendasi `D-017` [A]. | `apps/api/src/routes/sync.ts`, `migrations/0005_attendance_sync.sql` |
 
 ---
 
@@ -887,7 +890,7 @@ Business rule di bawah adalah invariant yang harus tetap benar terlepas dari pil
 | `AC-006` | Peserta | Field inti tervalidasi; Participant ID otomatis, tidak berubah, dan unik dalam Tema. | PRD §3.1; `D-003` [A] |
 | `AC-007` | Status peserta | Peserta nonaktif ditolak pada check-in dan penukaran; riwayat tetap ada setelah aktivasi ulang. | PRD §3.3 |
 | `AC-008` | Custom field | Rename, deactivate, archive, dan perubahan tipe tidak menghapus data yang masih valid. | PRD §3.2 |
-| `AC-009` | Impor | Admin dapat memetakan kolom, meninjau duplikat, memilih Skip/Update, dan mengonfirmasi sebelum penulisan. Pencocokan memakai External Reference dalam Tema yang sama; baris tanpa External Reference dianggap peserta baru dengan warning duplikat untuk review manual; External Reference yang cocok banyak memerlukan pilihan eksplisit admin. | `D-008` [P] |
+| `AC-009` | Impor | Admin dapat memetakan kolom, meninjau duplikat, memilih Skip/Update, dan mengonfirmasi sebelum penulisan. Pencocokan memakai External Reference dalam Tema yang sama; baris tanpa External Reference dianggap peserta baru dengan warning duplikat untuk review manual; External Reference yang cocok banyak memerlukan pilihan eksplisit admin. | `D-008` [A] |
 | `AC-010` | Impor tanpa persetujuan | Tidak ada update peserta otomatis tanpa konfirmasi admin. | PRD §3.4 |
 | `AC-011` | Kategori dan entitlement | Prioritas Individual–Session → Category–Session → Individual–Activity → Category–Activity → Theme default diuji, termasuk Inherit/Allowed/Denied. | `D-005` [A] |
 | `AC-012` | Aktivitas baru | Aktivitas baru mengonfigurasi entitlement setiap kategori secara eksplisit dan tidak otomatis memakai Theme-wide entitlement sebagai konfigurasi final. | `D-005` [A] |
@@ -896,44 +899,44 @@ Business rule di bawah adalah invariant yang harus tetap benar terlepas dari pil
 | `AC-015` | QR | Token opaque, tidak memuat PII, scope Tema + Peserta, dan divalidasi backend pada setiap scan. | `D-004` [A] |
 | `AC-016` | Rotasi QR | Token lama langsung ditolak; riwayat transaksi tidak berubah; rotasi tercatat di audit. | PRD §5.2 |
 | `AC-017` | QR nonaktif | QR peserta nonaktif ditolak. | PRD §5.2 |
-| `AC-018` | Ekspor QR | PNG individual dan ZIP dapat diunduh; backend mengotorisasi; browser menghasilkan PNG/packaging; setiap file teridentifikasi dengan peserta yang benar; batas batch/memory diterapkan. | `D-016` [P] |
+| `AC-018` | Ekspor QR | PNG individual dan ZIP dapat diunduh; backend mengotorisasi; browser menghasilkan PNG/packaging; setiap file teridentifikasi dengan peserta yang benar; batas batch/memory diterapkan. | `D-016` [A] |
 | `AC-019` | Attendance | Scan valid mencatat Attendance pada Aktivitas/Sesi yang benar. | `D-003` [A] |
 | `AC-020` | Duplikat Attendance | Scan ulang pada ruang lingkup efektif yang sama ditolak; Sesi berbeda dapat diterima bila berhak; transaksi yang di-reversal tidak menghalangi check-in baru. | `D-006` [A] |
-| `AC-021` | Manual check-in | Hanya aktor berizin; pelaku dan source tercatat; validasi backend dan duplikasi tetap berjalan. Izin Manual Check-in untuk Super Admin belum ditetapkan; legacy permission `attendance:correct` tidak bukti otorisasi target. | `D-022` [P], `OQ-034` [O] |
+| `AC-021` | Manual check-in | Hanya aktor berizin; pelaku dan source tercatat; validasi backend dan duplikasi tetap berjalan. Izin Manual Check-in untuk Super Admin belum ditetapkan; legacy permission `attendance:correct` tidak bukti otorisasi target. | `D-022` [A], `OQ-034` [A] |
 | `AC-022` | Reversal | Hanya Admin Acara; alasan wajib; transaksi asli tetap ada; efek dibatalkan; audit tercatat. | `D-006` [A] |
-| `AC-023` | Koreksi dan peran | Petugas tidak dapat melakukan Reversal/Adjustment; Super Admin masih proposed dan belum final. | `D-006` [A], `D-024` [P] |
-| `AC-024` | Konsumsi | Setiap jenis distribusi independen; kuota default Aktivitas, override kategori/individual; penukaran ganda berdasarkan transaksi efektif ditolak. | `D-014` [P] |
+| `AC-023` | Koreksi dan peran | Petugas tidak dapat melakukan Reversal/Adjustment; Super Admin masih proposed dan belum final. | `D-006` [A], `D-024` [A] |
+| `AC-024` | Konsumsi | Setiap jenis distribusi independen; kuota default Aktivitas, override kategori/individual; penukaran ganda berdasarkan transaksi efektif ditolak. | `D-014` [A] |
 | `AC-025` | Riwayat konsumsi | Perubahan entitlement tidak menghapus riwayat penukaran. | `D-005` [A] |
-| `AC-026` | Feedback scanner | Success, Duplicate/Already Attended, Not Entitled, Invalid QR, dan System Error dibedakan untuk Attendance dan Consumption. | `D-011` [P] |
+| `AC-026` | Feedback scanner | Success, Duplicate/Already Attended, Not Entitled, Invalid QR, dan System Error dibedakan untuk Attendance dan Consumption. | `D-011` [A] |
 | `AC-027` | Scanner online | Tidak ada antrean offline; kegagalan jaringan tidak menampilkan keberhasilan. | PRD §10.4 |
-| `AC-028` | Penugasan scanner | Petugas hanya dapat memindai dalam Aktivitas/Sesi yang ditugaskan; konteks divalidasi backend. | `D-012` [P] |
+| `AC-028` | Penugasan scanner | Petugas hanya dapat memindai dalam Aktivitas/Sesi yang ditugaskan; konteks divalidasi backend. | `D-012` [A] |
 | `AC-029` | Dashboard | Menampilkan seluruh konten yang diminta tanpa chart. | PRD §11 |
 | `AC-030` | Navigasi | Enam tujuan admin tersedia dan terpisah dari scanner. | PRD §11.2 |
-| `AC-031` | Audit | Aksi penting tercatat; audit append-only; akses sesuai peran; PII diminimalkan; before/after terbatas pada field allowlist. | `D-023` [P], `FR-207` |
+| `AC-031` | Audit | Aksi penting tercatat; audit append-only; akses sesuai peran; PII diminimalkan; before/after terbatas pada field allowlist. | `D-023` [A], `FR-207` |
 | `AC-032` | Laporan | Empat jenis laporan tersedia dan dapat difilter. | PRD §13 |
-| `AC-033` | Ekspor laporan | CSV tersedia pada rilis awal; XLSX tersedia pada tahap berikutnya; hasil konsisten dengan filter; ekspor tercatat di audit. | `D-015` [P] |
+| `AC-033` | Ekspor laporan | CSV tersedia pada rilis awal; XLSX tersedia pada tahap berikutnya; hasil konsisten dengan filter; ekspor tercatat di audit. | `D-015` [A] |
 | `AC-034` | Keamanan | Setiap endpoint menguji otorisasi; tidak ada kebocoran PII atau secret. | PRD §15 |
 | `AC-035` | Integritas | Aturan duplikasi dan riwayat memiliki test yang gagal bila aturan dihapus. | `AGENTS.md` |
 | `AC-036` | Legacy data | Tidak ada kewajiban migrasi data produksi; perubahan schema memiliki validasi dan regression test. | `D-007` [A] |
 | `AC-037` | Reuse | Fitur lama yang masih relevan boleh dipakai ulang dan test lama tetap lulus setelah evaluasi. | `D-007` [A] |
 | `AC-038` | Dokumentasi | Dokumen terkait diperbarui pada perubahan yang sama. | `AGENTS.md` |
-| `AC-039` | Desain | Light/dark mode, palet biru/slate, Geist lokal, shadcn/ui, Lucide, radius 8–12 px, tabular numbers, dan layout responsif terpenuhi; tabel tidak diubah menjadi card. | `D-021` [P] |
-| `AC-040` | Konsistensi hasil scan | Result code `SUCCESS`, `DUPLICATE`, `NOT_ENTITLED`, `INVALID_QR`, `SYSTEM_ERROR` konsisten untuk Attendance dan Consumption; tidak ada keberhasilan palsu. | `D-011` [P] |
+| `AC-039` | Desain | Light/dark mode, palet biru/slate, Geist lokal, shadcn/ui, Lucide, radius 8–12 px, tabular numbers, dan layout responsif terpenuhi; tabel tidak diubah menjadi card. | `D-021` [A] |
+| `AC-040` | Konsistensi hasil scan | Result code `SUCCESS`, `DUPLICATE`, `NOT_ENTITLED`, `INVALID_QR`, `SYSTEM_ERROR` konsisten untuk Attendance dan Consumption; tidak ada keberhasilan palsu. | `D-011` [A] |
 | `AC-041` | Adjustment | Perubahan mencatat before/after dan tidak menimpa nilai historis secara diam-diam. | `D-006` [A] |
-| `AC-042` | Tanpa merge otomatis | Nama/email/phone yang sama menghasilkan warning; kandidat ambigu direview manual; tidak ada penggabungan profil otomatis. | `D-008` [P] |
+| `AC-042` | Tanpa merge otomatis | Nama/email/phone yang sama menghasilkan warning; kandidat ambigu direview manual; tidak ada penggabungan profil otomatis. | `D-008` [A] |
 | `AC-043` | Entitlement future-only | Perubahan entitlement tidak mengubah transaksi sukses yang sudah ada dan tidak melakukan reversal otomatis. | `D-005` [A] |
-| `AC-044` | Kombinasi lifecycle | Kombinasi Aktivitas/Sesi yang tidak valid ditolak; tidak ada inferensi Sesi dari waktu jam. | `D-010` [P] |
+| `AC-044` | Kombinasi lifecycle | Kombinasi Aktivitas/Sesi yang tidak valid ditolak; tidak ada inferensi Sesi dari waktu jam. | `D-010` [A] |
 | `AC-045` | Reversal membebaskan slot | Attendance yang di-reversal tidak lagi dihitung sebagai duplikat dan check-in baru yang valid dapat dilakukan. | `D-006` [A] |
-| `AC-046` | Kuota setelah Reversal | Reversal pada transaksi Consumption mengembalikan kuota yang sebelumnya terpakai. Perilaku ini proposed dan belum final. | `D-014` [P] |
-| `AC-047` | Privasi audit | Audit tidak memuat token QR plaintext, password, atau secret; nilai before/after untuk field sensitif tidak disimpan, hanya status perubahannya; PII diminimalkan/dimask. | `D-023` [P], `FR-207` |
-| `AC-048` | Pending bukan sukses | Respons backend yang masih pending tidak pernah ditampilkan sebagai sukses; scanner mengunci pemrosesan selama feedback. | `D-012` [P] |
-| `AC-049` | Manual source | Manual Check-in adalah Transaction Source, bukan Correction Operation; Petugas tidak dapat melakukan Reversal/Adjustment. Izin Manual Check-in untuk Super Admin belum ditetapkan (`OQ-034` [O]). | `D-022` [P], `OQ-034` [O] |
-| `AC-050` | Registrasi Admin | Admin Acara hanya dapat mendaftar melalui undangan; self-registration publik nonaktif; pencabutan akses berfungsi. | `D-018` [P] |
-| `AC-051` | Google Sheets | Integrasi opsional; kegagalan sync tidak memblokir transaksi inti; belum diklaim production-ready sebelum diuji dengan akun nyata. | `D-017` [P] |
-| `AC-052` | Identifier teknis | Identifier lama dipertahankan kecuali ada alasan teknis terbukti; nama produk QRCek. | `D-019` [P] |
-| `AC-053` | Aksesibilitas UI | Status tidak hanya warna; teks/ikon tersedia; scanner usable tanpa audio; aset font lokal/tanpa runtime CDN. | `D-013` [P], `D-021` [P] |
-| `AC-054` | Impor field kosong | Field CSV kosong tidak menghapus data peserta yang sudah ada; perubahan hanya terjadi bila admin mengonfirmasi. | `D-008` [P] |
-| `AC-055` | Izin Manual Check-in | Legacy permission `attendance:correct` tidak boleh otomatis dianggap sebagai otorisasi Manual Check-in pada model target; otorisasi harus direkonsiliasi sebelum implementasi. | `OQ-034` [O] |
+| `AC-046` | Kuota setelah Reversal | Reversal pada transaksi Consumption mengembalikan kuota yang sebelumnya terpakai. Perilaku ini proposed dan belum final. | `D-014` [A] |
+| `AC-047` | Privasi audit | Audit tidak memuat token QR plaintext, password, atau secret; nilai before/after untuk field sensitif tidak disimpan, hanya status perubahannya; PII diminimalkan/dimask. | `D-023` [A], `FR-207` |
+| `AC-048` | Pending bukan sukses | Respons backend yang masih pending tidak pernah ditampilkan sebagai sukses; scanner mengunci pemrosesan selama feedback. | `D-012` [A] |
+| `AC-049` | Manual source | Manual Check-in adalah Transaction Source, bukan Correction Operation; Petugas tidak dapat melakukan Reversal/Adjustment. Izin Manual Check-in untuk Super Admin belum ditetapkan (`OQ-034` [A]). | `D-022` [A], `OQ-034` [A] |
+| `AC-050` | Registrasi Admin | Admin Acara hanya dapat mendaftar melalui undangan; self-registration publik nonaktif; pencabutan akses berfungsi. | `D-018` [A] |
+| `AC-051` | Google Sheets | Integrasi opsional; kegagalan sync tidak memblokir transaksi inti; belum diklaim production-ready sebelum diuji dengan akun nyata. | `D-017` [A] |
+| `AC-052` | Identifier teknis | Identifier lama dipertahankan kecuali ada alasan teknis terbukti; nama produk QRCek. | `D-019` [A] |
+| `AC-053` | Aksesibilitas UI | Status tidak hanya warna; teks/ikon tersedia; scanner usable tanpa audio; aset font lokal/tanpa runtime CDN. | `D-013` [A], `D-021` [A] |
+| `AC-054` | Impor field kosong | Field CSV kosong tidak menghapus data peserta yang sudah ada; perubahan hanya terjadi bila admin mengonfirmasi. | `D-008` [A] |
+| `AC-055` | Izin Manual Check-in | Legacy permission `attendance:correct` tidak boleh otomatis dianggap sebagai otorisasi Manual Check-in pada model target; otorisasi harus direkonsiliasi sebelum implementasi. | `OQ-034` [A] |
 
 ---
 
@@ -963,44 +966,35 @@ Desain kartu peserta dibuat manual di Canva menggunakan hasil ekspor PNG dari QR
 | `OQ-023` | Apakah `AGENTS.md` boleh diperbarui untuk menunjuk struktur dokumen baru? | `D-001` [A] | Ditutup |
 | `OQ-024` | Apa status final `IMPLEMENTATION_PLAN.md` dan `PLAN_TAB_PESERTA.md`: diarsipkan, dipindah, atau dipertahankan? | `D-002` [A] | Ditutup |
 | `OQ-032` | Apakah token QR terikat pada kombinasi Tema Acara dan Peserta, atau token cukup mengidentifikasi peserta dan Tema Acara ditentukan berdasarkan konteks scanner? | `D-004` [A] | Ditutup |
+| `OQ-008` | Bagaimana strategi pencocokan peserta saat impor CSV tanpa Participant ID? | `D-008` [A] | Ditutup |
+| `OQ-009` | Bagaimana sistem menangani kemungkinan dua peserta memiliki nama, email, atau nomor telepon yang sama? | `D-008` [A] | Ditutup |
+| `OQ-010` | Apakah tipe aktivitas (kehadiran dan distribusi) menjadi konfigurasi eksplisit? | `D-009` [A] | Ditutup |
+| `OQ-011` | Bagaimana aturan transaksi berdasarkan status aktivitas dan sesi? | `D-010` [A] | Ditutup |
+| `OQ-012` | Bagaimana struktur transaksi koreksi dan pembalikan? | `D-011` [A] | Ditutup |
+| `OQ-013` | Bagaimana transaksi distribusi dan kehadiran direpresentasikan serta dipisahkan? | `D-009` [A], `D-011` [A] | Ditutup |
+| `OQ-014` | Setelah transaksi, apakah scanner langsung kembali standby atau menampilkan hasil sementara sebelum standby? | `D-012` [A] | Ditutup |
+| `OQ-015` | Bagaimana detail konfigurasi feedback audio dan visual? | `D-013` [A] | Ditutup |
+| `OQ-016` | Bagaimana pengelolaan konteks scanner pada aktivitas yang memiliki sesi dan yang tidak memiliki sesi? | `D-012` [A] | Ditutup |
+| `OQ-017` | Apakah kuota konsumsi selalu 1 per jenis distribusi, atau dapat dikonfigurasi per kategori/peserta? | `D-014` [A] | Ditutup |
+| `OQ-018` | Bagaimana mekanisme pemilihan konteks kiosk: URL, konfigurasi perangkat, atau login petugas? | `D-012` [A] | Ditutup |
+| `OQ-019` | Apakah XLSX wajib pada rilis pertama, atau CSV lebih dulu? | `D-015` [A] | Ditutup |
+| `OQ-020` | Apakah PNG dan ZIP dibuat di browser atau di server? | `D-016` [A] | Ditutup |
+| `OQ-021` | Apakah sinkronisasi Google Sheets dipertahankan? Jika ya, bagaimana bentuknya setelah ada sesi dan konsumsi? | `D-017` [A] | Ditutup |
+| `OQ-022` | Apakah pendaftaran mandiri Admin Acara (ADR-007 historis di `docs/ARSITEKTUR.md`) dipertahankan? | `D-018` [A] | Ditutup |
+| `OQ-025` | Apakah Super Admin termasuk pihak yang boleh melakukan koreksi transaksi? | `D-024` [A] | Ditutup |
+| `OQ-026` | Apakah identifier teknis lama (`@absensi/*`, cookie `absensi_session`, header `X-Absensi-Csrf`, prefix QR `absensi:v1:`) akan diganti menjadi QRCek? | `D-019` [A] | Ditutup |
+| `OQ-027` | Lokasi final `COSTS_AND_LIMITS.md`: tetap di root atau dipindah ke `docs/`? | Tetap di root | Ditutup |
+| `OQ-028` | Apakah batas impor aktual (1.000 baris, 2 MB) dipertahankan sebagai batas produk? | `D-020` [A] | Ditutup |
+| `OQ-029` | Apakah penambahan font Geist dan mode gelap memerlukan dependensi baru, atau dapat memakai aset lokal/Web API? | `D-021` [A] | Ditutup |
+| `OQ-030` | Apakah Petugas berizin boleh melakukan manual check-in, atau kewenangan itu tetap hanya untuk Admin Acara? | `D-022` [A] | Ditutup |
+| `OQ-031` | Aksi audit mana yang wajib pada rilis pertama, mengingat PRD menyebut daftar contoh yang lebih luas daripada implementasi saat ini? | `D-023` [A] | Ditutup |
+| `OQ-033` | Syarat kapan pengarsipan Sesi boleh dilakukan: hanya setelah Selesai, atau juga pada status lain? Apakah ada batasan operasional tambahan? | Hanya dari Selesai/Dinonaktifkan, hanya Admin Acara | Ditutup |
+| `OQ-034` | Apakah Super Admin boleh melakukan Manual Check-in, atau kewenangan Manual Check-in hanya untuk Admin Acara dan Petugas berizin? | Tidak; hanya Admin Acara dan Petugas berizin | Ditutup |
 
 Pertanyaan di atas tidak boleh dibuka kembali. Riwayat dan keputusan lengkapnya ada di §12.1.
 
-### 11.2 Proposed — Pending Product Owner Review
 
-| ID | Pertanyaan | Rekomendasi | Menghambat | Status |
-|---|---|---|---|---|
-| `OQ-008` | Bagaimana strategi pencocokan peserta saat impor CSV tanpa Participant ID? | `D-008` [P]: External Reference dalam Tema yang sama; kandidat ambigu direview manual. | Alur impor, validasi duplikat | Proposed / Pending Product Owner Review |
-| `OQ-009` | Bagaimana sistem menangani kemungkinan dua peserta memiliki nama, email, atau nomor telepon yang sama? | `D-008` [P]: warning, bukan merge otomatis; review manual. | Aturan duplikat, data peserta | Proposed / Pending Product Owner Review |
-| `OQ-010` | Apakah tipe aktivitas (kehadiran dan distribusi) menjadi konfigurasi eksplisit? | `D-009` [P]: satu tipe transaksi utama per Aktivitas. | Skema Aktivitas, UI admin | Proposed / Pending Product Owner Review |
-| `OQ-011` | Bagaimana aturan transaksi berdasarkan status aktivitas dan sesi? | `D-010` [P]: validasi lifecycle eksplisit; tanpa inferensi waktu. | Validasi scan, state machine | Proposed / Pending Product Owner Review |
-| `OQ-012` | Bagaimana struktur transaksi koreksi dan pembalikan? | `D-011` [P]: Reversal/Adjustment terpisah; struktur data rinci masih perlu keputusan arsitektur. | Model transaksi, audit, laporan | Proposed / Pending Product Owner Review |
-| `OQ-013` | Bagaimana transaksi distribusi dan kehadiran direpresentasikan serta dipisahkan? | `D-009` [P], `D-011` [P]: Transaction Type terpisah; representasi tabel menunggu arsitektur. | Skema, query laporan | Proposed / Pending Product Owner Review |
-| `OQ-014` | Setelah transaksi, apakah scanner langsung kembali standby atau menampilkan hasil sementara sebelum standby? | `D-012` [P]: tampilkan hasil lalu auto-standby sekitar dua detik. | UX scanner | Proposed / Pending Product Owner Review |
-| `OQ-015` | Bagaimana detail konfigurasi feedback audio dan visual? | `D-013` [P]: konfigurasi Theme, mute lokal, teks/ikon, tidak hanya warna. | UX scanner, konfigurasi Tema | Proposed / Pending Product Owner Review |
-| `OQ-016` | Bagaimana pengelolaan konteks scanner pada aktivitas yang memiliki sesi dan yang tidak memiliki sesi? | `D-012` [P]: konteks berbasis penugasan; Sesi eksplisit bila ada. | Penugasan Petugas, UI scanner | Proposed / Pending Product Owner Review |
-| `OQ-017` | Apakah kuota konsumsi selalu 1 per jenis distribusi, atau dapat dikonfigurasi per kategori/peserta? | `D-014` [P]: kuota dapat dikonfigurasi; default Aktivitas, override kategori/individual. | Model distribusi, validasi penukaran | Proposed / Pending Product Owner Review |
-| `OQ-018` | Bagaimana mekanisme pemilihan konteks kiosk: URL, konfigurasi perangkat, atau login petugas? | `D-012` [P]: login Petugas dan penugasan; URL hanya preselect, bukan otorisasi. | Desain scanner, otorisasi | Proposed / Pending Product Owner Review |
-| `OQ-019` | Apakah XLSX wajib pada rilis pertama, atau CSV lebih dulu? | `D-015` [P]: CSV pada rilis awal; XLSX tahap berikutnya, tidak dihapus. | Prioritas laporan, dependensi | Proposed / Pending Product Owner Review |
-| `OQ-020` | Apakah PNG dan ZIP dibuat di browser atau di server? | `D-016` [P]: backend otorisasi; browser menghasilkan PNG/packaging. | Arsitektur ekspor, batas CPU Worker, dependensi | Proposed / Pending Product Owner Review |
-| `OQ-021` | Apakah sinkronisasi Google Sheets dipertahankan? Jika ya, bagaimana bentuknya setelah ada sesi dan konsumsi? | `D-017` [P]: opsional per Tema, bukan source of truth, kegagalan tidak memblokir transaksi. | Arsitektur integrasi, outbox, laporan | Proposed / Pending Product Owner Review |
-| `OQ-022` | Apakah pendaftaran mandiri Admin Acara (ADR-007 historis di `docs/ARSITEKTUR.md`) dipertahankan? | `D-018` [P]: nonaktifkan self-registration; undangan Super Admin. | Alur auth, model peran | Proposed / Pending Product Owner Review |
-| `OQ-025` | Apakah Super Admin termasuk pihak yang boleh melakukan koreksi transaksi? | `D-024` [P]: Super Admin hanya melihat; Reversal/Adjustment hanya Admin Acara; tidak ada emergency override pada rilis awal. | Matriks otorisasi koreksi | Proposed / Pending Product Owner Review |
-| `OQ-026` | Apakah identifier teknis lama (`@absensi/*`, cookie `absensi_session`, header `X-Absensi-Csrf`, prefix QR `absensi:v1:`) akan diganti menjadi QRCek? | `D-019` [P]: pertahankan identifier; nama produk tetap QRCek. | Kompatibilitas sesi, QR tercetak, migrasi | Proposed / Pending Product Owner Review |
-| `OQ-028` | Apakah batas impor aktual (1.000 baris, 2 MB) dipertahankan sebagai batas produk? | `D-020` [P]: 2 MB dan 1.000 baris data di luar header. | Alur impor, performa free tier | Proposed / Pending Product Owner Review |
-| `OQ-029` | Apakah penambahan font Geist dan mode gelap memerlukan dependensi baru, atau dapat memakai aset lokal/Web API? | `D-021` [P]: Geist lokal/dependency, tanpa runtime CDN; token CSS untuk dark mode. | Desain, dependensi | Proposed / Pending Product Owner Review |
-| `OQ-030` | Apakah Petugas berizin boleh melakukan manual check-in, atau kewenangan itu tetap hanya untuk Admin Acara? | `D-022` [P]: Petugas yang ditugaskan boleh, bila Admin Acara mengaktifkan. | Matriks otorisasi, UI scanner | Proposed / Pending Product Owner Review |
-| `OQ-031` | Aksi audit mana yang wajib pada rilis pertama, mengingat PRD menyebut daftar contoh yang lebih luas daripada implementasi saat ini? | `D-023` [P]: cakupan audit diperluas; privasi PII dan secret dijaga. | Cakupan audit, acceptance criteria | Proposed / Pending Product Owner Review |
-
-### 11.3 Pertanyaan yang masih terbuka
-
-| ID | Pertanyaan | Menghambat | Status |
-|---|---|---|---|
-| `OQ-027` | Lokasi final `COSTS_AND_LIMITS.md`: tetap di root atau dipindah ke `docs/`? | Governance dokumentasi | Terbuka — belum ada rekomendasi |
-| `OQ-033` | Syarat kapan pengarsipan Sesi boleh dilakukan: hanya setelah Selesai, atau juga pada status lain? Apakah ada batasan operasional tambahan? | Konfigurasi lifecycle Sesi | Terbuka — belum ada rekomendasi |
-| `OQ-034` | Apakah Super Admin boleh melakukan Manual Check-in, atau kewenangan Manual Check-in hanya untuk Admin Acara dan Petugas berizin? | Matriks otorisasi, UI scanner | Terbuka — belum ada rekomendasi |
-
-Catatan: `OQ-027`, `OQ-033`, dan `OQ-034` tetap terbuka karena tidak ada rekomendasi yang diberikan pada revisi ini. Pertanyaan proposed di §11.2 tidak boleh diperlakukan sebagai keputusan final; statusnya berubah menjadi `[A]` hanya setelah product owner menyetujui rekomendasi terkait.
+Semua pertanyaan di atas sudah ditutup oleh keputusan disepakati di §12.1.
 
 ---
 
@@ -1109,7 +1103,7 @@ Konsekuensi:
 | ID | `D-006` |
 | Status | Disepakati `[A]` |
 | Mengatur | `FR-076`–`FR-080`, `FR-201`, `FR-202`, `BR-036`–`BR-040`, `AC-022`, `AC-041`, `AC-045` |
-| Keputusan | Hanya Admin Acara yang boleh melakukan Reversal atau Adjustment. Petugas tidak memiliki kewenangan koreksi, termasuk terhadap transaksi yang ia buat. Koreksi wajib memiliki alasan dan wajib tercatat di audit. Reversal membatalkan efek transaksi tanpa menghapus transaksi asli; transaksi kehadiran yang di-reversal tidak lagi menghalangi check-in baru yang valid. Adjustment mempertahankan transaksi asli dan mencatat perubahan before/after tanpa menimpa riwayat secara diam-diam. Duplikasi kehadiran dihitung dari transaksi efektif, bukan dari seluruh riwayat. Perilaku kuota Consumption setelah Reversal **tidak** termasuk keputusan ini dan tetap proposed pada `D-014` [P]. |
+| Keputusan | Hanya Admin Acara yang boleh melakukan Reversal atau Adjustment. Petugas tidak memiliki kewenangan koreksi, termasuk terhadap transaksi yang ia buat. Koreksi wajib memiliki alasan dan wajib tercatat di audit. Reversal membatalkan efek transaksi tanpa menghapus transaksi asli; transaksi kehadiran yang di-reversal tidak lagi menghalangi check-in baru yang valid. Adjustment mempertahankan transaksi asli dan mencatat perubahan before/after tanpa menimpa riwayat secara diam-diam. Duplikasi kehadiran dihitung dari transaksi efektif, bukan dari seluruh riwayat. Perilaku kuota Consumption setelah Reversal **tidak** termasuk keputusan ini dan tetap proposed pada `D-014` [A]. |
 | Tanggal keputusan | 3 November 2026 |
 | Pemilik keputusan | Product owner QRCek |
 
@@ -1117,8 +1111,8 @@ Konsekuensi:
 
 1. Transaksi asli dan riwayat koreksi harus dipertahankan.
 2. Reversal Attendance membebaskan slot duplikasi kehadiran.
-3. Perilaku kuota Consumption setelah Reversal **belum diputuskan** di sini; rekomendasinya ada di `D-014` [P] dan menunggu review product owner.
-4. Kewenangan Super Admin masih proposed (`D-024` [P]) dan belum menjadi bagian keputusan ini.
+3. Perilaku kuota Consumption setelah Reversal **belum diputuskan** di sini; rekomendasinya ada di `D-014` [A] dan menunggu review product owner.
+4. Kewenangan Super Admin masih proposed (`D-024` [A]) dan belum menjadi bagian keputusan ini.
 
 #### `D-007` — Data produksi dan kompatibilitas
 
@@ -1138,187 +1132,17 @@ Konsekuensi:
 3. Regression test tetap wajib agar fitur yang dipakai ulang tidak rusak.
 4. Dokumen arsitektur tetap harus menjelaskan desain baru dan dampaknya.
 
-### 12.2 Rekomendasi proposed (`[P]`)
+### 12.2 (dihapus — semua disetujui)
 
-> **Penting:** seluruh keputusan di bawah ini berstatus **Proposed / Pending Product Owner Review**. Belum disetujui, belum final, dan tidak boleh diimplementasikan sebagai keputusan final sebelum product owner menyetujuinya. Jika disetujui, status berubah menjadi `[A]` dan requirement terkait diperbarui.
-
-#### `D-008` — Import peserta dan identitas
-
-| Atribut | Nilai |
-|---|---|
-| ID | `D-008` |
-| Status | Proposed / Pending Product Owner Review `[P]` |
-| Terkait | `OQ-008`, `OQ-009` |
-| Rekomendasi | Gunakan External Reference sebagai kunci pencocokan CSV dalam Tema yang sama. Jangan gunakan nama, email, atau phone sebagai identity key otomatis. Nama/contact yang mirip menghasilkan warning, bukan merge. Field CSV kosong tidak boleh menghapus data lama. Kandidat ganda memerlukan review manual. Tidak ada penggabungan profil otomatis. Alur: upload → column mapping → validation → duplicate review → confirmation → result report. Participant ID dibuat QRCek. Perilaku spesifik: External Reference yang cocok satu peserta menawarkan Skip atau Update; External Reference kosong dianggap peserta baru dengan warning duplikat berdasarkan nama/email/phone untuk review manual; External Reference yang cocok banyak kandidat memerlukan pilihan eksplisit oleh admin, tanpa pemilihan atau penggabungan otomatis. |
-| Yang masih perlu diputuskan | Format normalisasi External Reference, aturan exact-match vs case-insensitive, dan UI review kandidat ganda. |
-
-#### `D-009` — Satu tipe transaksi utama per Aktivitas
-
-| Atribut | Nilai |
-|---|---|
-| ID | `D-009` |
-| Status | Proposed / Pending Product Owner Review `[P]` |
-| Terkait | `OQ-010`, `OQ-013` |
-| Rekomendasi | Setiap Aktivitas memiliki satu tipe transaksi utama: Attendance atau Consumption. Jangan mencampur kedua tipe dalam satu Aktivitas; buat Aktivitas terpisah bila diperlukan. |
-| Yang masih perlu diputuskan | Representasi data dan dampaknya pada laporan gabungan. |
-
-#### `D-010` — Validasi lifecycle Aktivitas dan Sesi
-
-| Atribut | Nilai |
-|---|---|
-| ID | `D-010` |
-| Status | Proposed / Pending Product Owner Review `[P]` |
-| Terkait | `OQ-011` |
-| Rekomendasi | Aktivitas Draft: transaksi ditolak. Aktivitas Aktif tanpa Sesi: transaksi diterima bila syarat lain lulus. Aktivitas Aktif dengan Sesi: Sesi valid harus dipilih eksplisit. Sesi Terjadwal: ditolak. Sesi Berlangsung: diterima. Sesi Selesai/Dinonaktifkan: ditolak. Aktivitas Selesai/Diarsipkan: ditolak. Tidak ada inferensi Sesi dari waktu jam. Backend memvalidasi Aktivitas, Sesi, dan konteks transaksi. |
-| Yang masih perlu diputuskan | Apakah ada pengecualian operasional untuk Sesi yang dibuka lebih awal; nama status harus tetap konsisten dengan `FR-090`/`FR-091`. |
-
-#### `D-011` — Konsep transaksi dan result code
-
-| Atribut | Nilai |
-|---|---|
-| ID | `D-011` |
-| Status | Proposed / Pending Product Owner Review `[P]` |
-| Terkait | `OQ-012`, `OQ-013` |
-| Rekomendasi | Pisahkan Transaction Type (Attendance/Consumption), Transaction Source (QR Scan/Manual Entry), dan Correction Operation (Reversal/Adjustment). Gunakan result code stabil: `SUCCESS`, `DUPLICATE`, `NOT_ENTITLED`, `INVALID_QR`, `SYSTEM_ERROR`. Result code terpisah dari pesan user-facing. Pesan duplikat kontekstual: Attendance “Sudah tercatat hadir”; Consumption “Sudah diambil”. |
-| Yang masih perlu diputuskan | Struktur data rinci untuk Reversal/Adjustment dan pemetaan result code ke HTTP status. |
-
-#### `D-012` — Feedback dan konteks scanner
-
-| Atribut | Nilai |
-|---|---|
-| ID | `D-012` |
-| Status | Proposed / Pending Product Owner Review `[P]` |
-| Terkait | `OQ-014`, `OQ-016`, `OQ-018` |
-| Rekomendasi | Tampilkan hasil scan lalu auto-standby sekitar dua detik; lock pemrosesan selama feedback; tanpa konfirmasi manual setiap scan. Konteks scanner berbasis penugasan Petugas. Aktivitas tanpa Sesi memakai konteks Aktivitas; Aktivitas dengan Sesi memerlukan pemilihan Sesi eksplisit. Konteks harus terlihat di scanner. URL parameter hanya preselect, tidak mengotorisasi. Backend memvalidasi penugasan dan konteks. |
-| Yang masih perlu diputuskan | Durasi feedback final dan perilaku saat jaringan lambat. |
-
-#### `D-013` — Feedback audio dan visual
-
-| Atribut | Nilai |
-|---|---|
-| ID | `D-013` |
-| Status | Proposed / Pending Product Owner Review `[P]` |
-| Terkait | `OQ-015` |
-| Rekomendasi | Konfigurasi visual/audio pada tingkat Tema. Mute lokal per perangkat. Success hijau, Duplicate amber, Not Entitled oranye, Invalid QR merah, System Error netral/error. Status tidak boleh hanya warna; sertakan teks/ikon. Audio singkat dan mudah dibedakan. Scanner tetap usable tanpa audio. |
-| Yang masih perlu diputuskan | Aset audio, durasi, dan preferensi aksesibilitas lain. |
-
-#### `D-014` — Kuota konsumsi
-
-| Atribut | Nilai |
-|---|---|
-| ID | `D-014` |
-| Status | Proposed / Pending Product Owner Review `[P]` |
-| Terkait | `OQ-017` |
-| Rekomendasi | Kuota konsumsi dapat dikonfigurasi: default di Aktivitas, dengan override kategori dan individual. Nilai boleh 0, 1, atau lebih. Transaksi efektif menghabiskan kuota. Transaksi Consumption yang di-reversal mengembalikan kuota yang sebelumnya terpakai, sehingga kuota tersebut dapat dipakai transaksi valid berikutnya. Scope awal adalah entitlement kuota peserta, bukan inventory/stock management. Seluruh perilaku kuota, termasuk pemulihan kuota setelah Reversal, masih proposed dan belum disetujui. |
-| Yang masih perlu diputuskan | Prioritas override kuota, perilaku bila kuota kategori berubah setelah transaksi, dan konfirmasi product owner atas pemulihan kuota setelah Reversal. |
-
-#### `D-015` — Fase laporan dan ekspor
-
-| Atribut | Nilai |
-|---|---|
-| ID | `D-015` |
-| Status | Proposed / Pending Product Owner Review `[P]` |
-| Terkait | `OQ-019` |
-| Rekomendasi | CSV adalah format rilis awal. XLSX tetap target tahap berikutnya dan tidak dihapus dari kebutuhan jangka panjang. |
-| Yang masih perlu diputuskan | Kapan tepatnya XLSX masuk roadmap dan dependensi apa yang dipakai. |
-
-#### `D-016` — Generasi QR PNG dan ZIP
-
-| Atribut | Nilai |
-|---|---|
-| ID | `D-016` |
-| Status | Proposed / Pending Product Owner Review `[P]` |
-| Terkait | `OQ-020` |
-| Rekomendasi | Backend mengotorisasi dan menyediakan data token; browser menghasilkan PNG individual dan packaging ZIP. Hindari pemrosesan image/archive berat di Cloudflare Workers. Terapkan batas batch dan memory. Token QR tidak boleh diekspos di konteks tidak berwenang. |
-| Yang masih perlu diputuskan | Batas jumlah QR per batch dan penanganan kegagalan di tengah proses. |
-
-#### `D-017` — Integrasi Google Sheets opsional
-
-| Atribut | Nilai |
-|---|---|
-| ID | `D-017` |
-| Status | Proposed / Pending Product Owner Review `[P]` |
-| Terkait | `OQ-021` |
-| Rekomendasi | Pertahankan fondasi D1 outbox bila layak. Google Sheets opsional dan bukan sumber kebenaran. Integrasi opsional per Tema. Kegagalan sync tidak boleh memblokir transaksi inti. Jangan klaim production-ready sebelum diuji dengan akun Google nyata. |
-| Yang masih perlu diputuskan | Bentuk proyeksi setelah ada Sesi dan Consumption, serta strategi retry final. |
-
-#### `D-018` — Registrasi Admin Acara
-
-| Atribut | Nilai |
-|---|---|
-| ID | `D-018` |
-| Status | Proposed / Pending Product Owner Review `[P]` |
-| Terkait | `OQ-022` |
-| Rekomendasi | Nonaktifkan self-registration publik untuk Admin Acara. Super Admin membuat/mengundang Admin Acara; Admin Acara menerima undangan dan mengaktifkan akun. Super Admin dapat mencabut akses. Registrasi publik dapat dipertimbangkan untuk model SaaS di masa depan. |
-| Yang masih perlu diputuskan | Masa berlaku undangan dan alur pencabutan akses. |
-
-#### `D-019` — Identifier teknis
-
-| Atribut | Nilai |
-|---|---|
-| ID | `D-019` |
-| Status | Proposed / Pending Product Owner Review `[P]` |
-| Terkait | `OQ-026` |
-| Rekomendasi | Pertahankan identifier teknis `@absensi/*`, `absensi_session`, `X-Absensi-Csrf`, dan `absensi:v1:` kecuali ada alasan teknis yang terbukti. Nama produk tetap QRCek. Tidak ada cosmetic renaming pada revisi ini. |
-| Yang masih perlu diputuskan | Apakah akan ada rebranding teknis pada rilis besar berikutnya. |
-
-#### `D-020` — Batas impor CSV
-
-| Atribut | Nilai |
-|---|---|
-| ID | `D-020` |
-| Status | Proposed / Pending Product Owner Review `[P]` |
-| Terkait | `OQ-028` |
-| Rekomendasi | Maksimum file 2 MB; maksimum 1.000 baris data; header tidak dihitung; error harus jelas dan actionable. |
-| Yang masih perlu diputuskan | Apakah batas dapat dikonfigurasi per Tema. |
-
-#### `D-021` — Arah desain UI
-
-| Atribut | Nilai |
-|---|---|
-| ID | `D-021` |
-| Status | Proposed / Pending Product Owner Review `[P]` |
-| Terkait | `OQ-029` |
-| Rekomendasi | Font Geist; aset lokal/dependency tanpa runtime CDN. Light/dark mode dengan CSS variables/design tokens. Reuse CSS yang ada bila memungkinkan. shadcn/ui tetap fondasi komponen utama. |
-| Yang masih perlu diputuskan | Sumber aset Geist dan cakupan migrasi token desain. |
-
-#### `D-022` — Manual Check-in
-
-| Atribut | Nilai |
-|---|---|
-| ID | `D-022` |
-| Status | Proposed / Pending Product Owner Review `[P]` |
-| Terkait | `OQ-030` |
-| Rekomendasi | Petugas yang ditugaskan boleh melakukan Manual Check-in hanya dalam Aktivitas/Sesi yang ditugaskan, bila Admin Acara mengaktifkan kemampuan ini. Manual Check-in adalah Transaction Source, bukan Correction Operation. Validasi duplikasi sama dengan QR Scan. Actor dan source dicatat. Petugas tidak boleh melakukan Reversal/Adjustment. |
-| Yang masih perlu diputuskan | Default aktivasi per Tema dan UI pemberian izin. Apakah Super Admin diperbolehkan melakukan Manual Check-in, atau kewenangan itu hanya untuk Admin Acara dan Petugas berizin? Lihat `OQ-034` [O]. |
-
-#### `D-023` — Cakupan audit
-
-| Atribut | Nilai |
-|---|---|
-| ID | `D-023` |
-| Status | Proposed / Pending Product Owner Review `[P]` |
-| Terkait | `OQ-031` |
-| Rekomendasi | Audit mencakup mutasi peserta, kategori, entitlement, QR generation/rotation/export, lifecycle Aktivitas/Sesi, penugasan Petugas, Manual Check-in, Reversal/Adjustment, impor, ekspor laporan, dan tindakan administratif/keamanan. Audit append-only; actor, timestamp, action, object, reason, before/after bila relevan; tidak boleh memuat token QR plaintext, password, atau secret; PII diminimalkan/dimask; Super Admin global, Admin Acara dalam Tema, Petugas tidak boleh akses. |
-| Yang masih perlu diputuskan | Daftar aksi minimum rilis pertama dan kebijakan retensi. |
-
-#### `D-024` — Kewenangan koreksi Super Admin
-
-| Atribut | Nilai |
-|---|---|
-| ID | `D-024` |
-| Status | Proposed / Pending Product Owner Review `[P]` |
-| Terkait | `OQ-025` |
-| Rekomendasi | Super Admin dapat melihat transaksi dan audit lintas Tema. Hanya Admin Acara yang boleh melakukan Reversal/Adjustment. Tidak ada emergency override pada rilis awal. |
-| Yang masih perlu diputuskan | Apakah Super Admin memerlukan mekanisme eskalasi di masa depan. Rekomendasi ini belum disetujui dan tidak boleh dianggap sebagai keputusan final. |
+Semua keputusan produk D-001 s.d D-024 sudah disepakati product owner dan dicatat di §12.1. Tidak ada lagi rekomendasi proposed yang menunggu review.
 
 ### 12.3 Ringkasan decision register
 
 | Kategori | Jumlah | ID |
 |---|---|---|
-| Keputusan disepakati | 7 | `D-001`–`D-007` |
-| Rekomendasi proposed | 17 | `D-008`–`D-024` |
-| Pertanyaan terbuka tanpa rekomendasi | 3 | `OQ-027`, `OQ-033`, `OQ-034` |
+| Keputusan disepakati | 24 | `D-001`–`D-024` |
+| Rekomendasi proposed | 0 | — |
+| Pertanyaan terbuka tanpa rekomendasi | 0 | — |
 
 ---
 
@@ -1328,23 +1152,23 @@ Konsekuensi:
 
 | Kapabilitas | Functional requirements | Business rules | Acceptance criteria | Keputusan / OQ / NFR terkait |
 |---|---|---|---|---|
-| Tema, Aktivitas, Sesi | `FR-001`–`FR-012`, `FR-182` | `BR-001`–`BR-009`, `BR-070` | `AC-001`–`AC-005` | `D-003` [A], `D-007` [A], `D-009` [P] |
-| Peserta dan custom field | `FR-013`–`FR-033` | `BR-010`–`BR-017` | `AC-006`–`AC-008`, `AC-042` | `D-003` [A], `D-008` [P] |
+| Tema, Aktivitas, Sesi | `FR-001`–`FR-012`, `FR-182` | `BR-001`–`BR-009`, `BR-070` | `AC-001`–`AC-005` | `D-003` [A], `D-007` [A], `D-009` [A] |
+| Peserta dan custom field | `FR-013`–`FR-033` | `BR-010`–`BR-017` | `AC-006`–`AC-008`, `AC-042` | `D-003` [A], `D-008` [A] |
 | Kategori dan entitlement | `FR-034`–`FR-045`, `FR-199` | `BR-018`–`BR-023`, `BR-075` | `AC-011`–`AC-014`, `AC-043` | `D-005` [A] |
-| Impor CSV | `FR-046`–`FR-053`, `FR-197`, `FR-205` | `BR-061`–`BR-063`, `BR-076`, `BR-077` | `AC-009`, `AC-010`, `AC-042`, `AC-054` | `D-008` [P], `D-020` [P] |
-| QR Identity dan ekspor | `FR-054`–`FR-065`, `FR-200` | `BR-024`–`BR-029` | `AC-015`–`AC-018` | `D-004` [A], `D-016` [P] |
-| Attendance dan koreksi | `FR-066`–`FR-080`, `FR-201`–`FR-203` | `BR-030`–`BR-040`, `BR-072` | `AC-019`–`AC-023`, `AC-041`, `AC-045`, `AC-049` | `D-006` [A], `D-011` [P], `D-022` [P], `D-024` [P] |
-| Distribusi konsumsi | `FR-081`–`FR-089` | `BR-041`–`BR-046`, `BR-073` | `AC-024`, `AC-025`, `AC-046` | `D-009` [P], `D-014` [P] |
-| Lifecycle Aktivitas/Sesi | `FR-090`–`FR-096`, `FR-183`–`FR-188`, `FR-206` | `BR-047`–`BR-049`, `BR-071`, `BR-078` | `AC-004`, `AC-005`, `AC-044` | `D-010` [P], `OQ-033` [O] |
-| Peran dan akses | `FR-097`–`FR-106`, `FR-194` | `BR-050`–`BR-053` | `AC-028`, `AC-031`, `AC-034`, `AC-049`, `AC-050`, `AC-055` | `D-018` [P], `D-022` [P], `D-024` [P], `OQ-034` [O] |
-| Scanner/kiosk | `FR-107`–`FR-128`, `FR-189`–`FR-192` | `BR-054`–`BR-057`, `BR-072` | `AC-026`–`AC-028`, `AC-040`, `AC-048`, `AC-053` | `D-011` [P], `D-012` [P], `D-013` [P] |
+| Impor CSV | `FR-046`–`FR-053`, `FR-197`, `FR-205` | `BR-061`–`BR-063`, `BR-076`, `BR-077` | `AC-009`, `AC-010`, `AC-042`, `AC-054` | `D-008` [A], `D-020` [A] |
+| QR Identity dan ekspor | `FR-054`–`FR-065`, `FR-200` | `BR-024`–`BR-029` | `AC-015`–`AC-018` | `D-004` [A], `D-016` [A] |
+| Attendance dan koreksi | `FR-066`–`FR-080`, `FR-201`–`FR-203` | `BR-030`–`BR-040`, `BR-072` | `AC-019`–`AC-023`, `AC-041`, `AC-045`, `AC-049` | `D-006` [A], `D-011` [A], `D-022` [A], `D-024` [A] |
+| Distribusi konsumsi | `FR-081`–`FR-089` | `BR-041`–`BR-046`, `BR-073` | `AC-024`, `AC-025`, `AC-046` | `D-009` [A], `D-014` [A] |
+| Lifecycle Aktivitas/Sesi | `FR-090`–`FR-096`, `FR-183`–`FR-188`, `FR-206` | `BR-047`–`BR-049`, `BR-071`, `BR-078` | `AC-004`, `AC-005`, `AC-044` | `D-010` [A], `OQ-033` [A] |
+| Peran dan akses | `FR-097`–`FR-106`, `FR-194` | `BR-050`–`BR-053` | `AC-028`, `AC-031`, `AC-034`, `AC-049`, `AC-050`, `AC-055` | `D-018` [A], `D-022` [A], `D-024` [A], `OQ-034` [A] |
+| Scanner/kiosk | `FR-107`–`FR-128`, `FR-189`–`FR-192` | `BR-054`–`BR-057`, `BR-072` | `AC-026`–`AC-028`, `AC-040`, `AC-048`, `AC-053` | `D-011` [A], `D-012` [A], `D-013` [A] |
 | Dashboard dan navigasi | `FR-129`–`FR-134` | — | `AC-029`, `AC-030` | — |
-| Audit | `FR-135`–`FR-140`, `FR-195`, `FR-207` | `BR-058`–`BR-060`, `BR-074`, `BR-079` | `AC-031`, `AC-047` | `D-023` [P], `NFR-023` [P], `FR-207` |
-| Laporan dan ekspor | `FR-141`–`FR-149`, `FR-193` | `BR-059`, `BR-060` | `AC-032`, `AC-033`, `AC-051` | `D-015` [P], `D-017` [P] |
-| UI dan desain | `FR-150`–`FR-161`, `FR-204` | — | `AC-039`, `AC-053` | `D-013` [P], `D-021` [P], `NFR-021` [P], `NFR-022` [P] |
-| Integritas dan keamanan | `FR-162`–`FR-171` | `BR-064`–`BR-069` | `AC-034`–`AC-036`, `AC-047`, `AC-052` | `D-006` [A], `D-007` [A], `D-023` [P] |
-| Kompatibilitas dan reuse | `FR-172`–`FR-178`, `FR-196`, `FR-198` | `BR-067`, `BR-068` | `AC-036`, `AC-037`, `AC-052` | `D-007` [A], `D-019` [P] |
-| Dokumentasi | `FR-179`–`FR-181` | — | `AC-038` | `D-001` [A], `D-002` [A], `OQ-027` [O] |
+| Audit | `FR-135`–`FR-140`, `FR-195`, `FR-207` | `BR-058`–`BR-060`, `BR-074`, `BR-079` | `AC-031`, `AC-047` | `D-023` [A], `NFR-023` [A], `FR-207` |
+| Laporan dan ekspor | `FR-141`–`FR-149`, `FR-193` | `BR-059`, `BR-060` | `AC-032`, `AC-033`, `AC-051` | `D-015` [A], `D-017` [A] |
+| UI dan desain | `FR-150`–`FR-161`, `FR-204` | — | `AC-039`, `AC-053` | `D-013` [A], `D-021` [A], `NFR-021` [A], `NFR-022` [A] |
+| Integritas dan keamanan | `FR-162`–`FR-171` | `BR-064`–`BR-069` | `AC-034`–`AC-036`, `AC-047`, `AC-052` | `D-006` [A], `D-007` [A], `D-023` [A] |
+| Kompatibilitas dan reuse | `FR-172`–`FR-178`, `FR-196`, `FR-198` | `BR-067`, `BR-068` | `AC-036`, `AC-037`, `AC-052` | `D-007` [A], `D-019` [A] |
+| Dokumentasi | `FR-179`–`FR-181` | — | `AC-038` | `D-001` [A], `D-002` [A], `OQ-027` [A] |
 
 ### 13.2 Decision-to-OQ map
 
@@ -1355,34 +1179,33 @@ Konsekuensi:
 | `D-003` | `[A]` | `OQ-001`–`OQ-004` | Ditutup |
 | `D-004` | `[A]` | `OQ-032` | Ditutup |
 | `D-005` | `[A]` | `OQ-005`–`OQ-007` | Ditutup |
-| `D-006` | `[A]` | — | Perilaku koreksi; struktur data rinci masih di `OQ-012` [P] |
+| `D-006` | `[A]` | — | Perilaku koreksi; struktur data rinci diarahkan ke AQ-004 / ADR berikutnya |
 | `D-007` | `[A]` | Bagian dari `OQ-001`, `OQ-002`, `OQ-004` | Tidak ada kewajiban migrasi data produksi |
-| `D-008` | `[P]` | `OQ-008`, `OQ-009` | Pending |
-| `D-009` | `[P]` | `OQ-010`, `OQ-013` | Pending |
-| `D-010` | `[P]` | `OQ-011` | Pending |
-| `D-011` | `[P]` | `OQ-012`, `OQ-013` | Pending; struktur data rinci belum final |
-| `D-012` | `[P]` | `OQ-014`, `OQ-016`, `OQ-018` | Pending |
-| `D-013` | `[P]` | `OQ-015` | Pending |
-| `D-014` | `[P]` | `OQ-017` | Pending |
-| `D-015` | `[P]` | `OQ-019` | Pending |
-| `D-016` | `[P]` | `OQ-020` | Pending |
-| `D-017` | `[P]` | `OQ-021` | Pending |
-| `D-018` | `[P]` | `OQ-022` | Pending |
-| `D-019` | `[P]` | `OQ-026` | Pending |
-| `D-020` | `[P]` | `OQ-028` | Pending |
-| `D-021` | `[P]` | `OQ-029` | Pending |
-| `D-022` | `[P]` | `OQ-030` | Pending |
-| `D-023` | `[P]` | `OQ-031` | Pending |
-| `D-024` | `[P]` | `OQ-025` | Pending; Super Admin belum final |
-| — | `[O]` | `OQ-027`, `OQ-033`, `OQ-034` | Terbuka tanpa rekomendasi |
+| `D-008` | `[A]` | `OQ-008`, `OQ-009` | Ditutup |
+| `D-009` | `[A]` | `OQ-010`, `OQ-013` | Ditutup |
+| `D-010` | `[A]` | `OQ-011` | Ditutup |
+| `D-011` | `[A]` | `OQ-012`, `OQ-013` | Ditutup; struktur data rinci diarahkan ke AQ-004 / ADR berikutnya |
+| `D-012` | `[A]` | `OQ-014`, `OQ-016`, `OQ-018` | Ditutup |
+| `D-013` | `[A]` | `OQ-015` | Ditutup |
+| `D-014` | `[A]` | `OQ-017` | Ditutup |
+| `D-015` | `[A]` | `OQ-019` | Ditutup |
+| `D-016` | `[A]` | `OQ-020` | Ditutup |
+| `D-017` | `[A]` | `OQ-021` | Ditutup |
+| `D-018` | `[A]` | `OQ-022` | Ditutup |
+| `D-019` | `[A]` | `OQ-026` | Ditutup |
+| `D-020` | `[A]` | `OQ-028` | Ditutup |
+| `D-021` | `[A]` | `OQ-029` | Ditutup |
+| `D-022` | `[A]` | `OQ-030` | Ditutup |
+| `D-023` | `[A]` | `OQ-031` | Ditutup |
+| `D-024` | `[A]` | `OQ-025` | Ditutup |
 
 ### 13.3 Dokumen turunan dan status input
 
 | Dokumen | Isi yang ditunggu | Status input |
 |---|---|---|
-| `docs/ARCHITECTURE.md` | Model domain, boundary, alur data, desain Tema → Aktivitas → Sesi | `D-003`–`D-007` [A] sudah tersedia; rekomendasi `D-009`–`D-017` [P] masih pending; `OQ-027` [O] tidak menghambat arsitektur inti. |
-| `docs/DECISIONS.md` + `docs/adr/` | Keputusan final atas pertanyaan yang masih pending | `D-001`–`D-007` [A] dapat dicatat; `D-008`–`D-024` [P] menunggu persetujuan; `OQ-027` [O] belum memiliki rekomendasi. |
-| `docs/IMPLEMENTATION_ROADMAP.md` | Urutan tahap dan gate, termasuk phasing CSV/XLSX | `D-015` [P] masih pending; fase lain mengikuti keputusan yang disetujui. |
+| `docs/ARCHITECTURE.md` | Model domain, boundary, alur data, desain Tema → Aktivitas → Sesi | `D-003`–`D-007` [A] sudah tersedia; `D-009`–`D-017` [A] tersedia sebagai landasan desain; `OQ-027` [A] ditutup. |
+| `docs/DECISIONS.md` + `docs/adr/` | Keputusan final atas semua pertanyaan produk | `D-001`–`D-024` [A] dapat dicatat; semua OQ produk ditutup. |
+| `docs/IMPLEMENTATION_ROADMAP.md` | Urutan tahap dan gate, termasuk phasing CSV/XLSX | `D-015` [A] tersedia; fase lain mengikuti keputusan yang disetujui. |
 | `.opencode/plans/` | Rencana eksekusi per tahap | Menunggu roadmap yang disetujui. |
 
 ---
@@ -1415,4 +1238,5 @@ Konsekuensi:
 | 0.2 | 3 November 2026 | Revisi hasil review: menutup `OQ-023`/`OQ-024` sebagai `D-001`/`D-002`; memperbaiki diagram hierarki transaksi; menambah `OQ-032` tentang identitas QR; menyelaraskan lima keadaan hasil scanner untuk kehadiran dan konsumsi serta `AC-040`; mengoreksi referensi ADR historis; merekonsiliasi hitungan route (50 definisi, 87 pola efektif); menambah metadata jumlah baris. |
 | 0.3 | 3 November 2026 | Revisi besar: menetapkan `D-003`–`D-007` (hierarki, QR scope, entitlement, Reversal/Adjustment, tanpa kewajiban migrasi data produksi); menambahkan `D-008`–`D-024` sebagai rekomendasi proposed yang belum disetujui; memisahkan Transaction Type, Transaction Source, dan Correction Operation; memperluas lifecycle, scanner, kuota konsumsi, audit, impor, laporan, QR PNG/ZIP, Google Sheets, registrasi Admin, identifier teknis, batas CSV, dan desain UI; memperbarui FR/BR/NFR/AC; menambah status `[A]`/`[P]`/`[O]`; mempertahankan `OQ-027` sebagai satu-satunya pertanyaan terbuka tanpa rekomendasi. |
 | 0.3.1 | 3 November 2026 | Koreksi konsistensi: (1) pisahkan status operasional Sesi dari state arsip (FR-091, FR-093, FR-186, FR-206, BR-007, BR-071, BR-078, OQ-033); arsip Sesi menolak transaksi baru tetapi histori transaksi tetap utuh, dan kapan arsip boleh dilakukan belum ditetapkan; (2) audit field allowlist agar before/after tidak menyimpan PII dan kredensial (FR-136, FR-195, FR-207, BR-074, BR-079, NFR-006, AC-031, AC-047); (3) pisahkan prinsip Reversal/Adjustment yang disepakati (D-006 [A]) dari perilaku kuota Consumption yang proposed (D-014 [P], BR-073, AC-046); pemulihan kuota setelah Reversal Consumption tetap proposed; (4) selesaikan perilaku impor CSV tanpa External Reference (FR-052, D-008, BR-063, AC-009, AC-054): baris tanpa External Reference dianggap peserta baru dengan warning duplikat untuk review manual, tanpa merge otomatis; (5) izin Manual Check-in Super Admin tidak ditetapkan (FR-073, BR-034, AC-021, AC-049, AC-055, OQ-034); legacy permission `attendance:correct` tidak diinferensikan sebagai otorisasi target. |
+| 0.3.2 | 4 November 2026 | Disetujui oleh product owner: semua keputusan proposed `D-008`–`D-024` diubah menjadi `[A]`; semua open question produk `OQ-008`–`OQ-034` ditutup; `D-024` dikoreksi dari `[P]` menjadi `[A]` (konsisten dengan `FR-077`, `FR-097`, dan §2.2); `OQ-027` ditutup (lokasi `COSTS_AND_LIMITS.md` tetap di root); `OQ-033` ditutup (arsip Sesi hanya dari Selesai/Dinonaktifkan, hanya Admin Acara); `OQ-034` ditutup (Super Admin tidak boleh Manual Check-in); NFR marker `NFR-021`/`NFR-022`/`NFR-023` diubah `[P]` → `[A]`. |
 

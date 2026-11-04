@@ -42,33 +42,27 @@
 | `D-005` | Prioritas & pewarisan entitlement; future-only | `[A]` | `OQ-005`–`OQ-007` | AQ-005 | Q3 |
 | `D-006` | Reversal/Adjustment hanya Admin Acara; transaksi efektif | `[A]` | — | AQ-003, AQ-004 | Q5 |
 | `D-007` | Tanpa kewajiban migrasi data produksi; regression test tetap wajib | `[A]` | bagian `OQ-001/002/004` | AQ-010 | Q1 |
-| `D-008` | Impor: External Reference, review duplikat, tanpa merge otomatis | `[P]` | `OQ-008`, `OQ-009` | AQ-006 | Q2 |
-| `D-009` | Satu tipe transaksi utama per Aktivitas | `[P]` | `OQ-010`, `OQ-013` | AQ-002 | Q1, Q5, Q6 |
-| `D-010` | Validasi lifecycle Aktivitas/Sesi | `[P]` | `OQ-011` | — | Q1 |
-| `D-011` | Type/Source/Correction terpisah; result code stabil | `[P]` | `OQ-012`, `OQ-013` | AQ-002, AQ-004, AQ-008 | Q5 |
-| `D-012` | Feedback & konteks scanner berbasis penugasan | `[P]` | `OQ-014`, `OQ-016`, `OQ-018` | AQ-007, AQ-012 | Q7 |
-| `D-013` | Feedback audio/visual, mute lokal, tidak hanya warna | `[P]` | `OQ-015` | AQ-012 | Q7 |
-| `D-014` | Kuota konsumsi dapat dikonfigurasi; pemulihan kuota setelah Reversal | `[P]` | `OQ-017` | AQ-003 | Q6 |
-| `D-015` | CSV dulu, XLSX tahap berikutnya | `[P]` | `OQ-019` | AQ-013 | Q8 |
-| `D-016` | PNG/ZIP QR dirakit di browser | `[P]` | `OQ-020` | ADR-0006 | Q4 |
-| `D-017` | Google Sheets opsional per Tema | `[P]` | `OQ-021` | ADR-0004, ADR-0005, AQ-011 | Q10 |
-| `D-018` | Admin Acara via undangan; self-registration nonaktif | `[P]` | `OQ-022` | ADR-0007 | Q1 |
-| `D-019` | Pertahankan identifier teknis `absensi` | `[P]` | `OQ-026` | ADR-0002, ADR-0003 | Semua |
-| `D-020` | Batas impor 2 MB / 1.000 baris | `[P]` | `OQ-028` | — | Q2 |
-| `D-021` | Geist lokal, light/dark via token CSS | `[P]` | `OQ-029` | — | Q9 |
-| `D-022` | Manual Check-in oleh Petugas berizin | `[P]` | `OQ-030` | AQ-007 | Q5, Q7 |
-| `D-023` | Cakupan & privasi audit | `[P]` | `OQ-031` | ADR-0008, AQ-014 | Q1, Q8 |
-| `D-024` | Super Admin tanpa kewenangan koreksi | `[P]` | `OQ-025` | AQ-007 | Q5 |
+| `D-008` | Impor: External Reference, review duplikat, tanpa merge otomatis | `[A]` | `OQ-008`, `OQ-009` | AQ-006 | Q2 |
+| `D-009` | Satu tipe transaksi utama per Aktivitas | `[A]` | `OQ-010`, `OQ-013` | AQ-002 | Q1, Q5, Q6 |
+| `D-010` | Validasi lifecycle Aktivitas/Sesi | `[A]` | `OQ-011` | — | Q1 |
+| `D-011` | Type/Source/Correction terpisah; result code stabil | `[A]` | `OQ-012`, `OQ-013` | AQ-002, AQ-004, AQ-008 | Q5 |
+| `D-012` | Feedback & konteks scanner berbasis penugasan | `[A]` | `OQ-014`, `OQ-016`, `OQ-018` | AQ-007, AQ-012 | Q7 |
+| `D-013` | Feedback audio/visual, mute lokal, tidak hanya warna | `[A]` | `OQ-015` | AQ-012 | Q7 |
+| `D-014` | Kuota konsumsi dapat dikonfigurasi; pemulihan kuota setelah Reversal | `[A]` | `OQ-017` | AQ-003 | Q6 |
+| `D-015` | CSV dulu, XLSX tahap berikutnya | `[A]` | `OQ-019` | AQ-013 | Q8 |
+| `D-016` | PNG/ZIP QR dirakit di browser | `[A]` | `OQ-020` | ADR-0006 | Q4 |
+| `D-017` | Google Sheets opsional per Tema | `[A]` | `OQ-021` | ADR-0004, ADR-0005, AQ-011 | Q10 |
+| `D-018` | Admin Acara via undangan; self-registration nonaktif | `[A]` | `OQ-022` | ADR-0007 | Q1 |
+| `D-019` | Pertahankan identifier teknis `absensi` | `[A]` | `OQ-026` | ADR-0002, ADR-0003 | Semua |
+| `D-020` | Batas impor 2 MB / 1.000 baris | `[A]` | `OQ-028` | — | Q2 |
+| `D-021` | Geist lokal, light/dark via token CSS | `[A]` | `OQ-029` | — | Q9 |
+| `D-022` | Manual Check-in oleh Petugas berizin | `[A]` | `OQ-030` | AQ-007 | Q5, Q7 |
+| `D-023` | Cakupan & privasi audit | `[A]` | `OQ-031` | ADR-0008, AQ-014 | Q1, Q8 |
+| `D-024` | Super Admin tanpa kewenangan koreksi | `[A]` | `OQ-025` | AQ-007 | Q5 |
 
-### Pertanyaan produk yang masih `[O]`
+Semua pertanyaan produk `OQ-001` s.d `OQ-034` sudah ditutup oleh keputusan disepakati di §2. Tidak ada lagi pertanyaan produk `[O]`.
 
-| ID | Pertanyaan ringkas | Menghambat |
-|---|---|---|
-| `OQ-027` | Lokasi final `COSTS_AND_LIMITS.md` (root atau `docs/`) | Governance dokumen — **jangan memindahkan file** sebelum diputuskan |
-| `OQ-033` | Kapan Sesi boleh diarsipkan | Lifecycle Sesi (Q1) |
-| `OQ-034` | Apakah Super Admin boleh Manual Check-in | Matriks izin (Q5, Q7) |
-
-Pertanyaan `[P]` lainnya: `REQUIREMENTS.md` §11.2.
+Pertanyaan arsitektur terbuka (`AQ`): `REQUIREMENTS.md` §13.2 / `ARCHITECTURE.md` §6.
 
 ---
 
@@ -77,13 +71,16 @@ Pertanyaan `[P]` lainnya: `REQUIREMENTS.md` §11.2.
 | ADR | Judul | Status | Relasi dengan keputusan produk |
 |---|---|---|---|
 | [0001](./adr/0001-single-worker-same-origin.md) | Satu Worker same-origin | Diterima | Tidak terdampak |
-| [0002](./adr/0002-passwordless-token-auth.md) | Auth passwordless berbasis token | Diterima | `D-019` [P] (nama cookie/header) |
+| [0002](./adr/0002-passwordless-token-auth.md) | Auth passwordless berbasis token | Diterima | `D-019` [A] (nama cookie/header) |
 | [0003](./adr/0003-opaque-qr-token.md) | QR token opaque | Diterima; scope diperbarui | `D-004` [A] → AQ-009 |
-| [0004](./adr/0004-sheets-upsert-projection.md) | Sheets proyeksi/upsert per peserta | Ditinjau ulang | `D-017` [P] → AQ-011 |
-| [0005](./adr/0005-d1-outbox-cron.md) | Outbox D1 + Cron | Diterima | `D-017` [P] |
-| [0006](./adr/0006-qr-credential-hash-ciphertext.md) | Kredensial QR hash + ciphertext | Diterima | `D-004` [A], `D-016` [P] |
-| [0007](./adr/0007-event-admin-self-signup.md) | Pendaftaran mandiri admin acara | Ditinjau ulang | `D-018` [P] |
-| [0008](./adr/0008-audit-log-retention.md) | Retensi audit append-only | Diterima | `D-023` [P] (kebijakan retensi) |
+| [0004](./adr/0004-sheets-upsert-projection.md) | Sheets proyeksi/upsert per peserta | Ditinjau ulang | `D-017` [A] → AQ-011 |
+| [0005](./adr/0005-d1-outbox-cron.md) | Outbox D1 + Cron | Diterima | `D-017` [A] |
+| [0006](./adr/0006-qr-credential-hash-ciphertext.md) | Kredensial QR hash + ciphertext | Diterima | `D-004` [A], `D-016` [A] |
+| [0007](./adr/0007-event-admin-self-signup.md) | Pendaftaran mandiri admin acara | Ditinjau ulang | `D-018` [A] |
+| [0008](./adr/0008-audit-log-retention.md) | Retensi audit append-only | Diterima | `D-023` [A] (kebijakan retensi) |
+| [0009](./adr/0009-events-baseline-hierarchy-mapping.md) | Peta `events` baseline ke Tema → Aktivitas → Sesi | Diusulkan (AQ-001) | `D-003` [A], `D-007` [A] |
+| [0010](./adr/0010-schema-migration-strategy.md) | Strategi skema (additive) menuju model baru | Diusulkan (AQ-010) | `D-007` [A] |
+| [0011](./adr/0011-audit-allowlist-mechanism.md) | Mekanisme allowlist audit | Diusulkan (AQ-014) | `FR-207`, `D-023` [A] |
 
 Nomor ADR berikutnya: **0009**.
 
@@ -96,19 +93,19 @@ Detail opsi: [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6. Semua berstatus **Terbu
 | ID | Pertanyaan | Bergantung pada | Memblokir |
 |---|---|---|---|
 | AQ-001 | Posisi `events` dalam hierarki Tema → Aktivitas → Sesi | `D-003`, `D-007` | Q1 |
-| AQ-002 | Satu tabel transaksi vs per tipe | `D-009` [P], `D-011` [P] | Q5, Q6 |
-| AQ-003 | Constraint DB untuk transaksi efektif & kuota | `D-006` [A], `D-014` [P] | Q5, Q6 |
-| AQ-004 | Struktur Reversal/Adjustment; field yang boleh di-Adjust | `D-006` [A], `D-011` [P] | Q5 |
+| AQ-002 | Satu tabel transaksi vs per tipe | `D-009` [A], `D-011` [A] | Q5, Q6 |
+| AQ-003 | Constraint DB untuk transaksi efektif & kuota | `D-006` [A], `D-014` [A] | Q5, Q6 |
+| AQ-004 | Struktur Reversal/Adjustment; field yang boleh di-Adjust | `D-006` [A], `D-011` [A] | Q5 |
 | AQ-005 | Representasi & resolver entitlement | `D-005` [A] | Q3 |
 | AQ-006 | Kategori & custom field | `FR-026`–`FR-036` | Q2 |
-| AQ-007 | Penugasan Petugas & matriks izin | `D-022` [P], `D-024` [P], `OQ-034` [O] | Q5, Q7 |
-| AQ-008 | Pemetaan penolakan ke result code & HTTP | `D-011` [P] | Q5, Q7 |
+| AQ-007 | Penugasan Petugas & matriks izin | `D-022` [A], `D-024` [A], `OQ-034` [A] | Q5, Q7 |
+| AQ-008 | Pemetaan penolakan ke result code & HTTP | `D-011` [A] | Q5, Q7 |
 | AQ-009 | Kepemilikan kredensial QR per Tema; rotasi token | `D-004` [A], AQ-001 | Q4 |
 | AQ-010 | Strategi skema/migrasi menuju model baru | `D-007` [A] | Q1 |
-| AQ-011 | Proyeksi Sheets untuk Sesi & Consumption | `D-017` [P] | Q10 |
-| AQ-012 | Template pesan scanner per Tema | `D-012` [P], `D-013` [P] | Q7 |
-| AQ-013 | Pembuatan laporan CSV/XLSX | `D-015` [P] | Q8 |
-| AQ-014 | Mekanisme allowlist audit | `D-023` [P], `FR-207` | Q1 |
+| AQ-011 | Proyeksi Sheets untuk Sesi & Consumption | `D-017` [A] | Q10 |
+| AQ-012 | Template pesan scanner per Tema | `D-012` [A], `D-013` [A] | Q7 |
+| AQ-013 | Pembuatan laporan CSV/XLSX | `D-015` [A] | Q8 |
+| AQ-014 | Mekanisme allowlist audit | `D-023` [A], `FR-207` | Q1 |
 
 Nomor AQ berikutnya: **AQ-015**.
 
@@ -120,8 +117,8 @@ Nomor AQ berikutnya: **AQ-015**.
 |---|---|---|
 | `AGENTS.md` (versi sebelum 3 Nov 2026) "Keputusan terbuka" #1 — bentuk token QR | — | Ditutup oleh ADR-0003 |
 | `AGENTS.md` "Keputusan terbuka" #2 — mode sinkronisasi Sheets | — | Ditutup oleh ADR-0004 untuk baseline; ditinjau ulang lewat AQ-011 |
-| `AGENTS.md` "Keputusan terbuka" #3 — audit jangka panjang | — | Ditutup oleh ADR-0008; kebijakan retensi final menunggu `D-023` [P] |
-| `IMPLEMENTATION_PLAN.md` "Hal yang menunggu keputusan" #7 | Superadmin boleh mengoreksi absensi | **Digantikan** oleh `D-006` [A] (hanya Admin Acara). Kewenangan Super Admin menunggu `D-024` [P]. Kode baseline masih mengizinkan superadmin — delta Q5 |
+| `AGENTS.md` "Keputusan terbuka" #3 — audit jangka panjang | — | Ditutup oleh ADR-0008; kebijakan retensi final menunggu `D-023` [A] |
+| `IMPLEMENTATION_PLAN.md` "Hal yang menunggu keputusan" #7 | Superadmin boleh mengoreksi absensi | **Digantikan** oleh `D-006` [A] (hanya Admin Acara). Kewenangan Super Admin menunggu `D-024` [A]. Kode baseline masih mengizinkan superadmin — delta Q5 |
 | `PLAN_TAB_PESERTA.md` §3 "ADR-008" (D1–D8) | Desain tab Peserta | **Tidak pernah diadopsi**; nomor bentrok dengan ADR-0008. Dipakai hanya sebagai masukan AQ-006 dan Q2/Q4 |
 | Roadmap Fase 0–6 di `AGENTS.md` lama | Urutan fase | **Digantikan** oleh [`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md); riwayatnya di `IMPLEMENTATION_PLAN.md` |
 

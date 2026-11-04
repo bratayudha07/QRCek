@@ -70,7 +70,7 @@ Dievaluasi di middleware, sebelum handler, untuk **setiap** route. Tidak ada rou
 
 Catatan baseline: `superadmin` lolos semua pemeriksaan izin di `domain/permissions.ts`, sehingga ia dapat melakukan koreksi absensi (wajib `reason`, tercatat di audit).
 
-> **Delta:** `D-006` [A] menetapkan Reversal/Adjustment **hanya** oleh Admin Acara; kewenangan Super Admin menunggu `D-024` [P] (rekomendasi: Super Admin hanya melihat). Jangan memperluas perilaku baseline ini; perubahan dilakukan di roadmap Q5 setelah `D-024` diputuskan.
+> **Delta:** `D-006` [A] menetapkan Reversal/Adjustment **hanya** oleh Admin Acara; Super Admin tidak termasuk koreksi (`D-024` [A]; rekomendasi: Super Admin hanya melihat). Jangan memperluas perilaku baseline ini; perubahan dilakukan di roadmap Q5 setelah `D-024` diputuskan.
 
 **Aturan 403 vs 404 (diterapkan sejak Tahap 2).** Untuk resource milik acara:
 
@@ -91,7 +91,7 @@ tidak punya baris membership untuk acara yang belum ia masuki; haknya berasal da
 | Method | Path | Peran | Keterangan |
 |---|---|---|---|
 | `POST` | `/api/auth/activate` | publik | Tukar token undangan menjadi sesi |
-| `POST` | `/api/auth/register` | publik | Daftar sendiri sebagai admin acara (ADR-0007; ditinjau `D-018` [P]) |
+| `POST` | `/api/auth/register` | publik | Daftar sendiri sebagai admin acara (ADR-0007; ditinjau `D-018` [A]) |
 | `POST` | `/api/auth/recover` | publik | Tukar kode pemulihan menjadi sesi baru |
 | `GET` | `/api/auth/me` | semua | Profil + daftar acara yang boleh diakses |
 | `POST` | `/api/auth/logout` | semua | Cabut sesi aktif |
@@ -437,7 +437,7 @@ PUT /api/calendar/:eventId/label-config   body: { fields: [...], showEventName: 
 
 ## 6. Pemindaian dan absensi
 
-> **Target (belum ada):** transaksi berkonteks Aktivitas/Sesi dengan result code `SUCCESS`, `DUPLICATE`, `NOT_ENTITLED`, `INVALID_QR`, `SYSTEM_ERROR` (`FR-088`, `D-011` [P]); pemetaan dari hasil baseline di bawah adalah AQ-008. Halaman scan petugas baseline (`StaffScanPage` di `apps/web/src/pages/staff.tsx`, rute `/staff/scan`) sudah memanggil endpoint ini; `apps/web/src/pages/staff-scan.tsx` adalah file lama yang tidak diimpor di mana pun.
+> **Target (belum ada):** transaksi berkonteks Aktivitas/Sesi dengan result code `SUCCESS`, `DUPLICATE`, `NOT_ENTITLED`, `INVALID_QR`, `SYSTEM_ERROR` (`FR-088`, `D-011` [A]); pemetaan dari hasil baseline di bawah adalah AQ-008. Halaman scan petugas baseline (`StaffScanPage` di `apps/web/src/pages/staff.tsx`, rute `/staff/scan`) sudah memanggil endpoint ini; `apps/web/src/pages/staff-scan.tsx` adalah file lama yang tidak diimpor di mana pun.
 
 ### `POST /api/calendar/:id/scan`
 
@@ -534,7 +534,7 @@ Peran: `event_admin`, `superadmin`. Hanya jika `events.allow_manual = 1`.
 
 Dipakai sebagai fallback saat HP petugas tidak bisa memindai (mis. QR rusak). Tetap memakai constraint unik yang sama.
 
-> **Delta:** otorisasi baseline memakai aksi `attendance:correct`. Pada model target, izin ini **tidak boleh** dianggap sebagai otorisasi Manual Check-in (`AC-055`). Manual Entry target adalah Transaction Source, bukan koreksi; Petugas berizin diusulkan `D-022` [P]; izin Super Admin terbuka (`OQ-034` [O]).
+> **Delta:** otorisasi baseline memakai aksi `attendance:correct`. Pada model target, izin ini **tidak boleh** dianggap sebagai otorisasi Manual Check-in (`AC-055`). Manual Entry target adalah Transaction Source, bukan koreksi; Petugas berizin disetujui `D-022` [A]; izin Super Admin tidak diizinkan (`OQ-034` [A]).
 
 ---
 

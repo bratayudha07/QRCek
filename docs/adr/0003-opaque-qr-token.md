@@ -30,5 +30,5 @@ Opsi 2. QR berisi `absensi:v1:<base64url(256-bit random)>`. D1 menyimpan `HMAC-S
 ## Catatan terhadap target QRCek
 
 - Baseline menerbitkan kredensial per baris `participants`, yang terikat satu `event_id`. Target `D-004` [A]: **satu QR Identity per Tema Acara + Peserta**, dipakai di semua Aktivitas/Sesi dalam Tema itu. Bentuk token (ADR ini) tetap; yang berubah adalah entitas pemilik kredensial — bergantung AQ-001 dan AQ-009.
-- Prefix `absensi:v1:` dipertahankan menurut rekomendasi `D-019` [P]; QR yang sudah tercetak bergantung padanya.
+- Prefix `absensi:v1:` dipertahankan menurut rekomendasi `D-019` [A]; QR yang sudah tercetak bergantung padanya.
 - Rotasi token per peserta (token lama langsung tidak berlaku, `FR-059`/`AC-016`) belum ditemukan sebagai route di baseline; yang ada adalah rotasi kunci enkripsi (ADR-0006). Lihat roadmap Q4.

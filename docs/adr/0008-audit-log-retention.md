@@ -6,7 +6,7 @@
 | Asal | `docs/ARSITEKTUR.md` ADR-008 (diekstrak 3 November 2026 tanpa perubahan keputusan) |
 | Terkait kebutuhan | `FR-137`, `BR-058`, `NFR-012`, `NFR-023` di [`../REQUIREMENTS.md`](../REQUIREMENTS.md) |
 | Menutup | Keputusan terbuka lama `AGENTS.md` #3 ("batas D1 untuk audit jangka panjang") |
-| Dampak keputusan produk QRCek | `D-023` [P] memperluas cakupan aksi audit dan menyisakan "kebijakan retensi" sebagai hal yang masih perlu diputuskan product owner. ADR ini tetap berlaku sampai ada keputusan itu. |
+| Dampak keputusan produk QRCek | `D-023` [A] memperluas cakupan aksi audit dan menyisakan "kebijakan retensi" sebagai hal yang masih perlu diputuskan product owner. ADR ini tetap berlaku sampai ada keputusan itu. |
 
 > Nomor "ADR-008" juga pernah dipakai `PLAN_TAB_PESERTA.md` untuk desain tab Peserta. Penomoran itu tidak pernah diadopsi; ADR-0008 adalah keputusan retensi audit ini.
 
@@ -32,4 +32,4 @@
 - Riwayat tidak bisa hilang tanpa jejak; setiap pemangkasan punya file arsip dan catatan rilis.
 - Biaya baris dibaca untuk audit tumbuh sampai operator bertindak; `/api/admin/usage` membaca tabel, jadi panggil jarang.
 - Query audit memakai indeks `(event_id, created_at)`.
-- Perluasan cakupan audit (`FR-135`, `D-023` [P]) mempercepat pertumbuhan; anggaran ulang di `COSTS_AND_LIMITS.md` wajib dilakukan saat model transaksi baru dirancang.
+- Perluasan cakupan audit (`FR-135`, `D-023` [A]) mempercepat pertumbuhan; anggaran ulang di `COSTS_AND_LIMITS.md` wajib dilakukan saat model transaksi baru dirancang.

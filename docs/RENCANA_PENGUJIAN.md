@@ -282,7 +282,7 @@ Yang diuji: reklaim item `inflight` macet, housekeeping tidak menghapus data yan
 
 Sumber kebenaran tunggal: `domain/permissions.ts`. Tes mengiterasi matriks ini, sehingga penambahan route baru tanpa aturan akan gagal.
 
-> Matriks ini menggambarkan **baseline**. Dua baris bertentangan dengan target: "Koreksi absensi" untuk superadmin (`D-006` [A] hanya Admin Acara; kewenangan Super Admin menunggu `D-024` [P]) dan "Buat acara" untuk `event_admin` (baseline ADR-0007 mengizinkan lewat peran global; tabel ini belum memuatnya). Matriks target ditulis ulang di Q1/Q5 setelah AQ-007 dijawab.
+> Matriks ini menggambarkan **baseline**. Dua baris bertentangan dengan target: "Koreksi absensi" untuk superadmin (`D-006` [A] hanya Admin Acara; kewenangan Super Admin menunggu `D-024` [A]) dan "Buat acara" untuk `event_admin` (baseline ADR-0007 mengizinkan lewat peran global; tabel ini belum memuatnya). Matriks target ditulis ulang di Q1/Q5 setelah AQ-007 dijawab.
 
 | Aksi | superadmin | event_admin | officer | anonim |
 |---|---|---|---|---|
@@ -438,7 +438,7 @@ Checklist singkat yang dijalankan pada staging sebelum deploy produksi:
 
 Daftar ini diturunkan dari `REQUIREMENTS.md` (BR/AC) dan menjadi bagian gate tahap roadmap. Nama tes di sini adalah **perilaku**; nama file ditentukan saat implementasi. Tes yang ditandai **★** adalah tes integritas: wajib ada, wajib gagal bila aturannya dihapus, dan tidak boleh di-`skip`.
 
-Tes yang bergantung pada keputusan `[P]` hanya ditulis setelah keputusan itu disetujui; sampai saat itu, ekspektasinya dianggap usulan.
+Semua keputusan produk D-001…D-024 sudah disetujui `[A]`; AQ arsitektur ditanggapi lewat ADR baru sebelum tahap terkait dibuka.
 
 ### 9.1 Konteks, hierarki, dan lifecycle (Q1, penegakan di Q5)
 
@@ -449,7 +449,7 @@ Tes yang bergantung pada keputusan `[P]` hanya ditulis setelah keputusan itu dis
 | T-003 ★ | Transaksi dengan Sesi yang bukan milik Aktivitas konteks ditolak tanpa menulis | `FR-188`, `AC-003` | `D-003` [A] |
 | T-004 | Tidak ada inferensi Sesi dari jam: waktu request tidak memengaruhi Sesi yang dipakai | `FR-187`, `AC-044` | `D-003` [A] |
 | T-005 | Transisi status Aktivitas dan Sesi: tabel sah/terlarang lengkap (fungsi murni) | `FR-090`–`FR-092`, `BR-047` | — |
-| T-006 | Transaksi pada Aktivitas Draft/Selesai/Diarsipkan dan Sesi Terjadwal/Selesai/Dinonaktifkan/diarsipkan ditolak | `FR-183`, `FR-186`, `BR-071` | `D-010` [P] |
+| T-006 | Transaksi pada Aktivitas Draft/Selesai/Diarsipkan dan Sesi Terjadwal/Selesai/Dinonaktifkan/diarsipkan ditolak | `FR-183`, `FR-186`, `BR-071` | `D-010` [A] |
 | T-007 ★ | Menonaktifkan/mengarsipkan Aktivitas atau Sesi tidak menghapus maupun me-reversal transaksi historis | `BR-007`, `BR-078`, `AC-005` | — |
 | T-008 | Duplikasi Sesi menyalin konfigurasi saja, identitas baru, status Terjadwal, tanpa transaksi | `BR-048` | — |
 
@@ -462,10 +462,10 @@ Tes yang bergantung pada keputusan `[P]` hanya ditulis setelah keputusan itu dis
 | T-022 ★ | Rename/nonaktif/arsip custom field tidak menghapus nilai tersimpan | `BR-013`–`BR-015`, `AC-008` | — |
 | T-023 | Perubahan tipe custom field yang tidak kompatibel ditolak | `BR-016` | — |
 | T-024 ★ | Impor tanpa konfirmasi admin tidak menulis/memperbarui peserta | `BR-061`, `AC-010` | — |
-| T-025 | External Reference cocok banyak kandidat → tidak ada pemilihan/merge otomatis | `BR-063`, `AC-009` | `D-008` [P] |
-| T-026 | Nama/email/phone sama → warning, bukan merge | `AC-042` | `D-008` [P] |
-| T-027 | Field CSV kosong tidak menghapus nilai yang ada kecuali admin memilih menghapus | `BR-077`, `AC-054` | `D-008` [P] |
-| T-028 | > 2 MB atau > 1.000 baris data (header tidak dihitung) ditolak dengan pesan actionable | `BR-076` | `D-020` [P] |
+| T-025 | External Reference cocok banyak kandidat → tidak ada pemilihan/merge otomatis | `BR-063`, `AC-009` | `D-008` [A] |
+| T-026 | Nama/email/phone sama → warning, bukan merge | `AC-042` | `D-008` [A] |
+| T-027 | Field CSV kosong tidak menghapus nilai yang ada kecuali admin memilih menghapus | `BR-077`, `AC-054` | `D-008` [A] |
+| T-028 | > 2 MB atau > 1.000 baris data (header tidak dihitung) ditolak dengan pesan actionable | `BR-076` | `D-020` [A] |
 
 ### 9.3 Entitlement (Q3, penegakan di Q5)
 
@@ -500,29 +500,29 @@ Tes yang bergantung pada keputusan `[P]` hanya ditulis setelah keputusan itu dis
 | T-085 ★ | Reversal tanpa alasan ditolak; dengan alasan: transaksi asli tetap ada, efek dibatalkan, audit dalam batch yang sama | `BR-037`, `BR-038`, `AC-022` | `D-006` [A] |
 | T-086 ★ | Setelah Reversal, check-in baru yang valid pada ruang lingkup sama diterima | `BR-040`, `AC-045` | `D-006` [A] |
 | T-087 ★ | Adjustment mencatat before/after (field allowlist saja) dan tidak menimpa nilai historis | `FR-202`, `AC-041` | `D-006` [A] |
-| T-088 | Kewenangan koreksi Super Admin sesuai keputusan `D-024` | `FR-077` | `D-024` [P] |
-| T-089 | Manual Entry tercatat dengan source Manual Entry dan aktor; validasi duplikasi sama dengan QR Scan | `BR-034`, `AC-021`, `AC-049` | `D-022` [P] |
-| T-090 ★ | Izin legacy `attendance:correct` tidak memberi akses Manual Check-in target | `AC-055` | `OQ-034` [O] |
-| T-091 | Result code stabil per kondisi, terpisah dari pesan; hasil pending tidak pernah dilaporkan sukses | `BR-072`, `AC-040` | `D-011` [P] |
+| T-088 | Kewenangan koreksi Super Admin sesuai keputusan `D-024` | `FR-077` | `D-024` [A] |
+| T-089 | Manual Entry tercatat dengan source Manual Entry dan aktor; validasi duplikasi sama dengan QR Scan | `BR-034`, `AC-021`, `AC-049` | `D-022` [A] |
+| T-090 ★ | Izin legacy `attendance:correct` tidak memberi akses Manual Check-in target | `AC-055` | `OQ-034` [A] |
+| T-091 | Result code stabil per kondisi, terpisah dari pesan; hasil pending tidak pernah dilaporkan sukses | `BR-072`, `AC-040` | `D-011` [A] |
 | T-092 | Jumlah statement D1 per scan dihitung dan ≤ ambang yang ditetapkan saat Q5 | `NFR-011` | — |
 
 ### 9.6 Penugasan Petugas dan scanner (Q6)
 
 | ID | Tes | Rujukan | Status keputusan |
 |---|---|---|---|
-| T-100 ★ | Petugas tanpa penugasan pada Aktivitas/Sesi ditolak backend walau URL memilih konteks itu | `BR-050`, `FR-190`, `AC-028` | `D-012` [P] |
+| T-100 ★ | Petugas tanpa penugasan pada Aktivitas/Sesi ditolak backend walau URL memilih konteks itu | `BR-050`, `FR-190`, `AC-028` | `D-012` [A] |
 | T-101 ★ | Pencabutan tugas tidak menghapus transaksi historis Petugas itu | `BR-052` | — |
 | T-102 | Kesalahan jaringan dipetakan berbeda dari QR tidak valid (logika murni di `apps/web/src/lib/`) | `BR-056`, `AC-027` | — |
-| T-103 | State scanner: terkunci selama feedback, kembali standby, tidak ada antrean offline (logika murni) | `FR-189`, `BR-054`, `AC-048` | `D-012` [P] |
-| T-104 | Status scanner tidak hanya warna: setiap state punya teks/ikon (logika murni) | `NFR-022`, `AC-053` | `D-013` [P] |
+| T-103 | State scanner: terkunci selama feedback, kembali standby, tidak ada antrean offline (logika murni) | `FR-189`, `BR-054`, `AC-048` | `D-012` [A] |
+| T-104 | Status scanner tidak hanya warna: setiap state punya teks/ikon (logika murni) | `NFR-022`, `AC-053` | `D-013` [A] |
 
 ### 9.7 Konsumsi (Q7)
 
 | ID | Tes | Rujukan | Status keputusan |
 |---|---|---|---|
-| T-120 ★ | Penukaran melebihi kuota efektif ditolak di database, termasuk dua request paralel | `BR-044`, `AC-024` | `D-006` [A]; kuota `D-014` [P] |
-| T-121 | Kuota default Aktivitas, override kategori, override individual; kuota 0 menolak | `BR-043` | `D-014` [P] |
-| T-122 | Reversal Consumption mengembalikan kuota | `BR-073`, `AC-046` | `D-014` [P] |
+| T-120 ★ | Penukaran melebihi kuota efektif ditolak di database, termasuk dua request paralel | `BR-044`, `AC-024` | `D-006` [A]; kuota `D-014` [A] |
+| T-121 | Kuota default Aktivitas, override kategori, override individual; kuota 0 menolak | `BR-043` | `D-014` [A] |
+| T-122 | Reversal Consumption mengembalikan kuota | `BR-073`, `AC-046` | `D-014` [A] |
 | T-123 ★ | Perubahan entitlement tidak menghapus riwayat penukaran | `BR-045`, `AC-025` | `D-005` [A] |
 
 ### 9.8 Audit, laporan, ekspor (Q1 mekanisme, Q8 cakupan)
@@ -531,7 +531,7 @@ Tes yang bergantung pada keputusan `[P]` hanya ditulis setelah keputusan itu dis
 |---|---|---|---|
 | T-140 ★ | `UPDATE`/`DELETE` pada tabel audit gagal oleh trigger | `BR-058` | ADR-0008 |
 | T-141 ★ | Audit tidak memuat token QR, secret, atau nilai field sensitif; perubahan field sensitif tercatat sebagai "berubah" | `BR-079`, `AC-047` | `FR-207` |
-| T-142 | Setiap endpoint mutasi menghasilkan ≥ 1 baris audit (iterasi tabel route) | `FR-135`, `FR-170` | `D-023` [P] untuk daftar final |
+| T-142 | Setiap endpoint mutasi menghasilkan ≥ 1 baris audit (iterasi tabel route) | `FR-135`, `FR-170` | `D-023` [A] untuk daftar final |
 | T-143 | Petugas ditolak membaca audit; Admin Acara hanya Tema miliknya | `FR-139`, `FR-140` | — |
 | T-144 | Ekspor laporan konsisten dengan filter dan tercatat di audit | `BR-059`, `BR-060`, `AC-033` | — |
 

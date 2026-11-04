@@ -97,7 +97,7 @@ Urutan verifikasi sebelum menyatakan selesai: **`typecheck` → `lint` → `test
 - **Tidak ada transaksi lintas konteks.** Setiap scan wajib memvalidasi bahwa peserta, petugas, Aktivitas, dan Sesi berada di Tema yang sama dan Sesi milik Aktivitas itu. Query selalu di-scope (`event_id = ?` di baseline).
 - **QR peserta bersifat opaque.** Payload `absensi:v1:<token 256-bit acak>`, tanpa NIK/email/nama. D1 menyimpan `HMAC-SHA256(QR_PEPPER, token)` untuk lookup **dan** ciphertext AES-256-GCM (`QR_ENCRYPTION_KEY`) untuk cetak ulang; tidak ada plaintext (ADR-0003, ADR-0006). Scope target: **satu QR per Tema + Peserta** (`D-004` [A]). Rotasi membuat token lama langsung tidak berlaku tanpa mengubah riwayat, dan tercatat di audit.
 - **Koreksi tidak pernah menimpa.** Koreksi = Reversal (membatalkan efek, transaksi asli tetap ada) atau Adjustment (mencatat before/after). Transaksi yang di-reversal tidak lagi menghalangi transaksi valid berikutnya. Baseline `UPDATE attendance` pada jalur koreksi adalah delta yang harus diganti (roadmap Q5), bukan pola untuk ditiru.
-- **Koreksi butuh otorisasi server-side**: hanya Admin Acara (`D-006` [A]); Petugas tidak pernah, termasuk atas transaksinya sendiri. Kewenangan Super Admin menunggu `D-024` [P] — jangan diperluas. Alasan wajib, dan audit ditulis dalam `db.batch()` yang sama.
+- **Koreksi butuh otorisasi server-side**: hanya Admin Acara (`D-006` [A]); Petugas tidak pernah, termasuk atas transaksinya sendiri. Kewenangan Super Admin tidak termasuk koreksi (`D-024` [A]) — tidak ada emergency override pada rilis awal. Alasan wajib, dan audit ditulis dalam `db.batch()` yang sama.
 - **Perubahan entitlement hanya berlaku ke depan**; transaksi sukses lama tidak di-reversal otomatis (`D-005` [A]).
 - **Audit log append-only.** Tidak ada klien yang boleh `UPDATE`/`DELETE` baris audit; trigger DB menegakkannya. Retensi: ADR-0008.
 - **Riwayat tidak hilang karena konfigurasi.** Menonaktifkan/mengarsipkan peserta, Aktivitas, atau Sesi, atau mencabut tugas Petugas, tidak menghapus transaksi.
@@ -108,13 +108,13 @@ Urutan verifikasi sebelum menyatakan selesai: **`typecheck` → `lint` → `test
 - Otorisasi **selalu** dievaluasi di Worker pada setiap route. Guard di React hanya UX.
 - Sesi diverifikasi dari cookie `absensi_session` + hash token di DB pada setiap request. Detail: ADR-0001 (satu Worker same-origin) dan ADR-0002 (passwordless).
 - Peran: `superadmin` (Super Admin, lintas Tema), `event_admin` (Admin Acara, Tema yang ditugaskan), `officer` (Petugas, scan sesuai penugasan). Cek kepemilikan Tema/acara dan penugasan secara eksplisit — jangan hanya cek "sudah login". Izin legacy `attendance:correct` tidak boleh dipakai ulang sebagai izin Manual Check-in target (`AC-055`).
-- Pendaftaran mandiri admin acara (ADR-0007) masih berjalan; `D-018` [P] mengusulkan menggantinya dengan undangan Super Admin. Jangan ubah sebelum disetujui.
+- Pendaftaran Admin Acara hanya melalui undangan Super Admin (`D-018` [A]); pendaftaran mandiri publik dinonaktifkan.
 - Secret Google Sheets, QR, dan sesi **tidak boleh** sampai ke bundle frontend. Frontend tidak bicara langsung ke Google API.
 - Aktivasi akun lewat QR undangan: token sekali pakai, punya masa berlaku, diinvalidasi setelah dipakai.
 - Jangan log PII (nama, email, nomor telepon, token QR mentah). Log id, Tema/acara id, dan hasil. Audit menyimpan before/after hanya untuk field allowlist; field sensitif dicatat "berubah" tanpa nilai (`FR-207`).
 - Validasi semua input di boundary Worker (body, query, CSV) dengan skema di `packages/shared`. Jangan percaya tipe TypeScript sebagai validasi runtime.
 - Impor CSV: batasi ukuran file, validasi header/pemetaan, tolak baris tidak valid alih-alih menyimpannya setengah jadi, dan jangan pernah memperbarui peserta tanpa konfirmasi admin (`FR-050`).
-- Identifier teknis (`@absensi/*`, `absensi_session`, `X-Absensi-Csrf`, `absensi:v1:`, D1 `absensi-db`) **tidak di-rename**; nama produk di teks UI/dokumen adalah QRCek (`D-019` [P]).
+- Identifier teknis (`@absensi/*`, `absensi_session`, `X-Absensi-Csrf`, `absensi:v1:`, D1 `absensi-db`) **tidak di-rename**; nama produk di teks UI/dokumen adalah QRCek (`D-019` [A]).
 
 ## Non-goal (jangan dibangun)
 
@@ -153,7 +153,7 @@ Nama di bawah adalah **kanonik**. Jangan membuat dokumen duplikat dengan nama la
 | `docs/DESAIN_DATABASE.md` | Skema aktual, indeks, migrasi, retensi | Setiap migrasi |
 | `docs/RENCANA_PENGUJIAN.md` | Tes wajib dan gerbang kualitas | Tes wajib/aturan berubah |
 | `docs/OPERASIONAL.md` | Pengukuran, deploy, prosedur, quirk | Hasil ukur/prosedur berubah |
-| `COSTS_AND_LIMITS.md` | Batas free tier dan anggaran | Angka platform/anggaran berubah. **Jangan dipindah** (lokasi final `OQ-027` [O]) |
+| `COSTS_AND_LIMITS.md` | Batas free tier dan anggaran | Angka platform/anggaran berubah. Lokasi final: root (`/COSTS_AND_LIMITS.md`); `OQ-027` ditutup. |
 | `README.md` | Apa ini, cara jalan lokal, cara deploy | Singkat; bukan tutorial |
 | `.opencode/plans/` | Rencana eksekusi per tahap | Setelah tahap dibuka |
 
@@ -174,6 +174,6 @@ Riwayat Fase 0–6 (fondasi, identitas, peserta & QR, scan, rekap & audit, Sheet
 
 ## Keputusan yang masih terbuka
 
-Jangan diam-diam dipilih saat menulis kode. Daftar lengkap dan statusnya: `docs/DECISIONS.md` (keputusan `[P]` D-008…D-024, pertanyaan `[O]` OQ-027/OQ-033/OQ-034, dan AQ-001…AQ-014).
+Semua keputusan produk D-001…D-024 sudah disepakati `[A]`. Pertanyaan produk OQ-001…OQ-034 sudah ditutup. Pertanyaan arsitektur terbuka: AQ-001…AQ-014.
 
 Yang sudah diputuskan dan tidak dibuka kembali: topologi satu Worker (ADR-0001), auth passwordless (ADR-0002), QR opaque + hash/ciphertext (ADR-0003/0006), outbox D1 + cron (ADR-0005), retensi audit append-only (ADR-0008), serta keputusan produk `D-001`–`D-007` [A].

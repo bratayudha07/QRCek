@@ -50,10 +50,10 @@ Isi keputusan ada di `adr/`; status dan relasinya dengan keputusan produk ada di
 | [ADR-0001](./adr/0001-single-worker-same-origin.md) | Satu Worker same-origin (SPA + `/api/*`) | Diterima |
 | [ADR-0002](./adr/0002-passwordless-token-auth.md) | Auth passwordless berbasis token, cookie `HttpOnly` | Diterima |
 | [ADR-0003](./adr/0003-opaque-qr-token.md) | QR = token opaque, lookup hash di server | Diterima; scope diperbarui oleh `D-004` [A] |
-| [ADR-0004](./adr/0004-sheets-upsert-projection.md) | Sheets = proyeksi/upsert per peserta | Diterima untuk baseline; ditinjau `D-017` [P], AQ-011 |
+| [ADR-0004](./adr/0004-sheets-upsert-projection.md) | Sheets = proyeksi/upsert per peserta | Diterima untuk baseline; ditinjau `D-017` [A], AQ-011 |
 | [ADR-0005](./adr/0005-d1-outbox-cron.md) | Outbox D1 + Cron Trigger | Diterima |
 | [ADR-0006](./adr/0006-qr-credential-hash-ciphertext.md) | Kredensial QR: hash + ciphertext AES-GCM | Diterima |
-| [ADR-0007](./adr/0007-event-admin-self-signup.md) | Pendaftaran mandiri admin acara ber-scope nol | Diterima (baseline); ditinjau `D-018` [P] |
+| [ADR-0007](./adr/0007-event-admin-self-signup.md) | Pendaftaran mandiri admin acara ber-scope nol | Diterima (baseline); ditinjau `D-018` [A] |
 | [ADR-0008](./adr/0008-audit-log-retention.md) | Audit append-only permanen, arsip manual | Diterima |
 
 ---
@@ -107,7 +107,7 @@ Isi keputusan ada di `adr/`; status dan relasinya dengan keputusan produk ada di
 
 Dev: Tailwind v4, `class-variance-authority`, `clsx`, `tailwind-merge` (pola shadcn/ui), Vite, Wrangler, Vitest, `@cloudflare/vitest-plugin`.
 
-Router Worker, router SPA, dan state server ditulis sendiri (tidak ada Hono, React Router, atau React Query). Yang sengaja **tidak** ditambahkan: ORM, Jest, axios, moment/dayjs, library PDF. Calon dependensi target (ZIP/PNG untuk `D-016` [P], XLSX untuk `D-015` [P], font Geist untuk `D-021` [P]) wajib dievaluasi terhadap Web API dan kode sendiri lebih dulu (`NFR-020`).
+Router Worker, router SPA, dan state server ditulis sendiri (tidak ada Hono, React Router, atau React Query). Yang sengaja **tidak** ditambahkan: ORM, Jest, axios, moment/dayjs, library PDF. Calon dependensi target (ZIP/PNG untuk `D-016` [A], XLSX untuk `D-015` [A], font Geist untuk `D-021` [A]) wajib dievaluasi terhadap Web API dan kode sendiri lebih dulu (`NFR-020`).
 
 ---
 
@@ -170,12 +170,12 @@ graph TD
 | Konsep | Aturan inti | Rujukan |
 |---|---|---|
 | Tema Acara | Entitas utama; mengelompokkan peserta, kategori, aktivitas, konfigurasi, transaksi | `FR-001`–`FR-004`, `D-003` [A] |
-| Aktivitas | Di bawah satu Tema; nol/satu/banyak Sesi; satu tipe transaksi utama | `FR-005`–`FR-008`, `FR-182` (`D-009` [P]) |
+| Aktivitas | Di bawah satu Tema; nol/satu/banyak Sesi; satu tipe transaksi utama | `FR-005`–`FR-008`, `FR-182` (`D-009` [A]) |
 | Sesi | Milik satu Aktivitas; tidak lintas Aktivitas; tidak disimpulkan dari jam | `FR-009`–`FR-012`, `FR-187` |
 | Peserta | Terdaftar di Tema; Participant ID dibuat sistem, tetap, unik dalam Tema | `FR-013`–`FR-025`, `BR-010` |
 | QR Identity | Satu per Tema + Peserta; token opaque; rotasi membatalkan token lama | `FR-054`–`FR-062`, `D-004` [A] |
 | Entitlement | Lima tingkat prioritas + Inherit/Allowed/Denied; future-only | `FR-037`–`FR-045`, `FR-199`, `D-005` [A] |
-| Transaksi | Type (Attendance/Consumption) × Source (QR Scan/Manual Entry) | `FR-072`, `FR-089` (`D-011` [P]) |
+| Transaksi | Type (Attendance/Consumption) × Source (QR Scan/Manual Entry) | `FR-072`, `FR-089` (`D-011` [A]) |
 | Correction Operation | Reversal/Adjustment; bukan Source; transaksi asli tetap ada | `FR-076`–`FR-080`, `D-006` [A] |
 | Effective Transaction | Belum di-reversal; dasar duplikasi dan kuota | `BR-032`, `BR-044`, `D-006` [A] |
 
@@ -184,7 +184,7 @@ graph TD
 | Invariant | Penegak yang disyaratkan | Rujukan |
 |---|---|---|
 | Satu transaksi Attendance efektif per peserta per ruang lingkup (Aktivitas tanpa Sesi, atau Sesi) | **Constraint database**, bukan cek aplikasi | `FR-068`, `FR-075`, `FR-165`, `BR-032`, `BR-033` |
-| Consumption tidak melebihi kuota efektif | Database + backend; cooldown frontend tidak cukup | `FR-086`, `BR-044`, `D-014` [P] |
+| Consumption tidak melebihi kuota efektif | Database + backend; cooldown frontend tidak cukup | `FR-086`, `BR-044`, `D-014` [A] |
 | Konteks transaksi konsisten (Sesi milik Aktivitas, Aktivitas milik Tema, peserta & petugas di Tema yang sama) | Validasi backend di setiap transaksi; query selalu di-scope Tema | `FR-188`, `BR-003`, `AC-003` |
 | Transaksi asli tidak pernah dihapus/ditimpa | Tidak ada `UPDATE`/`DELETE` destruktif pada transaksi; koreksi = baris baru | `FR-079`, `BR-038`, `BR-066` |
 | Koreksi + audit dalam satu request | `db.batch()` yang sama | `FR-080`, `AGENTS.md` |
@@ -193,12 +193,12 @@ graph TD
 
 ### 5.3 Urutan validasi transaksi (target)
 
-Urutan ini adalah kerangka; pemetaan setiap penolakan ke result code (`D-011` [P]) adalah AQ-008.
+Urutan ini adalah kerangka; pemetaan setiap penolakan ke result code (`D-011` [A]) adalah AQ-008.
 
 1. Sesi pengguna valid (cookie + hash) dan CSRF/Origin lulus.
-2. Pengguna berwenang pada konteks: Petugas ditugaskan pada Aktivitas/Sesi itu, atau Admin Acara Tema itu (`FR-100`, `FR-127`, `D-012` [P]). URL hanya preselect, bukan otorisasi (`FR-190`).
+2. Pengguna berwenang pada konteks: Petugas ditugaskan pada Aktivitas/Sesi itu, atau Admin Acara Tema itu (`FR-100`, `FR-127`, `D-012` [A]). URL hanya preselect, bukan otorisasi (`FR-190`).
 3. Konteks konsisten: Aktivitas milik Tema; bila Aktivitas punya Sesi, Sesi wajib ada dan milik Aktivitas (`FR-185`, `FR-188`).
-4. Lifecycle mengizinkan transaksi (`FR-183`–`FR-186`, `FR-206`; `D-010` [P]).
+4. Lifecycle mengizinkan transaksi (`FR-183`–`FR-186`, `FR-206`; `D-010` [A]).
 5. Token QR di-hash dan dicari **dalam Tema konteks** (`FR-058`, `D-004` [A]).
 6. Peserta aktif (`FR-021`–`FR-023`).
 7. Entitlement di-resolve (`FR-043`, prioritas `D-005` [A]).
@@ -218,9 +218,9 @@ Matriks lengkap ada di `REQUIREMENTS.md` §8.2; ringkasan dampak arsitekturnya:
 | Koreksi | `UPDATE attendance` + snapshot audit | Reversal/Adjustment baris baru | Ganti jalur koreksi (Q5) |
 | Kategori | Teks bebas `participants.category` | Entitas per Tema + entitlement | AQ-005, AQ-006 |
 | Penugasan Petugas | Membership per acara | Penugasan per Aktivitas/Sesi | AQ-007 |
-| Hasil scan | `present`/`duplicate`/`not_found`/`wrong_event`/`event_closed`/`participant_inactive` | `SUCCESS`/`DUPLICATE`/`NOT_ENTITLED`/`INVALID_QR`/`SYSTEM_ERROR` (`D-011` [P]) | AQ-008 |
+| Hasil scan | `present`/`duplicate`/`not_found`/`wrong_event`/`event_closed`/`participant_inactive` | `SUCCESS`/`DUPLICATE`/`NOT_ENTITLED`/`INVALID_QR`/`SYSTEM_ERROR` (`D-011` [A]) | AQ-008 |
 | QR | Per baris peserta per acara | Per Tema + Peserta | AQ-009 |
-| Sheets | Satu baris per peserta, satu sel kehadiran | Opsional per Tema (`D-017` [P]) | AQ-011 |
+| Sheets | Satu baris per peserta, satu sel kehadiran | Opsional per Tema (`D-017` [A]) | AQ-011 |
 | Audit | Snapshot before/after | Allowlist field (`FR-207`) | AQ-014 |
 
 ---
@@ -240,20 +240,20 @@ Setiap AQ harus dijawab dengan ADR baru (`adr/NNNN-*.md`) **sebelum** fase roadm
 
 - **Pertanyaan:** satu tabel transaksi dengan kolom tipe, atau tabel terpisah per tipe? (`REQUIREMENTS.md` §3.4)
 - **Pertimbangan:** laporan gabungan dan audit lebih sederhana dengan satu tabel; constraint duplikasi (Attendance) dan kuota (Consumption) berbeda bentuk.
-- **Masukan:** `D-009` [P], `D-011` [P].
+- **Masukan:** `D-009` [A], `D-011` [A].
 - **Memblokir:** Q5, Q6.
 
 ### AQ-003 — Penegakan "transaksi efektif" di database
 
 - **Pertanyaan:** bagaimana constraint unik hanya berlaku untuk transaksi yang belum di-reversal, untuk ruang lingkup Aktivitas-tanpa-Sesi maupun Sesi?
 - **Catatan teknis:** SQLite menganggap `NULL` berbeda dalam indeks unik, sehingga `session_id NULL` tidak bisa langsung dipakai sebagai kunci ruang lingkup. Partial unique index wajib mengulang predikatnya di `ON CONFLICT` (temuan Fase 0, `OPERASIONAL.md` §4.1).
-- **Opsi awal:** (a) kolom kunci ruang lingkup non-null + partial unique index `WHERE` belum di-reversal; (b) tabel "slot efektif" terpisah yang dilepas oleh reversal dalam batch yang sama; (c) untuk kuota > 1: nomor slot `1..kuota` unik per ruang lingkup efektif. Perubahan kuota setelah transaksi adalah pertanyaan produk terbuka di `D-014` [P].
-- **Masukan:** `D-006` [A], `D-014` [P], `FR-075`, `FR-165`.
+- **Opsi awal:** (a) kolom kunci ruang lingkup non-null + partial unique index `WHERE` belum di-reversal; (b) tabel "slot efektif" terpisah yang dilepas oleh reversal dalam batch yang sama; (c) untuk kuota > 1: nomor slot `1..kuota` unik per ruang lingkup efektif. Perubahan kuota setelah transaksi adalah pertanyaan produk terbuka di `D-014` [A].
+- **Masukan:** `D-006` [A], `D-014` [A], `FR-075`, `FR-165`.
 - **Memblokir:** Q5, Q6. Tes konkuren wajib (`RENCANA_PENGUJIAN.md` §9).
 
 ### AQ-004 — Struktur Reversal dan Adjustment
 
-- **Pertanyaan:** bentuk data operasi koreksi, field transaksi apa yang boleh di-Adjust, dan bagaimana efektivitas dihitung. (`D-011` [P] "struktur data rinci")
+- **Pertanyaan:** bentuk data operasi koreksi, field transaksi apa yang boleh di-Adjust, dan bagaimana efektivitas dihitung. (`D-011` [A] "struktur data rinci")
 - **Catatan:** baseline punya status kehadiran `present/late/absent/excused`; `REQUIREMENTS.md` tidak menetapkan status Attendance di luar "tercatat hadir". Field yang boleh di-Adjust memerlukan masukan product owner.
 - **Masukan:** `D-006` [A], `FR-079`, `FR-202`, `FR-207`.
 - **Memblokir:** Q5.
@@ -275,20 +275,20 @@ Setiap AQ harus dijawab dengan ADR baru (`adr/NNNN-*.md`) **sebelum** fase roadm
 
 ### AQ-007 — Penugasan Petugas dan matriks izin
 
-- **Pertanyaan:** keanggotaan per Tema + penugasan per Aktivitas/Sesi; izin Manual Check-in per Petugas (`D-022` [P]); evolusi `domain/permissions.ts`.
-- **Aturan yang sudah pasti:** koreksi hanya Admin Acara (`D-006` [A]); izin legacy `attendance:correct` **tidak boleh** dipakai ulang sebagai izin Manual Check-in target (`AC-055`, `OQ-034` [O]).
+- **Pertanyaan:** keanggotaan per Tema + penugasan per Aktivitas/Sesi; izin Manual Check-in per Petugas (`D-022` [A]); evolusi `domain/permissions.ts`.
+- **Aturan yang sudah pasti:** koreksi hanya Admin Acara (`D-006` [A]); izin legacy `attendance:correct` **tidak boleh** dipakai ulang sebagai izin Manual Check-in target (`AC-055`, `OQ-034` [A]).
 - **Memblokir:** Q5 (manual entry), Q7.
 
 ### AQ-008 — Kontrak hasil scan
 
-- **Pertanyaan:** pemetaan setiap penolakan (peserta nonaktif, QR dirotasi, konteks salah, lifecycle tertutup, tidak ditugaskan) ke lima result code `D-011` [P], serta pemetaan ke HTTP status. `REQUIREMENTS.md` belum menetapkan kode untuk peserta nonaktif atau Sesi yang belum Berlangsung — perlu masukan product owner.
+- **Pertanyaan:** pemetaan setiap penolakan (peserta nonaktif, QR dirotasi, konteks salah, lifecycle tertutup, tidak ditugaskan) ke lima result code `D-011` [A], serta pemetaan ke HTTP status. `REQUIREMENTS.md` belum menetapkan kode untuk peserta nonaktif atau Sesi yang belum Berlangsung — perlu masukan product owner.
 - **Baseline:** hasil bisnis selalu HTTP 200 dengan enum lama (§7.5).
 - **Memblokir:** Q5, Q7.
 
 ### AQ-009 — Kepemilikan kredensial QR per Tema
 
 - **Pertanyaan:** di entitas mana kredensial QR melekat agar scope Tema + Peserta (`D-004` [A]) terpenuhi, dan bagaimana rotasi token per peserta (`FR-059`, `FR-062`) dirancang. Bergantung AQ-001.
-- **Tetap berlaku:** ADR-0003, ADR-0006, prefix `absensi:v1:` (`D-019` [P]).
+- **Tetap berlaku:** ADR-0003, ADR-0006, prefix `absensi:v1:` (`D-019` [A]).
 - **Memblokir:** Q4.
 
 ### AQ-010 — Strategi skema menuju model baru
@@ -300,18 +300,18 @@ Setiap AQ harus dijawab dengan ADR baru (`adr/NNNN-*.md`) **sebelum** fase roadm
 ### AQ-011 — Proyeksi Google Sheets untuk Sesi dan Consumption
 
 - **Pertanyaan:** bentuk spreadsheet per Tema (tab per Aktivitas? kolom per Sesi?) yang tetap idempoten (ADR-0004) dan hemat kuota.
-- **Masukan:** `D-017` [P].
+- **Masukan:** `D-017` [A].
 - **Memblokir:** Q10.
 
 ### AQ-012 — Pesan scanner yang dapat dikonfigurasi
 
 - **Pertanyaan:** penyimpanan template pesan per Tema (`FR-120`), substitusi variabel `{nama}`, `{id}`, `{acara}`, `{waktu}` (`FR-121`) di browser atau server, dan batas data peserta yang boleh dikirim ke perangkat kiosk.
-- **Masukan:** `D-012` [P], `D-013` [P], aturan "jangan log PII".
+- **Masukan:** `D-012` [A], `D-013` [A], aturan "jangan log PII".
 - **Memblokir:** Q7.
 
 ### AQ-013 — Pembuatan laporan dan ekspor
 
-- **Pertanyaan:** CSV dibangun di Worker (streaming/paginasi) atau di browser; dependensi XLSX (`D-015` [P]); batas baris agar muat CPU 10 ms.
+- **Pertanyaan:** CSV dibangun di Worker (streaming/paginasi) atau di browser; dependensi XLSX (`D-015` [A]); batas baris agar muat CPU 10 ms.
 - **Baseline:** ekspor CSV kehadiran (≤ 5.000 baris) dan peserta dibangun di Worker.
 - **Memblokir:** Q8.
 
@@ -319,7 +319,7 @@ Setiap AQ harus dijawab dengan ADR baru (`adr/NNNN-*.md`) **sebelum** fase roadm
 
 - **Pertanyaan:** di mana allowlist field per tipe objek didefinisikan (kandidat: konstanta di `packages/shared`), bagaimana penanda "berubah" untuk field sensitif disimpan, dan bagaimana audit baseline yang menyimpan snapshot diganti.
 - **Alasan diputuskan awal:** setiap fase menambah mutasi yang wajib diaudit (`FR-135`); menunda keputusan ini berarti merombak audit berulang kali.
-- **Masukan:** `FR-207`, `D-023` [P], `NFR-006`.
+- **Masukan:** `FR-207`, `D-023` [A], `NFR-006`.
 - **Memblokir:** Q1 (audit mutasi Tema/Aktivitas/Sesi pertama).
 
 ---
@@ -354,7 +354,7 @@ Detail: [`DESAIN_DATABASE.md`](./DESAIN_DATABASE.md).
 4. `POST /api/auth/activate` memverifikasi token (ada, belum dipakai, belum kedaluwarsa, acara `active`/`draft`) dan dalam satu `db.batch()` menandai undangan terpakai, membuat/membaca user, keanggotaan, kredensial perangkat, sesi, kode pemulihan, dan audit.
 5. Kode pemulihan ditampilkan sekali. Undangan terpakai tidak bisa dipakai ulang.
 
-**Target:** penugasan per Aktivitas/Sesi (AQ-007); undangan Admin Acara oleh Super Admin (`D-018` [P]).
+**Target:** penugasan per Aktivitas/Sesi (AQ-007); undangan Admin Acara oleh Super Admin (`D-018` [A]).
 
 ### 7.3 Import peserta CSV
 
@@ -365,7 +365,7 @@ Detail: [`DESAIN_DATABASE.md`](./DESAIN_DATABASE.md).
 5. Duplikasi dalam file dilaporkan dan dilewati; baris valid lain tetap disimpan.
 6. Import tidak menyentuh kolom QR. Rate limit konfirmasi 10/jam per acara.
 
-**Target:** pemetaan kolom, peninjauan duplikat Skip/Update dengan konfirmasi, External Reference sebagai kunci, field kosong tidak menghapus (`FR-047`–`FR-053`, `FR-205`; `D-008` [P], `D-020` [P]). Catatan: upsert otomatis baseline bertentangan dengan `FR-050` bila `D-008` disetujui.
+**Target:** pemetaan kolom, peninjauan duplikat Skip/Update dengan konfirmasi, External Reference sebagai kunci, field kosong tidak menghapus (`FR-047`–`FR-053`, `FR-205`; `D-008` [A], `D-020` [A]). Catatan: upsert otomatis baseline bertentangan dengan `FR-050` bila `D-008` disetujui.
 
 ### 7.4 Mencetak label QR
 
@@ -379,7 +379,7 @@ Detail: [`DESAIN_DATABASE.md`](./DESAIN_DATABASE.md).
 
 Konfigurasi field label per acara di `event_label_config`; format A4 3 × 8 dan stiker 50 × 30 mm via `window.print()`.
 
-**Target:** unduhan PNG individual dan ZIP dirakit di browser (`FR-063`–`FR-065`, `D-016` [P]). Tidak ada generator PDF (`NG-04`, `NG-05`). Apakah fitur cetak label dipertahankan adalah evaluasi reuse (`FR-172`) di roadmap Q4.
+**Target:** unduhan PNG individual dan ZIP dirakit di browser (`FR-063`–`FR-065`, `D-016` [A]). Tidak ada generator PDF (`NG-04`, `NG-05`). Apakah fitur cetak label dipertahankan adalah evaluasi reuse (`FR-172`) di roadmap Q4.
 
 ### 7.5 Pemindaian QR
 
@@ -401,7 +401,7 @@ Hasil bisnis selalu HTTP 200; 4xx/5xx hanya untuk autentikasi/validasi/sistem.
 2. Satu `db.batch()`: `UPDATE attendance`, audit `attendance.corrected` (snapshot before/after), outbox.
 3. `officer` → 403 + audit `authz.denied`.
 
-**Bertentangan dengan target:** `D-006` [A] mewajibkan Reversal/Adjustment yang mempertahankan transaksi asli dan hanya Admin Acara yang berwenang; kewenangan Super Admin masih `D-024` [P]. Jalur ini diganti di Q5.
+**Bertentangan dengan target:** `D-006` [A] mewajibkan Reversal/Adjustment yang mempertahankan transaksi asli dan hanya Admin Acara yang berwenang; kewenangan Super Admin masih `D-024` [A]. Jalur ini diganti di Q5.
 
 ---
 
@@ -421,7 +421,7 @@ Hasil bisnis selalu HTTP 200; 4xx/5xx hanya untuk autentikasi/validasi/sistem.
 | Petugas ganti/lupa HP | Admin acara membuat undangan baru; kredensial lama dicabut |
 | Petugas punya kode pemulihan | `POST /api/auth/recover` → kredensial baru + kode baru |
 | Admin acara kehilangan akses | Kode pemulihan sendiri; tanpa kode, tidak dapat dipulihkan |
-| Admin acara baru | Baseline: daftar sendiri di `/daftar` (ADR-0007). Target yang diusulkan: undangan Super Admin (`D-018` [P]) |
+| Admin acara baru | Baseline: daftar sendiri di `/daftar` (ADR-0007). Target yang diusulkan: undangan Super Admin (`D-018` [A]) |
 | Superadmin kehilangan akses | Break-glass terdokumentasi di `OPERASIONAL.md`, wajib meninggalkan jejak audit |
 
 ### Proteksi CSRF
@@ -432,7 +432,7 @@ Hasil bisnis selalu HTTP 200; 4xx/5xx hanya untuk autentikasi/validasi/sistem.
 
 ## 9. Integrasi Google Sheets (baseline)
 
-Status target: opsional per Tema, bukan sumber kebenaran, kegagalan tidak memblokir transaksi (`D-017` [P]); belum boleh diklaim production-ready sebelum diuji dengan akun Google nyata (`FR-193`).
+Status target: opsional per Tema, bukan sumber kebenaran, kegagalan tidak memblokir transaksi (`D-017` [A]); belum boleh diklaim production-ready sebelum diuji dengan akun Google nyata (`FR-193`).
 
 ### Autentikasi
 
@@ -464,7 +464,7 @@ Ditulis dalam batch yang sama dengan mutasi kehadiran (ADR-0005). Siklus cron: a
 | Riwayat per-scan di Sheets | Sheets hanya proyeksi (ADR-0004) |
 | Multi-bahasa | UI Bahasa Indonesia saja |
 | Chart di dashboard | `FR-131` |
-| Inventory/stock management konsumsi | Di luar scope awal `D-014` [P] |
+| Inventory/stock management konsumsi | Di luar scope awal `D-014` [A] |
 
 ---
 
@@ -480,7 +480,7 @@ Ditulis dalam batch yang sama dengan mutasi kehadiran (ADR-0005). Siklus cron: a
 | R6 | Kelebihan kuota Google berpotensi berbayar | Biaya tak terduga | Tanpa billing di Google Cloud; sync bisa dimatikan |
 | R7 | Sheet diedit manual | Data salah di sheet | Full resync; sheet bukan sumber kebenaran |
 | R8 | Token undangan tersebar | Penyalahgunaan akun | Sekali pakai, kedaluwarsa, audit, revokasi instan |
-| R9 | Sinyal hilang di lokasi | Scan terhenti | Indikator jaringan (`FR-114`); Manual Entry oleh pihak berizin (`D-022` [P]); tidak ada antrean offline |
+| R9 | Sinyal hilang di lokasi | Scan terhenti | Indikator jaringan (`FR-114`); Manual Entry oleh pihak berizin (`D-022` [A]); tidak ada antrean offline |
 | R10 | `BarcodeDetector` tidak ada di iOS | Scanner mati di iPhone | Fallback ZXing; uji perangkat fisik (belum dilakukan) |
 | R11 | Redesign skema merusak fitur baseline yang dipakai ulang | Regresi | Regression test wajib (`FR-175`, `D-007` [A]); constraint lama dilepas terakhir |
 | R12 | `[P]` diimplementasikan seolah final | Kerja ulang | Gate roadmap mensyaratkan persetujuan product owner |
