@@ -1,6 +1,7 @@
 import { AlertCircle, CheckCircle2, XCircle } from "lucide-react";
 import { useEffect, useRef } from "react";
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { ScanTone } from "@/lib/scanner";
 
 export interface ScanNotification {
@@ -36,28 +37,31 @@ export function ScanToast({
     : notification.tone === "warning"
       ? AlertCircle
       : XCircle;
-  const toneClass = notification.tone === "success"
-    ? "border-emerald-600/30 bg-emerald-50 text-emerald-900"
+  const variant = notification.tone === "success"
+    ? "success"
     : notification.tone === "warning"
-      ? "border-amber-600/30 bg-amber-50 text-amber-950"
-      : "border-red-600/30 bg-red-50 text-red-900";
+      ? "warning"
+      : "destructive";
 
   return (
     <div className="pointer-events-none fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-50 mx-auto max-w-lg sm:bottom-5">
-      <div
+      <Alert
+        variant={variant}
         role={notification.tone === "error" ? "alert" : "status"}
         aria-live={notification.tone === "error" ? "assertive" : "polite"}
-        className={`flex items-start gap-3 rounded-xl border p-4 shadow-lg ${toneClass}`}
+        className="pointer-events-auto flex items-start gap-3 shadow-lg"
       >
         <Icon aria-hidden="true" className="mt-0.5 size-5 shrink-0" />
         <div className="min-w-0">
-          <p className="font-semibold">{notification.title}</p>
+          <AlertTitle className="font-semibold">{notification.title}</AlertTitle>
           {notification.participantName && (
             <p className="truncate text-sm font-medium">{notification.participantName}</p>
           )}
-          <p className="text-sm opacity-80">{notification.description}</p>
+          <AlertDescription className="opacity-80">
+            {notification.description}
+          </AlertDescription>
         </div>
-      </div>
+      </Alert>
     </div>
   );
 }

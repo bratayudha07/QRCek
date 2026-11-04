@@ -3,6 +3,7 @@ import { ChevronsUpDown } from "lucide-react";
 
 import { eventTabPath, navigate, type EventTab } from "@/lib/router";
 import { cn } from "@/lib/utils";
+import { Label, Select } from "@/components/ui/field";
 
 /**
  * Event switcher for the sidebar and the mobile strip.
@@ -39,13 +40,13 @@ export function EventSwitcher({
   return (
     <div className={compact ? "min-w-0" : "space-y-1.5"}>
       {!compact && (
-        <label htmlFor={id} className="block text-xs font-medium text-muted-foreground">
+        <Label htmlFor={id} className="text-xs font-medium text-muted-foreground">
           Acara aktif
-        </label>
+        </Label>
       )}
 
       <div className="relative">
-        <select
+        <Select
           id={id}
           aria-label={compact ? "Pilih acara" : undefined}
           title={label}
@@ -59,8 +60,8 @@ export function EventSwitcher({
             }
           }}
           className={compact
-            ? "h-10 w-full max-w-[min(24rem,65vw)] appearance-none rounded-full border border-transparent bg-transparent px-3 pr-9 text-base font-semibold tracking-tight transition-colors duration-200 ease-out hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60"
-            : "h-10 w-full appearance-none rounded-full border border-border bg-background px-3 pr-9 text-sm font-medium transition-colors duration-200 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60"}
+            ? "h-10 w-full max-w-[min(24rem,65vw)] appearance-none rounded-full border-transparent bg-transparent px-3 pr-9 text-base font-semibold tracking-tight hover:bg-muted"
+            : "h-10 w-full appearance-none rounded-full px-3 pr-9 text-sm font-medium"}
         >
           {!current && (
             <option value={eventId}>
@@ -73,7 +74,7 @@ export function EventSwitcher({
               {event.name}
             </option>
           ))}
-        </select>
+        </Select>
 
         <ChevronsUpDown
           aria-hidden="true"

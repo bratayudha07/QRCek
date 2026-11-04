@@ -1,5 +1,5 @@
 import { cva, type VariantProps } from "class-variance-authority";
-import type { ButtonHTMLAttributes } from "react";
+import type { ComponentProps } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -15,11 +15,15 @@ const buttonVariants = cva(
         default: "bg-primary text-primary-foreground hover:opacity-90",
         outline: "border border-border bg-transparent hover:bg-muted",
         ghost: "hover:bg-muted",
+        link: "text-foreground underline-offset-4 hover:underline",
+        destructive: "bg-red-600 text-white hover:bg-red-700",
       },
       size: {
         default: "h-9 px-4",
         sm: "h-8 px-3",
         lg: "h-10 px-6",
+        icon: "size-9 p-0",
+        "icon-sm": "size-8 p-0",
       },
     },
     defaultVariants: {
@@ -29,8 +33,7 @@ const buttonVariants = cva(
   },
 );
 
-export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> &
-  VariantProps<typeof buttonVariants>;
+export type ButtonProps = ComponentProps<"button"> & VariantProps<typeof buttonVariants>;
 
 export function Button({ className, variant, size, type = "button", ...props }: ButtonProps) {
   return (

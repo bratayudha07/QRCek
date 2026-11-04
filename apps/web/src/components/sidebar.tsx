@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { AppLink } from "./app-link";
 import { NavIcon } from "./nav-icon";
+import { Button } from "@/components/ui/button";
 import {
   isGlobalNavActive,
   sidebarItems,
@@ -136,14 +137,15 @@ export function Sidebar({
       {/* The rule is inset so it cannot run into the capsule's rounded edge. */}
       <div className="shrink-0 p-2">
         <div className="border-t border-border/70 pt-2">
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={togglePinnedState}
             aria-expanded={expanded}
             aria-pressed={!collapsed}
             aria-controls="app-sidebar"
             title={collapsed ? "Sematkan sidebar terbuka" : "Ciutkan sidebar"}
-            className="relative flex h-10 w-full items-center gap-3 rounded-full px-3 text-sm font-medium text-muted-foreground transition-colors duration-200 ease-out hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2"
+            className="relative flex h-10 w-full items-center justify-start gap-3 rounded-full px-3 text-sm font-medium text-muted-foreground hover:text-foreground"
           >
             {collapsed ? (
               compact ? <PanelLeftOpen aria-hidden="true" className="size-5 shrink-0 translate-x-[6px] transition-transform duration-[280ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none" /> : <Pin aria-hidden="true" className="size-4 shrink-0" />
@@ -160,7 +162,7 @@ export function Sidebar({
             >
               {collapsed ? "Sematkan" : "Ciutkan"}
             </span>
-          </button>
+          </Button>
         </div>
       </div>
     </aside>

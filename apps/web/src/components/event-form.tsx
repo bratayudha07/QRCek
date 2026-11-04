@@ -4,7 +4,8 @@ import { useState, type FormEvent } from "react";
 import type { EventSummary } from "@absensi/shared";
 
 import { Button } from "@/components/ui/button";
-import { Field, Input, Textarea } from "@/components/ui/field";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Checkbox, Field, Input, Label, Textarea } from "@/components/ui/field";
 import { fromDateTimeLocalValue, toDateTimeLocalValue } from "@/lib/format";
 
 /**
@@ -156,10 +157,9 @@ export function EventForm({
         </Field>
       </div>
 
-      <label className="flex items-start gap-2 text-sm">
-        <input
-          type="checkbox"
-          className="mt-0.5 size-4 rounded border-border"
+      <Label className="flex items-start gap-2 text-sm font-normal">
+        <Checkbox
+          className="mt-0.5"
           checked={allowManual}
           onChange={(event) => setAllowManual(event.target.checked)}
         />
@@ -169,12 +169,12 @@ export function EventForm({
             Untuk tahap pemindaian nanti. Bisa diubah kapan saja sebelum acara diarsipkan.
           </span>
         </span>
-      </label>
+      </Label>
 
       {(localError ?? error) && (
-        <p role="alert" className="text-sm text-red-600">
-          {localError ?? error}
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>{localError ?? error}</AlertDescription>
+        </Alert>
       )}
 
       <div className="flex flex-wrap gap-2">

@@ -6,7 +6,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { AppShell } from "@/components/app-shell";
 import { EmptyState, ErrorState, LoadingState, Notice } from "@/components/page-state";
 import { Button } from "@/components/ui/button";
-import { Field, Input } from "@/components/ui/field";
+import { Field, Checkbox, Input, Label } from "@/components/ui/field";
 import {
   downloadAttendanceCsv,
   fullSync,
@@ -150,7 +150,7 @@ export function EventReportsPage({ eventId }: { eventId: string }) {
         <form className="grid gap-3 sm:grid-cols-2" onSubmit={(event) => void saveConfig(event)}>
           <Field label="ID spreadsheet" htmlFor="sheet-id" hint="Ambil bagian ID dari URL Google Sheets."><Input id="sheet-id" value={spreadsheetId} onChange={(event) => setSpreadsheetId(event.target.value)} minLength={10} maxLength={200} required /></Field>
           <Field label="Nama tab" htmlFor="sheet-tab"><Input id="sheet-tab" value={sheetTab} onChange={(event) => setSheetTab(event.target.value)} maxLength={100} required /></Field>
-          <label className="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" checked={syncEnabled} onChange={(event) => setSyncEnabled(event.target.checked)} />Aktifkan sinkronisasi otomatis</label>
+          <Label className="flex items-center gap-2 text-sm font-normal sm:col-span-2"><Checkbox checked={syncEnabled} onChange={(event) => setSyncEnabled(event.target.checked)} />Aktifkan sinkronisasi otomatis</Label>
           <div className="flex flex-wrap gap-2 sm:col-span-2"><Button type="submit" disabled={busy}><Save className="size-4" />Simpan pengaturan</Button><Button type="button" variant="outline" disabled={busy || !sync?.config.configured} onClick={() => void testConnection()}>Uji akses</Button><Button type="button" variant="outline" disabled={busy || !sync?.config.configured} onClick={() => void performSync("run")}><RefreshCw className="size-4" />Jalankan antrean</Button><Button type="button" variant="outline" disabled={busy || !sync?.config.configured} onClick={() => void performSync("full")}>Sinkronisasi penuh</Button></div>
         </form>
         {sync?.config.lastError && <Notice tone="warning">Kesalahan terakhir: {sync.config.lastError}</Notice>}

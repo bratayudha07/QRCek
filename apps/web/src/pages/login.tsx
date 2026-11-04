@@ -2,7 +2,9 @@ import { LoaderCircle } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
 import { RecoveryCodePanel } from "@/components/recovery-code-panel";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Field, Input } from "@/components/ui/field";
 import { recoverAccount } from "@/lib/auth";
 import { paths } from "@/lib/router";
 
@@ -60,10 +62,15 @@ export function LoginPage() {
         </>
       ) : (
         <form className="space-y-4" onSubmit={submit}>
-          <label className="block space-y-1 text-sm">
-            <span className="font-medium">Kode pemulihan</span>
-            <input
-              className="h-10 w-full rounded-md border border-border bg-transparent px-3 font-mono text-sm tracking-wider focus-visible:outline-2 focus-visible:outline-offset-2"
+          <Field
+            label="Kode pemulihan"
+            htmlFor="recovery-code"
+            hint="Huruf besar/kecil dan spasi tidak masalah."
+            required
+          >
+            <Input
+              id="recovery-code"
+              className="font-mono tracking-wider"
               value={code}
               onChange={(event) => setCode(event.target.value)}
               placeholder="ABCD-EFGH-IJKL-MNOP-QRST"
@@ -73,27 +80,23 @@ export function LoginPage() {
               maxLength={64}
               required
             />
-            <span className="block text-xs text-muted-foreground">
-              Huruf besar/kecil dan spasi tidak masalah.
-            </span>
-          </label>
+          </Field>
 
-          <label className="block space-y-1 text-sm">
-            <span className="font-medium">Nama perangkat (opsional)</span>
-            <input
-              className="h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
+          <Field label="Nama perangkat (opsional)" htmlFor="device-label">
+            <Input
+              id="device-label"
               value={label}
               onChange={(event) => setLabel(event.target.value)}
               placeholder="Contoh: HP baru"
               maxLength={80}
               autoComplete="off"
             />
-          </label>
+          </Field>
 
           {status.kind === "error" && (
-            <p role="alert" className="text-sm text-red-600">
-              {status.message}
-            </p>
+            <Alert variant="destructive">
+              <AlertDescription>{status.message}</AlertDescription>
+            </Alert>
           )}
 
           <Button type="submit" className="w-full" disabled={status.kind === "loading"}>

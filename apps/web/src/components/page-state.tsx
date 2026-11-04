@@ -1,6 +1,8 @@
 import { CircleAlert, LoaderCircle } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 /** Shared loading / error / empty blocks, so every screen behaves the same. */
@@ -16,24 +18,17 @@ export function LoadingState({ label = "Memuat…" }: { label?: string }) {
 
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <div
-      role="alert"
-      className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-red-600/30 bg-red-600/5 p-4 text-sm text-red-700"
-    >
-      <span className="flex items-start gap-2">
+    <Alert variant="destructive" className="flex flex-wrap items-start justify-between gap-3">
+      <AlertDescription className="flex items-start gap-2">
         <CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-        {message}
-      </span>
+        <span>{message}</span>
+      </AlertDescription>
       {onRetry && (
-        <button
-          type="button"
-          onClick={onRetry}
-          className="underline underline-offset-4 hover:no-underline"
-        >
+        <Button variant="link" size="sm" onClick={onRetry} className="underline underline-offset-4">
           Coba lagi
-        </button>
+        </Button>
       )}
-    </div>
+    </Alert>
   );
 }
 
@@ -54,13 +49,11 @@ export function Notice({
   children: ReactNode;
   className?: string;
 }) {
-  const toneClass = {
-    info: "border-border bg-muted/50 text-foreground",
-    warning: "border-amber-600/30 bg-amber-600/5 text-amber-800",
-    success: "border-emerald-600/30 bg-emerald-600/5 text-emerald-800",
-  }[tone];
+  const variant = tone === "warning" ? "warning" : tone === "success" ? "success" : "info";
 
   return (
-    <div className={cn("rounded-lg border p-3 text-sm", toneClass, className)}>{children}</div>
+    <Alert variant={variant} className={cn(className)}>
+      <AlertDescription>{children}</AlertDescription>
+    </Alert>
   );
 }

@@ -8,6 +8,7 @@ import { QrScanner } from "@/components/qr-scanner";
 import { ScanToast, type ScanNotification } from "@/components/scan-toast";
 import { EmptyState, ErrorState, LoadingState, Notice } from "@/components/page-state";
 import { Button } from "@/components/ui/button";
+import { Label, Select } from "@/components/ui/field";
 import { listStaffAttendance, scanQr } from "@/lib/attendance";
 import { formatDateTime } from "@/lib/format";
 import { SCAN_RESULT_COPY } from "@/lib/scanner";
@@ -157,10 +158,10 @@ export function StaffScanPage() {
       {session.status === "authenticated" && memberships.length === 0 && <EmptyState>Akun ini belum ditugaskan ke acara. Minta admin acara mengirim undangan.</EmptyState>}
       {memberships.length > 0 && (
         <>
-          <label className="block space-y-1 text-sm font-medium" htmlFor="scan-event">Acara</label>
-          <select id="scan-event" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={eventId} onChange={(event) => { setEventId(event.target.value); setNotification(null); }}>
+          <Label htmlFor="scan-event">Acara</Label>
+          <Select id="scan-event" value={eventId} onChange={(event) => { setEventId(event.target.value); setNotification(null); }}>
             {memberships.map((membership) => <option key={membership.eventId} value={membership.eventId}>{membership.eventName}</option>)}
-          </select>
+          </Select>
           <QrScanner paused={scanPending} onDetected={(qr) => void handleDetected(qr)} />
           <ScanToast notification={notification} onDismiss={() => setNotification(null)} />
         </>

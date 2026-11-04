@@ -7,7 +7,22 @@ import { EmptyState, ErrorState, LoadingState, Notice } from "@/components/page-
 import { QrScanner } from "@/components/qr-scanner";
 import { ScanToast, type ScanNotification } from "@/components/scan-toast";
 import { Button } from "@/components/ui/button";
-import { Input, Select } from "@/components/ui/field";
+import {
+  Dialog,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Field, Input, Select, Textarea } from "@/components/ui/field";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { correctAttendance, listAttendance, scanQr } from "@/lib/attendance";
 import { getEvent } from "@/lib/events";
 import { SCAN_RESULT_COPY } from "@/lib/scanner";
@@ -143,11 +158,105 @@ export function EventAttendancePage({ eventId }: { eventId: string }) {
         </div>
         {loading && <LoadingState label="Memuat kehadiran…" />}
         {!loading && rows.length === 0 && <EmptyState>Belum ada catatan kehadiran untuk filter ini.</EmptyState>}
-        {rows.length > 0 && <div className="overflow-x-auto rounded-xl border"><table className="w-full min-w-[720px] text-left text-sm"><thead className="bg-muted/50 text-xs text-muted-foreground"><tr><th className="p-3">Peserta</th><th className="p-3">Status</th><th className="p-3">Waktu</th><th className="p-3">Metode</th><th className="p-3">Petugas</th>{canCorrect && <th className="p-3">Aksi</th>}</tr></thead><tbody className="divide-y">{rows.map((row) => <tr key={row.id}><td className="p-3"><p className="font-medium">{row.participantName}</p><p className="text-xs text-muted-foreground">{row.participantExternalRef || row.category || "—"}</p></td><td className="p-3">{STATUS_LABEL[row.status]}</td><td className="p-3">{new Date(row.checkedInAt).toLocaleString("id-ID")}</td><td className="p-3">{row.method}</td><td className="p-3">{row.recordedByName || "—"}</td>{canCorrect && <td className="p-3"><Button variant="outline" size="sm" onClick={() => { setSelected(row); setCorrectionStatus(row.status); }}>Koreksi</Button></td>}</tr>)}</tbody></table></div>}
+        {rows.length > 0 && (
+          <Table className="min-w-[720px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Peserta</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Waktu</TableHead>
+                <TableHead>Metode</TableHead>
+                <TableHead>Petugas</TableHead>
+                {canCorrect && <TableHead>Aksi</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell>
+                    <p className="font-medium">{row.participantName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {row.participantExternalRef || row.category || "—"}
+                    </p>
+                  </TableCell>
+                  <TableCell>{STATUS_LABEL[row.status]}</TableCell>
+                  <TableCell>{new Date(row.checkedInAt).toLocaleString("id-ID")}</TableCell>
+                  <TableCell>{row.method}</TableCell>
+                  <TableCell>{row.recordedByName || "—"}</TableCell>
+                  {canCorrect && (
+                    <TableCell>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelected(row);
+                          setCorrectionStatus(row.status);
+                        }}
+                      >
+                        Koreksi
+                      </Button>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
         {cursor && <Button variant="outline" disabled={loading} onClick={() => void loadMore()}>Muat lagi</Button>}
       </section>
 
-      {selected && <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null); }}><form className="w-full max-w-md space-y-4 rounded-xl bg-background p-5 shadow-xl" onSubmit={(event) => void saveCorrection(event)}><div><h2 className="font-semibold">Koreksi kehadiran</h2><p className="text-sm text-muted-foreground">{selected.participantName} · nilai lama: {STATUS_LABEL[selected.status]}</p></div><label className="block space-y-1 text-sm">Status baru<Select value={correctionStatus} onChange={(event) => setCorrectionStatus(event.target.value as AttendanceStatus)}>{STATUSES.map((item) => <option key={item} value={item}>{STATUS_LABEL[item]}</option>)}</Select></label><label className="block space-y-1 text-sm">Alasan (min. 10 karakter)<textarea className="min-h-24 w-full rounded-md border bg-background p-3" value={reason} onChange={(event) => setReason(event.target.value)} minLength={10} maxLength={500} required /></label><div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setSelected(null)}>Batal</Button><Button type="submit" disabled={saving || reason.trim().length < 10}>Simpan koreksi</Button></div></form></div>}
+      <Dialog
+        open={selected !== null}
+        onClose={() => setSelected(null)}
+        ariaLabel="Koreksi kehadiran"
+        className="max-w-md"
+      >
+        {selected && (
+          <form className="space-y-4" onSubmit={(event) => void saveCorrection(event)}>
+            <DialogHeader>
+              <DialogTitle>Koreksi kehadiran</DialogTitle>
+              <DialogDescription>
+                {selected.participantName} · nilai lama: {STATUS_LABEL[selected.status]}
+              </DialogDescription>
+            </DialogHeader>
+
+            <Field label="Status baru" htmlFor="correction-status">
+              <Select
+                id="correction-status"
+                value={correctionStatus}
+                onChange={(event) => setCorrectionStatus(event.target.value as AttendanceStatus)}
+              >
+                {STATUSES.map((item) => (
+                  <option key={item} value={item}>
+                    {STATUS_LABEL[item]}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+
+            <Field label="Alasan (min. 10 karakter)" htmlFor="correction-reason">
+              <Textarea
+                id="correction-reason"
+                className="min-h-24"
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                minLength={10}
+                maxLength={500}
+                required
+              />
+            </Field>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setSelected(null)}>
+                Batal
+              </Button>
+              <Button type="submit" disabled={saving || reason.trim().length < 10}>
+                Simpan koreksi
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
+      </Dialog>
     </AppShell>
   );
 }

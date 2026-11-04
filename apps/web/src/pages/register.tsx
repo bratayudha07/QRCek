@@ -3,7 +3,9 @@ import { useCallback, useState, type FormEvent } from "react";
 
 import { RecoveryCodePanel } from "@/components/recovery-code-panel";
 import { TurnstileWidget, isTurnstileEnabled } from "@/components/turnstile-widget";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Field, Input } from "@/components/ui/field";
 import { registerAccount } from "@/lib/auth";
 import { paths } from "@/lib/router";
 
@@ -121,10 +123,14 @@ export function RegisterPage() {
       </header>
 
       <form className="space-y-4" onSubmit={submit}>
-        <label className="block space-y-1 text-sm">
-          <span className="font-medium">Nama Anda</span>
-          <input
-            className="h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm focus-visible:outline-2 focus-visible:outline-offset-2"
+        <Field
+          label="Nama Anda"
+          htmlFor="display-name"
+          hint="Nama ini tampil di acara yang Anda buat."
+          required
+        >
+          <Input
+            id="display-name"
             value={displayName}
             onChange={(event) => setDisplayName(event.target.value)}
             placeholder="Contoh: Sari Wulandari"
@@ -132,10 +138,7 @@ export function RegisterPage() {
             autoComplete="name"
             required
           />
-          <span className="block text-xs text-muted-foreground">
-            Nama ini tampil di acara yang Anda buat.
-          </span>
-        </label>
+        </Field>
 
         <TurnstileWidget
           key={widgetAttempt}
@@ -145,9 +148,9 @@ export function RegisterPage() {
         />
 
         {status.kind === "error" && (
-          <p role="alert" className="text-sm text-red-600">
-            {status.message}
-          </p>
+          <Alert variant="destructive">
+            <AlertDescription>{status.message}</AlertDescription>
+          </Alert>
         )}
 
         {turnstileLoadFailed && (

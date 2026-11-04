@@ -1,5 +1,7 @@
 import { CircleCheck } from "lucide-react";
 
+import { Alert } from "@/components/ui/alert";
+
 /**
  * Shown exactly once after activation or recovery.
  *
@@ -9,7 +11,7 @@ import { CircleCheck } from "lucide-react";
  */
 export function RecoveryCodePanel({ recoveryCode }: { recoveryCode: string }) {
   return (
-    <section className="space-y-3 rounded-lg border border-emerald-600/40 bg-emerald-600/5 p-4">
+    <Alert variant="success" className="space-y-3">
       <h2 className="flex items-center gap-2 text-sm font-medium">
         <CircleCheck aria-hidden="true" className="size-4 text-emerald-600" />
         Akun aktif
@@ -30,6 +32,6 @@ export function RecoveryCodePanel({ recoveryCode }: { recoveryCode: string }) {
       <p className="text-xs text-muted-foreground">
         Jangan simpan di chat atau email. Tulis di tempat aman.
       </p>
-    </section>
+    </Alert>
   );
 }

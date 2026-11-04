@@ -5,6 +5,15 @@ import { useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { ErrorState, LoadingState, Notice } from "@/components/page-state";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/field";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { getEvent } from "@/lib/events";
 import { formatBytes, formatCount } from "@/lib/format";
 import { importParticipants, participantTemplateUrl } from "@/lib/participants";
@@ -180,12 +189,12 @@ export function ImportPage({ eventId }: { eventId: string }) {
               Unduh template CSV
             </a>
 
-            <input
+            <Input
               ref={inputRef}
               type="file"
               accept=".csv,text/csv,text/plain"
               aria-label="File CSV peserta"
-              className="block w-full rounded-md border border-dashed p-3 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm file:font-medium"
+              className="h-auto border-dashed p-3 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-sm file:font-medium"
               onChange={(event) => void chooseFile(event.target.files?.[0])}
             />
 
@@ -240,51 +249,47 @@ export function ImportPage({ eventId }: { eventId: string }) {
               )}
 
               {preview.sample.length > 0 && (
-                <div className="overflow-x-auto rounded-md border">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-muted/60 text-muted-foreground">
-                      <tr>
-                        <th className="px-2 py-1.5 font-medium">Baris</th>
-                        <th className="px-2 py-1.5 font-medium">Nama</th>
-                        <th className="px-2 py-1.5 font-medium">Referensi</th>
-                        <th className="px-2 py-1.5 font-medium">Aksi</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {preview.sample.map((row) => (
-                        <tr key={`${row.line}-${row.externalRef ?? row.fullName}`} className="border-t">
-                          <td className="px-2 py-1.5 tabular-nums">{row.line}</td>
-                          <td className="px-2 py-1.5">{row.fullName}</td>
-                          <td className="px-2 py-1.5">{row.externalRef ?? "—"}</td>
-                          <td className="px-2 py-1.5">
-                            {row.action === "create" ? "Baru" : "Perbarui"}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <Table className="text-xs">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="px-2 py-1.5">Baris</TableHead>
+                      <TableHead className="px-2 py-1.5">Nama</TableHead>
+                      <TableHead className="px-2 py-1.5">Referensi</TableHead>
+                      <TableHead className="px-2 py-1.5">Aksi</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {preview.sample.map((row) => (
+                      <TableRow key={`${row.line}-${row.externalRef ?? row.fullName}`}>
+                        <TableCell className="px-2 py-1.5 tabular-nums">{row.line}</TableCell>
+                        <TableCell className="px-2 py-1.5">{row.fullName}</TableCell>
+                        <TableCell className="px-2 py-1.5">{row.externalRef ?? "—"}</TableCell>
+                        <TableCell className="px-2 py-1.5">
+                          {row.action === "create" ? "Baru" : "Perbarui"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               )}
 
               {preview.invalid.length > 0 && (
-                <div className="overflow-x-auto rounded-md border">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-muted/60 text-muted-foreground">
-                      <tr>
-                        <th className="px-2 py-1.5 font-medium">Baris</th>
-                        <th className="px-2 py-1.5 font-medium">Alasan</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {preview.invalid.map((row) => (
-                        <tr key={row.line} className="border-t">
-                          <td className="px-2 py-1.5 tabular-nums">{row.line}</td>
-                          <td className="px-2 py-1.5">{row.reason}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <Table className="text-xs">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="px-2 py-1.5">Baris</TableHead>
+                      <TableHead className="px-2 py-1.5">Alasan</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {preview.invalid.map((row) => (
+                      <TableRow key={row.line}>
+                        <TableCell className="px-2 py-1.5 tabular-nums">{row.line}</TableCell>
+                        <TableCell className="px-2 py-1.5">{row.reason}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               )}
 
               <div className="flex flex-wrap gap-2">
@@ -312,24 +317,22 @@ export function ImportPage({ eventId }: { eventId: string }) {
               </p>
 
               {result.invalid.length > 0 && (
-                <div className="overflow-x-auto rounded-md border bg-background">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-muted/60 text-muted-foreground">
-                      <tr>
-                        <th className="px-2 py-1.5 font-medium">Baris</th>
-                        <th className="px-2 py-1.5 font-medium">Alasan</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {result.invalid.map((row) => (
-                        <tr key={row.line} className="border-t">
-                          <td className="px-2 py-1.5 tabular-nums">{row.line}</td>
-                          <td className="px-2 py-1.5">{row.reason}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <Table className="text-xs">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="px-2 py-1.5">Baris</TableHead>
+                      <TableHead className="px-2 py-1.5">Alasan</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {result.invalid.map((row) => (
+                      <TableRow key={row.line}>
+                        <TableCell className="px-2 py-1.5 tabular-nums">{row.line}</TableCell>
+                        <TableCell className="px-2 py-1.5">{row.reason}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               )}
 
               <div className="flex flex-wrap gap-2">

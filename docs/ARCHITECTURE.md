@@ -63,7 +63,7 @@ Isi keputusan ada di `adr/`; status dan relasinya dengan keputusan produk ada di
 ```
 ┌──────────────────────────────────────────────┐
 │ Browser (HP petugas/kiosk, laptop admin)     │
-│  React SPA + Tailwind + shadcn/ui (copy-in)  │
+│  React SPA + Tailwind + shadcn/ui            │
 │  - kamera: BarcodeDetector → fallback ZXing  │
 │  - render QR (SVG/PNG) dan cetak di browser  │
 └───────────────┬──────────────────────────────┘
@@ -140,7 +140,7 @@ absensi/
 │       └── test/
 └── apps/web/src/
     ├── App.tsx · main.tsx · index.css
-    ├── pages/ · components/ · components/ui/ (shadcn copy-in)
+    ├── pages/ · components/ · components/ui/ (shadcn/ui)
     └── lib/ (router, navigation, api, http, scanner, qr-labels, …)
 ```
 

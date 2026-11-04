@@ -4,6 +4,8 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 
 import { paletteActions, type PaletteAction } from "@/lib/palette";
 import { eventTabPath, navigate, participantsPath, type EventTab } from "@/lib/router";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 /**
  * Command palette for the event workspace: one entry point to search
@@ -138,20 +140,21 @@ export function EventSearch({
 
   return (
     <>
-      <button
+      <Button
         ref={triggerRef}
         type="button"
+        variant="outline"
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
         aria-keyshortcuts="Control+K Meta+K"
-        className="flex h-10 w-full items-center gap-2 rounded-full border border-border bg-background/80 px-3 text-left text-sm text-muted-foreground transition-colors duration-150 hover:border-foreground/20 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2"
+        className="h-10 w-full justify-start gap-2 rounded-full bg-background/80 px-3 text-left font-normal text-muted-foreground hover:border-foreground/20 hover:text-foreground"
       >
         <Search aria-hidden="true" className="size-4 shrink-0" />
         <span className="truncate">Cari peserta…</span>
         <kbd className="ml-auto hidden shrink-0 rounded border border-border bg-muted/60 px-1.5 py-0.5 text-[10px] font-medium lg:inline-block">
           {shortcut}
         </kbd>
-      </button>
+      </Button>
 
       <dialog
         ref={dialogRef}
@@ -171,7 +174,7 @@ export function EventSearch({
 
             <div className="flex items-center gap-2 border-b border-border px-4">
               <Search aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
-              <input
+              <Input
                 ref={inputRef}
                 type="text"
                 value={term}
@@ -187,7 +190,7 @@ export function EventSearch({
                 aria-activedescendant={actions.length > 0 ? `${listId}-${highlight}` : undefined}
                 aria-label="Cari peserta atau pilih tab"
                 placeholder="Cari peserta atau pilih tab…"
-                className="h-12 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                className="h-12 min-w-0 flex-1 border-0 bg-transparent px-0 focus-visible:outline-none"
               />
               <kbd className="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                 Esc

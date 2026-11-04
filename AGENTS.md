@@ -135,7 +135,7 @@ Integrasi Canva, card designer, desain kartu di QRCek, generator PDF kartu (indi
 - **Bahasa**: identifier, komentar, nama file, pesan commit → Inggris. Teks yang dilihat pengguna (UI, pesan error ke user) → Bahasa Indonesia. Dokumen di `docs/` → Bahasa Indonesia dengan istilah teknis Inggris.
 - Logika bisnis di `apps/api/src/` (fungsi murni di `domain/`, SQL hanya di `db/`). React component tidak berisi aturan bisnis.
 - Handler Worker tipis: parse → validasi → panggil domain → bentuk respons.
-- shadcn/ui bersifat **copy-in** di `apps/web/src/components/ui/`. Jangan menambah design system kedua. Ikon Lucide.
+- shadcn/ui adalah komponen utama (boleh diinstal via npm atau copy-in di `apps/web/src/components/ui/`). Jangan menambah design system kedua. Ikon Lucide. Optimalkan penggunaan shadcn/ui dan sebaiknya jangan menggambar/membuat UI dari nol secara manual.
 - Bentuk respons API konsisten (`{ ok, data | error }`) dan bertipe lewat `packages/shared`. Result code terpisah dari pesan user-facing.
 
 ## Dokumentasi

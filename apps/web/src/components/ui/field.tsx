@@ -1,32 +1,16 @@
-import type {
-  InputHTMLAttributes,
-  ReactNode,
-  SelectHTMLAttributes,
-  TextareaHTMLAttributes,
-} from "react";
+import type { ReactNode } from "react";
 
+import { Label } from "./label";
 import { cn } from "@/lib/utils";
 
-/** Small form primitives (shadcn/ui style, copied in rather than imported). */
+/** Form helpers: shadcn primitives plus a label/hint wrapper. */
 
-const CONTROL =
-  "w-full rounded-md border border-border bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground/70 transition-colors focus-visible:border-foreground/40 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
-
-export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={cn(CONTROL, "h-10", className)} {...props} />;
-}
-
-export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea className={cn(CONTROL, "min-h-20 py-2", className)} {...props} />;
-}
-
-export function Select({ className, children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
-    <select className={cn(CONTROL, "h-10", className)} {...props}>
-      {children}
-    </select>
-  );
-}
+export { Checkbox } from "./checkbox";
+export { Input } from "./input";
+export { Label } from "./label";
+export { Radio } from "./radio";
+export { Select } from "./select";
+export { Textarea } from "./textarea";
 
 export interface FieldProps {
   label: string;
@@ -34,15 +18,16 @@ export interface FieldProps {
   hint?: string;
   required?: boolean;
   children: ReactNode;
+  className?: string;
 }
 
-export function Field({ label, htmlFor, hint, required, children }: FieldProps) {
+export function Field({ label, htmlFor, hint, required, children, className }: FieldProps) {
   return (
-    <div className="space-y-1.5">
-      <label htmlFor={htmlFor} className="block text-sm font-medium">
+    <div className={cn("space-y-1.5", className)}>
+      <Label htmlFor={htmlFor}>
         {label}
         {required && <span className="ml-0.5 text-red-600">*</span>}
-      </label>
+      </Label>
       {children}
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>

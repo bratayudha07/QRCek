@@ -17,6 +17,7 @@ import { AppShell } from "@/components/app-shell";
 import { LabelSheet } from "@/components/label-sheet";
 import { EmptyState, ErrorState, LoadingState, Notice } from "@/components/page-state";
 import { Button } from "@/components/ui/button";
+import { Checkbox, Radio } from "@/components/ui/field";
 import { formatCount } from "@/lib/format";
 import { getEvent } from "@/lib/events";
 import { listParticipants } from "@/lib/participants";
@@ -350,8 +351,7 @@ export function EventLabelsPage({ eventId }: { eventId: string }) {
                     disabled ? "opacity-50" : "hover:bg-muted/40",
                   )}
                 >
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={active}
                     disabled={disabled || isArchived}
                     onChange={() => updateConfig({ fields: toggleLabelField(fields, meta.key) })}
@@ -394,8 +394,7 @@ export function EventLabelsPage({ eventId }: { eventId: string }) {
           </ol>
 
           <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={showEventName}
               disabled={isArchived}
               onChange={(changeEvent) =>
@@ -440,8 +439,7 @@ export function EventLabelsPage({ eventId }: { eventId: string }) {
                   format === option.value ? "border-foreground/40 bg-muted/40" : "hover:bg-muted/40",
                 )}
               >
-                <input
-                  type="radio"
+                <Radio
                   name="label-format"
                   value={option.value}
                   checked={format === option.value}
@@ -508,8 +506,7 @@ export function EventLabelsPage({ eventId }: { eventId: string }) {
                         !isSelected && atSelectionLimit ? "opacity-50" : "hover:bg-muted/40",
                       )}
                     >
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={isSelected}
                         disabled={!isSelected && atSelectionLimit}
                         onChange={() => toggleSelected(participant.id)}

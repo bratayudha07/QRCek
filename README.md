@@ -102,7 +102,7 @@ apps/web/                  SPA — React + Vite + Tailwind + shadcn/ui
                            account) dan staff (staff.tsx: beranda, scan, riwayat); auth (activation,
                            login, register)
   src/components/          layout, sidebar, bottom-nav, event-tabs, qr-code, qr-scanner, …
-  src/components/ui/       komponen shadcn/ui copy-in
+  src/components/ui/       komponen shadcn/ui (copy-in atau terinstal via npm)
   src/lib/                 logika UI murni + teruji: router, navigation, api, http (CSRF),
                            scanner, qr-labels, format (zona waktu), …
   vite.config.ts           dev server + proxy /api -> :8787

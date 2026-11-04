@@ -3,6 +3,7 @@ import { LoaderCircle } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Field, Input, Textarea } from "@/components/ui/field";
 
 /** Create/edit form for one participant. Validation stays server-side. */
@@ -129,9 +130,9 @@ export function ParticipantForm({
       </Field>
 
       {(localError ?? error) && (
-        <p role="alert" className="text-sm text-red-600">
-          {localError ?? error}
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>{localError ?? error}</AlertDescription>
+        </Alert>
       )}
 
       <div className="flex flex-wrap gap-2">

@@ -4,6 +4,8 @@ import { useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { Notice } from "@/components/page-state";
 import { QrScanner } from "@/components/qr-scanner";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { normalizeScannedQr, SCAN_RESULT_COPY } from "@/lib/scanner";
 
 export function StaffScanPage() {
@@ -45,13 +47,13 @@ export function StaffScanPage() {
       {result && (
         <section aria-live="polite" className="space-y-3">
           <ResultCard payload={result.payload} />
-          <button
-            type="button"
+          <Button
+            variant="link"
             onClick={() => setResult(null)}
-            className="underline underline-offset-4 hover:no-underline"
+            className="px-0 underline underline-offset-4"
           >
             Pindai lagi
-          </button>
+          </Button>
         </section>
       )}
     </AppShell>
@@ -69,29 +71,27 @@ function ResultCard({ payload }: { payload: { ok: true; data: { result: string; 
   const Icon = copy.tone === "success" ? UserCheck : copy.tone === "warning" ? AlertCircle : XCircle;
 
   return (
-    <div className={`rounded-xl border p-4 ${
-      copy.tone === "success" ? "border-emerald-600/30 bg-emerald-600/5 text-emerald-800" :
-      copy.tone === "warning" ? "border-amber-600/30 bg-amber-600/5 text-amber-800" :
-      "border-red-600/30 bg-red-600/5 text-red-700"
-    }`}>
+    <Alert variant={copy.tone === "success" ? "success" : copy.tone === "warning" ? "warning" : "destructive"}>
       <div className="flex items-start gap-3">
         <Icon aria-hidden="true" className="mt-0.5 size-5 shrink-0" />
         <div>
-          <h3 className="font-semibold">{copy.title}</h3>
-          <p className="text-sm">{copy.description}</p>
-          {payload.data.result === "present" && payload.data.participant && (
-            <p className="mt-2 text-sm font-medium">
-              {payload.data.participant.fullName}
-              {payload.data.participant.category ? ` · ${payload.data.participant.category}` : ""}
-            </p>
-          )}
-          {payload.data.result === "duplicate" && payload.data.attendance && (
-            <p className="mt-2 text-xs text-muted-foreground">
-              Absen pertama: {new Date(payload.data.attendance.checkedInAt).toLocaleString("id-ID")}
-            </p>
-          )}
+          <AlertTitle>{copy.title}</AlertTitle>
+          <AlertDescription>
+            <p>{copy.description}</p>
+            {payload.data.result === "present" && payload.data.participant && (
+              <p className="mt-2 text-sm font-medium">
+                {payload.data.participant.fullName}
+                {payload.data.participant.category ? ` · ${payload.data.participant.category}` : ""}
+              </p>
+            )}
+            {payload.data.result === "duplicate" && payload.data.attendance && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Absen pertama: {new Date(payload.data.attendance.checkedInAt).toLocaleString("id-ID")}
+              </p>
+            )}
+          </AlertDescription>
         </div>
       </div>
-    </div>
+    </Alert>
   );
 }

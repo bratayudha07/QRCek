@@ -1,6 +1,7 @@
 import { ArrowLeft } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { Button } from "@/components/ui/button";
 import { navigate } from "@/lib/router";
 import { cn } from "@/lib/utils";
 
@@ -75,14 +76,16 @@ export function AppShell(props: AppShellProps) {
       <header className="app-chrome border-b border-border/70 bg-background">
         <div className="mx-auto flex w-full max-w-4xl items-start gap-3 px-4 py-3.5">
           {backTo && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-sm"
               onClick={() => navigate(backTo)}
               aria-label="Kembali"
-              className="-ml-1 mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2"
+              className="-ml-1 mt-0.5 shrink-0 rounded-full text-muted-foreground"
             >
               <ArrowLeft aria-hidden="true" className="size-4" />
-            </button>
+            </Button>
           )}
 
           <div className="min-w-0 flex-1">
