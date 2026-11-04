@@ -39,7 +39,9 @@ export function AppLayout({ route, children }: { route: AppRoute; children: Reac
   // Only admins may switch events, but every role benefits from the status chip
   // and the schedule, so the fetch is not tied to the switcher.
   const showSwitcher = mode === "admin" && session.status === "authenticated" && inEvent;
-  const [collapsed, setCollapsed] = useState(true);
+  // Start expanded so desktop users see the labelled navigation, then honour
+  // the choice SidebarProvider persisted in its cookie.
+  const [collapsed, setCollapsed] = useState(initialSidebarCollapsed);
   const [events, setEvents] = useState<EventSummary[] | null>(null);
   const mainRef = useRef<HTMLElement>(null);
   // Which screen the focus effect ran for last; see the effect below.
@@ -121,6 +123,7 @@ export function AppLayout({ route, children }: { route: AppRoute; children: Reac
       <Sidebar
         mode={mode}
         route={route}
+        user={session.status === "authenticated" ? session.user : null}
         collapsed={collapsed}
         onToggle={() => setCollapsed((value) => !value)}
       >
@@ -213,4 +216,14 @@ export function AppLayout({ route, children }: { route: AppRoute; children: Reac
       <BottomNav mode={mode} route={route} />
     </div>
   );
+}
+
+/**
+ * `SidebarProvider` writes `sidebar_state` whenever the rail is toggled, so the
+ * first paint can restore the user's last choice instead of resetting to the
+ * default width on every navigation.
+ */
+function initialSidebarCollapsed() {
+  if (typeof document === "undefined") return false;
+  return document.cookie.split("; ").includes("sidebar_state=false");
 }
