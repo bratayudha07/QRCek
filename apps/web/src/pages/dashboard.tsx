@@ -31,7 +31,7 @@ export function DashboardPage() {
 
   return (
     <AppShell title="Dashboard" subtitle={session.status === "authenticated" ? `Selamat datang, ${session.user.displayName}` : "Ringkasan acara"}>
-      {session.status === "anonymous" && <Notice tone="warning">Sesi tidak valid atau sudah berakhir. <a className="underline" href={paths.login}>Masuk kembali dengan kode pemulihan</a>.</Notice>}
+      {session.status === "anonymous" && <Notice tone="warning">Sesi tidak valid atau sudah berakhir. <AppLink className="underline" href={paths.login}>Masuk kembali dengan kode pemulihan</AppLink>.</Notice>}
       {error && <ErrorState message={error} onRetry={() => setRefresh((value) => value + 1)} />}
       {loading && <LoadingState label="Memuat ringkasan…" />}
       {data && <>

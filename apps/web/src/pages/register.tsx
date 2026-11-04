@@ -2,6 +2,7 @@ import { LoaderCircle } from "lucide-react";
 import { useCallback, useState, type FormEvent } from "react";
 
 import { RecoveryCodePanel } from "@/components/recovery-code-panel";
+import { AppLink } from "@/components/app-link";
 import { TurnstileWidget, isTurnstileEnabled } from "@/components/turnstile-widget";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -167,9 +168,9 @@ export function RegisterPage() {
         </Button>
       </form>
 
-      <a className="text-sm underline underline-offset-4" href={paths.login}>
+      <AppLink className="text-sm underline underline-offset-4" href={paths.login}>
         Sudah punya kode pemulihan? Masuk
-      </a>
+      </AppLink>
     </main>
   );
 }

@@ -2,6 +2,7 @@ import type { AuditRecord, EventSummary } from "@absensi/shared";
 import { Activity } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { AppLink } from "@/components/app-link";
 import { AppShell } from "@/components/app-shell";
 import { EmptyState, ErrorState, LoadingState, Notice } from "@/components/page-state";
 import { Button } from "@/components/ui/button";
@@ -64,7 +65,7 @@ export function ActivityPage() {
 
   return (
     <AppShell title="Aktivitas" subtitle="Riwayat perubahan yang tercatat di audit">
-      {session.status === "anonymous" && <Notice tone="warning">Sesi tidak valid atau sudah berakhir. <a className="underline" href="/masuk">Masuk kembali</a>.</Notice>}
+      {session.status === "anonymous" && <Notice tone="warning">Sesi tidak valid atau sudah berakhir. <AppLink className="underline" href="/masuk">Masuk kembali</AppLink>.</Notice>}
       {error && <ErrorState message={error} onRetry={() => setRefresh((value) => value + 1)} />}
       <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
         <label className="space-y-1 text-sm"><span className="font-medium">Acara</span><Select value={eventId} onChange={(event) => setEventId(event.target.value)} disabled={loadingEvents}><option value="">Pilih acara</option>{events.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></label>

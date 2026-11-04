@@ -2,6 +2,7 @@ import { LoaderCircle } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
 import { RecoveryCodePanel } from "@/components/recovery-code-panel";
+import { AppLink } from "@/components/app-link";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
@@ -56,9 +57,9 @@ export function LoginPage() {
       {status.kind === "done" ? (
         <>
           <RecoveryCodePanel recoveryCode={status.recoveryCode} />
-          <a className="text-sm underline underline-offset-4" href="/">
+          <AppLink className="text-sm underline underline-offset-4" href="/">
             Lanjut ke beranda
-          </a>
+          </AppLink>
         </>
       ) : (
         <form className="space-y-4" onSubmit={submit}>
@@ -108,13 +109,13 @@ export function LoginPage() {
         </form>
       )}
 
-      <a className="text-sm underline underline-offset-4" href={paths.register}>
+      <AppLink className="text-sm underline underline-offset-4" href={paths.register}>
         Belum punya akun? Daftar sebagai admin acara
-      </a>
+      </AppLink>
 
-      <a className="text-sm underline underline-offset-4" href="/">
+      <AppLink className="text-sm underline underline-offset-4" href="/">
         Kembali ke beranda
-      </a>
+      </AppLink>
     </main>
   );
 }

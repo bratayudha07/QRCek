@@ -2,6 +2,7 @@ import type { AttendanceRecord, AttendanceStatus } from "@absensi/shared";
 import { Search } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
+import { AppLink } from "@/components/app-link";
 import { AppShell } from "@/components/app-shell";
 import { EmptyState, ErrorState, LoadingState, Notice } from "@/components/page-state";
 import { QrScanner } from "@/components/qr-scanner";
@@ -143,7 +144,7 @@ export function EventAttendancePage({ eventId }: { eventId: string }) {
     <AppShell variant="embedded" title="Absensi" subtitle="Pindai QR, lihat kehadiran, dan koreksi catatan">
       {error && <ErrorState message={error} onRetry={() => setRefresh((value) => value + 1)} />}
       {notice && <Notice tone="success">{notice}</Notice>}
-      {session.status === "anonymous" && <Notice tone="warning">Sesi berakhir. <a className="underline" href="/masuk">Masuk kembali</a>.</Notice>}
+      {session.status === "anonymous" && <Notice tone="warning">Sesi berakhir. <AppLink className="underline" href="/masuk">Masuk kembali</AppLink>.</Notice>}
       <section className="space-y-3 rounded-xl border p-4">
         <h2 className="font-semibold">Pemindai QR</h2>
         <QrScanner paused={scanPending} onDetected={(qr) => void onDetected(qr)} />

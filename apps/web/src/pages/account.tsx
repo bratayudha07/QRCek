@@ -85,9 +85,9 @@ export function AccountPage({
       {session.status === "anonymous" && (
         <Notice tone="warning">
           Anda belum masuk.{" "}
-          <a className="underline underline-offset-4" href="/masuk">
+          <AppLink className="underline underline-offset-4" href="/masuk">
             Masuk dengan kode pemulihan
-          </a>
+          </AppLink>
           .
         </Notice>
       )}

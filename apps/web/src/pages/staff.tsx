@@ -39,9 +39,9 @@ export function StaffHomePage() {
       {session.status === "anonymous" && (
         <Notice tone="warning">
           Anda belum masuk.{" "}
-          <a className="underline underline-offset-4" href={paths.login}>
+          <AppLink className="underline underline-offset-4" href={paths.login}>
             Masuk dengan kode pemulihan
-          </a>{" "}
+          </AppLink>{" "}
           untuk mulai memindai.
         </Notice>
       )}
@@ -154,7 +154,7 @@ export function StaffScanPage() {
     <AppShell title="Scan QR" subtitle="Pindai kartu peserta untuk mencatat kehadiran">
       {session.status === "loading" && <LoadingState label="Memeriksa sesi…" />}
       {session.status === "error" && <ErrorState message={session.message} />}
-      {session.status === "anonymous" && <Notice tone="warning">Sesi sudah berakhir. <a className="underline" href={paths.login}>Masuk kembali dengan kode pemulihan</a>.</Notice>}
+      {session.status === "anonymous" && <Notice tone="warning">Sesi sudah berakhir. <AppLink className="underline" href={paths.login}>Masuk kembali dengan kode pemulihan</AppLink>.</Notice>}
       {session.status === "authenticated" && memberships.length === 0 && <EmptyState>Akun ini belum ditugaskan ke acara. Minta admin acara mengirim undangan.</EmptyState>}
       {memberships.length > 0 && (
         <>
