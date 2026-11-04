@@ -128,7 +128,7 @@ export function AppLayout({ route, children }: { route: AppRoute; children: Reac
           ref={mainRef}
           id="main-content"
           tabIndex={-1}
-          className="min-h-dvh pb-[calc(4.5rem+env(safe-area-inset-bottom))] outline-none lg:pb-0 lg:pl-8 print:pb-0 print:pl-0"
+          className="min-h-dvh pb-[calc(4.5rem+env(safe-area-inset-bottom))] outline-none lg:pb-0 print:pb-0"
         >
         {eventId !== null && activeTab !== null && (
           <>
