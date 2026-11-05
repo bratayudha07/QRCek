@@ -320,3 +320,36 @@ Filter Vitest mencocokkan nama file, bukan direktori; jangan memakai `apps/api/s
 - **API-only:** jangan menambah komponen UI Aktivitas/Sesi di Q1; itu Q9/Q6.
 - **Mesin dev 4 GB:** iterasi dengan tes terfokus, suite penuh di akhir.
 - **ADR-0009:** perlu catatan saat Diterima bahwa shim "1 Aktivitas default" ditunda ke Q5 dan tidak dibuat otomatis di Q1.
+
+## 16. Catatan penyimpangan setelah eksekusi (5 November 2026)
+
+Bagian ini **tidak** menulis ulang rencana. Isinya catatan apa yang berbeda saat dikerjakan dan mengapa, supaya rencana tahap berikutnya tidak mengulang asumsi yang sama.
+
+| # | Rencana | Kenyataan | Sebab / keputusan |
+|---|---|---|---|
+| 1 | §1.5 branch `q1-foundation` | Dikerjakan langsung di `main` | Alur deploy repo ini adalah Workers Builds dari `main`; branch panjang hanya menunda verifikasi. Bisa diubah bila pemilik proyek ingin review bercabang. |
+| 2 | §12.7 penghapusan registrasi sebagai commit terpisah | 1 commit kode + 1 commit dokumen | Perubahan registrasi menyentuh `packages/shared/src/index.ts` yang juga mengekspor modul Q1, sehingga pemisahan akan menghasilkan commit yang tidak lolos `typecheck`. |
+| 3 | §11 nama tes `activities.test.ts` / `activity-sessions.test.ts` | `activities.api.test.ts` / `activity-sessions.api.test.ts` | Nama tanpa sufiks sudah dipakai di `packages/shared`. |
+| 4 | §8.4 fixture `events.crud.test.ts` diganti alur undangan | Tidak diubah | Tes itu memang tidak pernah memakai registrasi; asumsi rencana salah. |
+| 5 | §4 DDL (tidak menyebut `app_meta`) | Migrasi `0007` menulis `schema_version = 7` | `db.integration.test.ts` menguji penanda versi; DDL di rencana kurang satu statement. |
+| 6 | Tidak disebut | `requireMutableEvent`: Tema `archived` menolak mutasi anak dengan `422` | Tambahan perilaku saat implementasi. **Belum disetujui lewat rencana**; perlu dikonfirmasi saat review gate atau dihapus. |
+| 7 | Tidak disebut | `apps/api/src/test/setup.ts` truncate `activity_sessions` → `activities` → `events` | Diperlukan karena FK `RESTRICT`; tanpa urutan itu tes saling merusak. |
+| 8 | Tidak dibahas | Daftar Aktivitas/Sesi tanpa paginasi | Diputuskan dan didokumentasikan di `DESAIN_API.md` §6 "Paginasi dan batas"; penambahan nanti bersifat additive. |
+
+### Hasil uji mutasi (gate §14 "gagal bila aturan dihapus")
+
+Uji dilakukan dengan merusak guard sementara, menjalankan tes terfokus, lalu mengembalikan file (`git checkout -- <path>`).
+
+| Guard | Mutasi | Hasil sebelum perbaikan tes |
+|---|---|---|
+| Scope Tema (`findActivity`) | `theme_id = ?` → `(theme_id = ? OR 1)` | **Tertangkap** — `activities.api.test.ts` "rejects an activity id from another Tema with 404" gagal (200 ≠ 404) |
+| Arsip Sesi hanya dari `completed`/`disabled` | `canArchiveSession` selalu `true` | **Tertangkap** — `activity-sessions.api.test.ts` "archives only a finished or disabled session" gagal (409 ≠ 422) |
+| Audit hanya bila mutasi mendarat | guard `updated_at` dihapus dari audit insert | **TIDAK tertangkap** — 25 tes Aktivitas/Sesi tetap lulus |
+
+Temuan ketiga adalah celah nyata: tidak ada tes yang membuktikan audit tidak ditulis saat mutasi kalah balapan. Ditambahkan `apps/api/src/test/audit.guarded-write.test.ts` (5 tes) yang memanggil statement builder langsung dengan `expectedUpdatedAt` basi, lalu mutasi diulang: sekarang **gagal** seperti seharusnya (2 tes merah).
+
+### Sisa pekerjaan Q1
+
+- Review gate oleh pemilik proyek (termasuk konfirmasi perilaku `requireMutableEvent`).
+- Migrasi `0007` belum diterapkan di remote.
+- `REQUIREMENTS.md` §0.3/§13.3 tetap milik product owner.

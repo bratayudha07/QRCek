@@ -6,7 +6,7 @@ Tujuan pengujian di proyek ini **bukan** mengejar angka coverage, tetapi membukt
 
 ## Snapshot verifikasi terkini
 
-- Snapshot 4 November 2026 (Q1, belum di-commit): `typecheck` PASS, `lint` PASS, `test` **520 tes di 52 file** lulus.
+- Snapshot 5 November 2026 (Q1, commit `a196109` + penguatan tes): `typecheck` PASS, `lint` PASS, `test` **525 tes di 53 file** lulus, `build` PASS.
 - Commit acuan `157c330` (3 November 2026, `REQUIREMENTS.md` §0.1): `npm run test` → **458 tes di 48 file** lulus. Angka ini snapshot; hitung ulang dengan `npm run test`.
 - Snapshot sebelumnya (2 November 2026): `typecheck` PASS, `lint` PASS, `test` 450 tes di 47 file.
 - Integrasi Worker mencakup scan/duplikasi/lintas acara, koreksi dan audit, alur Sheets
@@ -156,7 +156,7 @@ it("menolak koreksi tanpa alasan yang memadai", () => {
 | I-32 | **`activity.cross-theme`** | Aktivitas milik Tema lain → 404 untuk GET/PATCH/status; tidak ada tulisan | Route nyata + D1 |
 | I-33 | **`session.lifecycle`** | `scheduled → in_progress → completed`; `→ disabled`; arsip hanya dari `completed`/`disabled`; arsip final; status tidak disimpulkan dari jam | Route nyata |
 | I-34 | **`session.cross-activity`** | Sesi milik Aktivitas lain → 404 untuk GET/PATCH/status/arsip/duplikasi | Route nyata + D1 |
-| I-35 | **`audit.guarded-write`** | Baris audit hanya tertulis bila mutasi di batch yang sama berhasil; kalah optimistic check → 409 tanpa audit | Route nyata + D1 |
+| I-35 | **`audit.guarded-write`** | Baris audit hanya tertulis bila mutasi di batch yang sama berhasil; mutasi dengan `updated_at` basi → `changes = 0` tanpa audit; Tema memakai guard `status` | Statement builder langsung + D1 (`audit.guarded-write.test.ts`) |
 | I-36 | `audit.read-scope` | Admin acara dapat membaca audit acaranya; petugas ditolak; respons tidak memuat hash IP/token | Route nyata + D1 |
 | I-37 | `attendance.export` | Admin dapat mengunduh CSV terfilter; petugas ditolak | Periksa status, MIME, header, isi CSV |
 | I-38 | `health.ready` | `SELECT 1` sukses → 200 `ready`; D1 melempar error → 503 `DB_UNAVAILABLE` (bukan 500) | Stub `env.DB` yang melempar |
@@ -228,6 +228,7 @@ Tambahan yang tidak ada di daftar awal tetapi diuji karena Tahap 2 dan 3:
 | Registrasi publik ditutup: route 404, tanpa baris users/sessions/recovery_codes; akun hanya dari undangan | `register.closed.test.ts` |
 | Alias `/api/calendar` dan `/api/themes` identik dengan `/api/events` (list, detail, 404, 401, mutasi) | `themes-alias.test.ts` |
 | Aktivitas: create/list/patch/status, `transactionType` imutabel, urutan `sort_order`, audit, read-only saat arsip, Tema terarsip → 422, hard-delete Tema dengan Aktivitas ditolak | `activities.api.test.ts` |
+| Audit hanya tertulis bila mutasi mendarat (`updated_at` basi untuk Aktivitas/Sesi, `status` basi untuk Tema) | `audit.guarded-write.test.ts` |
 | Sesi: create/list/patch/status/arsip/duplikasi, urutan `starts_at`, validasi jam, arsip hanya dari final, lintas Aktivitas → 404 | `activity-sessions.api.test.ts` |
 | Tabel transisi lifecycle Aktivitas/Sesi lengkap (semua pasangan status) | `packages/shared/src/lifecycle.test.ts` |
 | Allowlist audit: field sensitif di-redact, field asing dibuang | `packages/shared/src/audit-allowlist.test.ts` |
@@ -454,6 +455,12 @@ Semua keputusan produk D-001…D-024 sudah disetujui `[A]`; AQ arsitektur ditang
 > `T-004` berlaku sebagian: status Sesi hanya berubah lewat endpoint eksplisit dan tidak
 > disimpulkan dari jam. `T-002`, `T-003`, `T-006`, dan `T-007` tetap menunggu Q5 karena
 > transaksi belum ada.
+>
+> **Uji mutasi Q1 (5 November 2026).** Tiga guard inti diuji dengan merusak kodenya
+> sementara: scope `theme_id` pada Aktivitas **tertangkap**, syarat arsip Sesi
+> `completed`/`disabled` **tertangkap**, guard audit `updated_at` **tidak tertangkap**.
+> Celah ketiga ditutup oleh `apps/api/src/test/audit.guarded-write.test.ts`; mutasi yang sama
+> kini membuat 2 tes gagal. Rincian di `.opencode/plans/q1-tema-aktivitas-sesi.md` §16.
 
 ### 9.1 Konteks, hierarki, dan lifecycle (Q1, penegakan di Q5)
 

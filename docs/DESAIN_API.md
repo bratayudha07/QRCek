@@ -522,6 +522,16 @@ disabled    → (final)
 - PATCH/status/arsip memakai pemeriksaan optimistis `updated_at`; kalah balapan →
   `409 CONFLICT`.
 
+### Paginasi dan batas
+
+Q1 **belum** memaginasi daftar Aktivitas/Sesi: kedua endpoint mengembalikan seluruh baris milik Tema/Aktivitas dengan urutan deterministik (`sort_order`, `created_at`, `id` untuk Aktivitas; `starts_at` null-akhir, `created_at`, `id` untuk Sesi). Alasannya:
+
+- Belum ada konsumen UI (Q1 API-only). Menambah parameter yang tidak dipakai berarti kontrak yang tidak teruji.
+- Penambahan paginasi **additive**: klien tanpa `limit`/`cursor` tetap menerima respons yang sama, jadi tidak ada breaking change saat UI Q6/Q8 membutuhkannya.
+- Ukuran realistis satu Tema kecil (puluhan Aktivitas/Sesi). Batas praktis diukur di Q11 bersama anggaran CPU/baris (`OPERASIONAL.md`).
+
+Pemicu untuk menambahkan paginasi kursor (pola yang sama dengan daftar peserta): begitu UI Aktivitas/Sesi dibuka, atau bila satu Tema melewati ±200 Sesi. Sampai saat itu, angka ini dicatat sebagai risiko, bukan diasumsikan aman.
+
 ### Audit
 
 Setiap mutasi menulis `audit_log` di `db.batch()` yang sama, dengan `before`/`after`

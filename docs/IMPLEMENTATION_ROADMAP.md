@@ -140,6 +140,7 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 - Route API: `/api/events/:eventId/activities` dan `/api/events/:eventId/activities/:activityId/sessions` beserta status/arsip/duplikasi; alias `/api/themes` dan `/api/calendar` memakai handler yang sama.
 - Lifecycle di `packages/shared/src/lifecycle.ts` (ADR-0012); audit allowlist di `packages/shared/src/audit-allowlist.ts` (ADR-0011).
 - Tes: `packages/shared/src/lifecycle.test.ts`, `audit-allowlist.test.ts`, `apps/api/src/test/activities.api.test.ts`, `activity-sessions.api.test.ts`, `themes-alias.test.ts`, `register.closed.test.ts`.
+- **Penguatan 5 November 2026:** uji mutasi pada tiga guard inti menemukan satu celah (audit bisa tertulis walau mutasi gagal); ditutup oleh `apps/api/src/test/audit.guarded-write.test.ts`. Daftar Aktivitas/Sesi diputuskan tanpa paginasi pada Q1 (additive nanti) — lihat `DESAIN_API.md` §6. Rincian penyimpangan rencana ada di `.opencode/plans/q1-tema-aktivitas-sesi.md` §16.
 - **Ditunda:** UI Aktivitas/Sesi (Q6/Q8/Q9), shim "satu Aktivitas default" untuk Tema lama (Q5), dan seluruh perilaku transaksi (`AC-004` bagian transaksi, `AC-005` bagian riwayat transaksi).
 - Gate di atas belum ditutup; penutupan menunggu review pemilik proyek dan pembaruan `REQUIREMENTS.md` §0.3/§13.3.
 
