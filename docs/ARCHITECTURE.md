@@ -232,7 +232,7 @@ Matriks lengkap ada di `REQUIREMENTS.md` §8.2; ringkasan dampak arsitekturnya:
 
 ## 6. Pertanyaan arsitektur terbuka (AQ)
 
-Setiap AQ harus dijawab dengan ADR baru (`adr/NNNN-*.md`) **sebelum** fase roadmap yang diblokirnya dibuka. Opsi di bawah adalah bahan diskusi, bukan rekomendasi final. Status: **AQ-001, AQ-010, dan AQ-014 dijawab** oleh ADR-0009/0010/0011; AQ lainnya **Terbuka**.
+Setiap AQ harus dijawab dengan ADR baru (`adr/NNNN-*.md`) **sebelum** fase roadmap yang diblokirnya dibuka. Opsi di bawah adalah bahan diskusi, bukan rekomendasi final. Status: **AQ-001, AQ-010, dan AQ-014 dijawab** oleh ADR-0009/0010/0011 (Diterima); **AQ-006 sedang diusulkan** lewat ADR-0014; AQ lainnya **Terbuka**.
 
 ### AQ-001 — Posisi `events` baseline dalam hierarki target
 
@@ -277,6 +277,7 @@ Setiap AQ harus dijawab dengan ADR baru (`adr/NNNN-*.md`) **sebelum** fase roadm
 - **Pertanyaan:** entitas kategori per Tema; penyimpanan definisi dan nilai custom field (9 tipe, required, urutan, aktif/nonaktif, arsip, validasi perubahan tipe); pemisahan field khusus Aktivitas (`FR-033`).
 - **Masukan historis:** `PLAN_TAB_PESERTA.md` §3–4 mengusulkan katalog field per acara + `attributes_json` (menolak EAV karena biaya baris tulis). Usulan itu hanya mendukung nilai teks dan katalog "hanya bertambah", sehingga belum memenuhi `FR-027`–`FR-032`; perlu dievaluasi ulang, bukan disalin.
 - **Masukan:** `FR-026`–`FR-036`, `COSTS_AND_LIMITS.md` §3.3.
+- **Status:** **diusulkan** — [ADR-0014](./adr/0014-categories-and-custom-fields.md) memilih katalog `custom_fields` + `participants.attributes_json` (bukan EAV), kategori sebagai entitas per Tema, dan menunda nilai field Aktivitas ke Q3. Belum disetujui pemilik proyek; tiga pertanyaan terbuka ada di ADR tersebut.
 - **Memblokir:** Q2.
 
 ### AQ-007 — Penugasan Petugas dan matriks izin
