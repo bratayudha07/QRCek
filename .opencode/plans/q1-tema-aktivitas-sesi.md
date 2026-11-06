@@ -350,6 +350,6 @@ Temuan ketiga adalah celah nyata: tidak ada tes yang membuktikan audit tidak dit
 
 ### Sisa pekerjaan Q1
 
-- Review gate oleh pemilik proyek (termasuk konfirmasi perilaku `requireMutableEvent`).
-- Migrasi `0007` belum diterapkan di remote.
-- `REQUIREMENTS.md` §0.3/§13.3 tetap milik product owner.
+- ~~Review gate oleh pemilik proyek~~ — disetujui 6 November 2026; Q2 dibuka.
+- ~~Migrasi `0007` belum diterapkan di remote~~ — diterapkan 6 November 2026 setelah backup (`/tmp/opencode/qrcek-backup-2026-11-06.sql`).
+- `REQUIREMENTS.md` §0.3/§13.3 tetap milik product owner; pembaruan fakta v0.3.3 sudah dilakukan 6 November 2026.

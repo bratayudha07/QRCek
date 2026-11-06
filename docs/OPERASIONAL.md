@@ -4,7 +4,7 @@ Dokumen ini mencatat hasil pengukuran, instruksi operasi, status deployment, dan
 
 > **Konteks (4 November 2026).** Semua pengukuran dan prosedur di sini berlaku untuk baseline (model `events` datar, commit acuan `157c330`) ditambah fondasi Q1 (Aktivitas/Sesi, API-only). Model target QRCek ([`REQUIREMENTS.md`](./REQUIREMENTS.md)) akan menambah tabel, indeks, dan jalur transaksi baru; angka CPU/statement/baris di bawah **tidak** otomatis berlaku untuk model itu dan harus diukur ulang di tahap roadmap terkait ([`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md) Q5 dan Q11). Uji perangkat fisik scanner, akun Google Sheets nyata, dan CPU produksi belum pernah dilakukan (`REQUIREMENTS.md` §7.3). Rujukan "ADR-00N" di dokumen ini = `docs/adr/000N-*.md`.
 
-## Status operasi saat ini (2 November 2026)
+## Status operasi saat ini (6 November 2026)
 
 - Worker produksi berjalan di `https://qrcek.hamdirobbi5.workers.dev` dan di-deploy lewat
   **Git integration Cloudflare (Workers Builds)**: push ke `main` di
@@ -14,9 +14,12 @@ Dokumen ini mencatat hasil pengukuran, instruksi operasi, status deployment, dan
   (Worker hidup), sedangkan `GET /api/health/ready` dan `GET /api/admin/usage` masih `404`
   dan security headers belum ada di respons aset. Artinya versi yang live lebih lama dari
   commit yang menambahkan permukaan Fase 6; endpoint itu muncul setelah push berikutnya.
-- Migrasi remote sampai `0006_self_signup.sql` telah digunakan oleh aplikasi produksi.
-  `0007_q1_activities_sessions.sql` **belum** diterapkan di remote. Migrasi **tidak**
-  dijalankan oleh Workers Builds — lihat §10.3.
+- Migrasi remote `0001`–`0007` sudah diterapkan. `0007_q1_activities_sessions.sql`
+  diterapkan **6 November 2026** (sebelum kode Q1 masuk `main`), setelah backup penuh:
+  `npx wrangler d1 export absensi-db --remote --output /tmp/opencode/qrcek-backup-2026-11-06.sql`
+  (122 KB; 17 `CREATE TABLE`, termasuk `d1_migrations`). Verifikasi pasca-migrasi:
+  tabel `activities` dan `activity_sessions` ada, `app_meta.schema_version = 7`.
+  Migrasi **tidak** dijalankan oleh Workers Builds — lihat §10.3.
 - Pendaftaran mandiri publik sudah dihapus (ADR-0013). `POST /api/auth/register` → 404, dan
   tidak ada lagi `TURNSTILE_SECRET_KEY` maupun `VITE_TURNSTILE_SITE_KEY` yang perlu diatur.
   Akun Admin Acara hanya dibuat lewat undangan Super Admin. Saat deploy pertama setelah

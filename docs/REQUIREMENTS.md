@@ -786,7 +786,7 @@ Business rule di bawah adalah invariant yang harus tetap benar terlepas dari pil
 | Metode hitung | 61 entri `pattern:`; 49 di antaranya berawalan `/api/events`, masing-masing menghasilkan dua alias |
 | Migrasi | 7 file (`0001`–`0007`) |
 | Cakupan Q1 | Aktivitas/Sesi API-only; registrasi publik ditutup (ADR-0013) |
-| Catatan | Migrasi `0007` belum diterapkan di database remote saat verifikasi |
+| Catatan | Migrasi `0007` diterapkan di remote **6 November 2026** setelah backup penuh; verifikasi `schema_version = 7`. |
 
 ### 7.2 Baseline per area
 
