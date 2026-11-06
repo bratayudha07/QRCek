@@ -111,6 +111,8 @@ Detail opsi: [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6. Status: **AQ-001, AQ-00
 | AQ-013 | Pembuatan laporan CSV/XLSX | `D-015` [A] | Q8 |
 | AQ-014 | Mekanisme allowlist audit | `D-023` [A], `FR-207` | Q1 |
 
+Dijawab: AQ-001 → ADR-0009; AQ-006 → ADR-0014; AQ-010 → ADR-0010; AQ-014 → ADR-0011.
+
 Nomor AQ berikutnya: **AQ-015**.
 
 ---

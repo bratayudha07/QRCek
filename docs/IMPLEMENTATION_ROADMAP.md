@@ -167,6 +167,8 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 
 **Bukan cakupan:** entitlement per kategori (Q3).
 
+**Prasyarat keputusan:** AQ-006 dijawab ADR-0014 (Diterima 6 November 2026). Tahap **belum dibuka**; pembukaan menunggu keputusan pemilik proyek dan review gate Q1.
+
 ---
 
 ### Q3 — Entitlement
