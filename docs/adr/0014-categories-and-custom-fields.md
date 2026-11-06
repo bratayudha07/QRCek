@@ -2,8 +2,8 @@
 
 | Atribut | Nilai |
 |---|---|
-| Status | **Diusulkan** — jawaban AQ-006; menunggu adopsi pemilik proyek sebelum Q2 dibuka |
-| Tanggal | 2026-11-04 |
+| Status | **Diterima** — jawaban AQ-006, disetujui pemilik proyek 6 November 2026 |
+| Tanggal | 2026-11-04 (diusulkan), 2026-11-06 (diterima) |
 | Menjawab | AQ-006 (`docs/ARCHITECTURE.md` §6) |
 | Terkait kebutuhan | `FR-026`–`FR-036`, `FR-013`–`FR-025`; `BR-010`–`BR-017`, `BR-061`, `BR-063`, `BR-077`; `AC-006`–`AC-008`, `AC-042`, `AC-054`; `D-003` [A], `D-008` [A], `D-020` [A] |
 | Memblokir | Q2 (peserta, kategori, custom field, impor CSV) |
@@ -35,7 +35,7 @@ Kategori **tidak** dijadikan opsi desain: `FR-017` mewajibkan kategori, dan `FR-
 1. Simpan nilai field Aktivitas di `participants.attributes_json` dengan prefiks — sederhana, tetapi melanggar `FR-033`: nilai per Aktivitas menjadi bagian profil peserta dan ikut tersalin saat duplikasi/ekspor profil.
 2. **Definisi di Q2, nilai ditunda (rekomendasi)** — `custom_fields.scope` membedakan `participant` dan `activity`; Q2 hanya menyimpan katalog + validator, sedangkan nilai per Aktivitas menempel pada tabel penugasan/entitlement di Q3 (AQ-005). Tidak ada kolom nilai Aktivitas di `participants`.
 
-## Keputusan (usulan)
+## Keputusan
 
 **Opsi 2 untuk nilai, Opsi 2 untuk ruang lingkup Aktivitas.**
 
@@ -74,7 +74,7 @@ Kategori **tidak** dijadikan opsi desain: `FR-017` mewajibkan kategori, dan `FR-
 
 - `key` imutabel karena nilai tersimpan di JSON dengan kunci itu. Rename tampilan memakai `label`.
 - `key` tidak boleh dipakai ulang setelah arsip: nilai lama akan terbaca sebagai nilai field baru. Karena itu unik mencakup baris terarsip.
-- Batas yang diusulkan: 50 field aktif per Tema, 100 opsi per field `select`/`multi_select`.
+- Batas: **50 field aktif per Tema dan 100 opsi per field** `select`/`multi_select` (ditetapkan pemilik proyek 6 November 2026).
 - Tipe yang salah diperbaiki dengan membuat field baru, bukan dengan mengubah `type` (lihat di bawah).
 
 ### Penyimpanan nilai
@@ -120,11 +120,17 @@ Operasi yang ditolak menghasilkan `422` dengan daftar `key` yang gagal — bukan
 - Pengujian wajib: `AC-008` (rename/nonaktif/arsip/ubah tipe tidak menghapus data), `AC-006` (field inti + Participant ID), `AC-042`/`AC-054` (impor tanpa merge, field kosong tidak menghapus), plus tes bahwa menghapus validasi tipe membuat tes `AC-008` gagal.
 - `FR-033` dipenuhi secara struktural: definisi field Aktivitas tidak pernah masuk `participants.attributes_json`.
 
-## Pertanyaan yang perlu diputuskan pemilik proyek
+## Keputusan pemilik proyek (6 November 2026)
 
-1. Batas 50 field aktif dan 100 opsi per field — cukup atau terlalu ketat?
-2. Apakah field Aktivitas perlu **dapat dikelola** di UI Q2, atau cukup tersedia di API sampai Q6/Q9 (UI Aktivitas/Sesi belum ada)?
-3. Apakah `category_id` wajib sejak Q2 untuk peserta hasil impor, atau boleh kosong sementara dengan kategori default per Tema (memengaruhi `FR-017`)?
+1. **Batas 50 field aktif per Tema dan 100 opsi per field** — dipertahankan. Ditegakkan di Worker, bukan di database, sehingga perubahan batas nanti tidak memerlukan migrasi.
+2. **Field Aktivitas: API-only di Q2.** Definisi field boleh dibuat lewat API, tetapi tidak ada UI sampai Q6/Q9. Tidak ada UI setengah jadi yang dibangun di atas model yang belum final.
+3. **`category_id` wajib** untuk setiap peserta, termasuk hasil impor. Tidak ada kategori default per Tema dan tidak ada nilai kosong sementara.
+
+Konsekuensi dari jawaban 3 yang perlu dicatat: bila CSV tidak memuat kolom kategori, **seluruh impor ditolak** dengan pesan yang menyebut kolom yang hilang — bukan diam-diam memakai kategori pertama. Nama kategori yang tidak dikenal di CSV juga **ditolak** (baris dilaporkan), karena pembuatan kategori otomatis berarti menulis data yang tidak diminta admin (`D-008` [A] semangatnya sama: tidak ada perubahan data diam-diam). Admin yang perlu kategori baru membuatnya lebih dulu, atau memakai pemetaan kolom ke kategori yang sudah ada.
+
+## Riwayat usulan
+
+Pertanyaan yang diajukan sebelum adopsi (dijawab di atas): batas field/opsi, cakupan UI field Aktivitas di Q2, dan kewajiban `category_id` untuk hasil impor.
 
 ## Referensi
 

@@ -83,15 +83,16 @@ Pertanyaan arsitektur terbuka (`AQ`): `REQUIREMENTS.md` §13.2 / `ARCHITECTURE.m
 | [0011](./adr/0011-audit-allowlist-mechanism.md) | Mekanisme allowlist audit | Diterima (AQ-014) | `FR-207`, `D-023` [A] |
 | [0012](./adr/0012-activity-session-lifecycle.md) | Tabel transisi lifecycle Aktivitas dan Sesi | Diterima (detail `D-010`) | `D-010` [A], `OQ-033` [A] |
 | [0013](./adr/0013-disable-public-self-signup.md) | Menonaktifkan pendaftaran Admin Acara mandiri | Diterima; menggantikan ADR-0007 | `D-018` [A], `FR-194`, `AC-050` |
-| [0014](./adr/0014-categories-and-custom-fields.md) | Kategori dan custom field peserta | **Diusulkan** (AQ-006) | `FR-026`–`FR-036`, `D-008` [A] |
+| [0014](./adr/0014-categories-and-custom-fields.md) | Kategori dan custom field peserta | Diterima (AQ-006) | `FR-026`–`FR-036`, `D-008` [A] |
+| [0015](./adr/0015-archived-theme-is-read-only.md) | Tema terarsip membuat resource anak read-only | Diterima (detail Q1) | `D-003` [A], `D-010` [A] |
 
-Nomor ADR berikutnya: **0015**.
+Nomor ADR berikutnya: **0016**.
 
 ---
 
 ## 4. Pertanyaan arsitektur terbuka (AQ)
 
-Detail opsi: [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6. Status: **AQ-001, AQ-010, dan AQ-014 dijawab** oleh ADR-0009/0010/0011 (Diterima); **AQ-006 sedang diusulkan** lewat ADR-0014 (belum disetujui); AQ lainnya masih **Terbuka**. ADR-0012 tidak menjawab AQ; isinya menetapkan detail tabel transisi untuk `D-010` [A].
+Detail opsi: [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6. Status: **AQ-001, AQ-006, AQ-010, dan AQ-014 dijawab** oleh ADR-0009/0014/0010/0011 (Diterima); AQ lainnya masih **Terbuka**. ADR-0012 tidak menjawab AQ; isinya menetapkan detail tabel transisi untuk `D-010` [A]. ADR-0015 juga tidak menjawab AQ; isinya menutup celah aturan arsip Tema.
 
 | ID | Pertanyaan | Bergantung pada | Memblokir |
 |---|---|---|---|
