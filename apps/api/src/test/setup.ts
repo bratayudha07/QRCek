@@ -27,6 +27,8 @@ const TABLES_CHILDREN_FIRST = [
   "recovery_codes",
   "invites",
   "participants",
+  "custom_fields",
+  "categories",
   "event_label_config",
   "event_memberships",
   "events",

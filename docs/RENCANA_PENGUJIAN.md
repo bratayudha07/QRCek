@@ -6,6 +6,7 @@ Tujuan pengujian di proyek ini **bukan** mengejar angka coverage, tetapi membukt
 
 ## Snapshot verifikasi terkini
 
+- Snapshot 7 November 2026 (Q2, API-only): `typecheck` PASS, `lint` PASS, `test` **587 tes di 57 file** lulus, `build` PASS. Angka ini snapshot; hitung ulang dengan `npm run test`.
 - Snapshot 5 November 2026 (Q1, commit `a196109` + penguatan tes): `typecheck` PASS, `lint` PASS, `test` **525 tes di 53 file** lulus, `build` PASS.
 - Commit acuan `157c330` (3 November 2026, `REQUIREMENTS.md` §0.1): `npm run test` → **458 tes di 48 file** lulus. Angka ini snapshot; hitung ulang dengan `npm run test`.
 - Snapshot sebelumnya (2 November 2026): `typecheck` PASS, `lint` PASS, `test` 450 tes di 47 file.
@@ -476,6 +477,23 @@ Semua keputusan produk D-001…D-024 sudah disetujui `[A]`; AQ arsitektur ditang
 | T-008 | Duplikasi Sesi menyalin konfigurasi saja, identitas baru, status Terjadwal, tanpa transaksi | `BR-048` | — |
 
 ### 9.2 Peserta, custom field, impor (Q2)
+
+> **Status per 7 November 2026 (Q2, API-only).** `T-020`, `T-022`–`T-024`, dan `T-026`–`T-028`
+> sudah punya tes yang gagal bila aturannya dihapus. `T-021` menunggu Q5 (check-in) dan Q7
+> (konsumsi); bagian "riwayat tetap ada setelah aktivasi ulang" sudah berlaku di baseline.
+> `T-025` ditegakkan lewat `UNIQUE (event_id, external_ref)`: kandidat ganda tidak mungkin
+> ada, dan `external_ref` ganda di dalam file dilaporkan invalid alih-alih dipilih otomatis.
+> Berkas: `packages/shared/src/participant-attributes.test.ts`,
+> `apps/api/src/test/participants.crud.test.ts`, `participants.import.test.ts`,
+> `csv.test.ts`, `categories.api.test.ts`, `custom-fields.api.test.ts`,
+> `participant-attributes.api.test.ts`, `audit.guarded-write.test.ts`.
+>
+> **Uji mutasi Q2 (7 November 2026).** Enam guard inti diuji dengan merusak kodenya sementara:
+> filter `scope='participant'` **tertangkap** (setelah tes unit dipersempit), syarat `required`
+> saat create **tertangkap**, cek kategori `archived` **tertangkap**, guard audit `updated_at`
+> **tertangkap** (5 tes), header `category` pada CSV **tertangkap**, dan `COALESCE` kolom
+> opsional saat upsert impor **tertangkap**. Rincian di
+> `.opencode/plans/q2-peserta-kategori-impor.md` §16.
 
 | ID | Tes | Rujukan | Status keputusan |
 |---|---|---|---|

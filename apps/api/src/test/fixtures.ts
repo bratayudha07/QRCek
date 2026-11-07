@@ -170,6 +170,104 @@ export interface SeededParticipant {
   id: string;
   externalRef: string | null;
   fullName: string;
+  categoryId: string;
+}
+
+/**
+ * Inserts a category directly. `createParticipant` calls this on demand so
+ * tests do not have to think about the Q2 requirement that every participant
+ * has a category.
+ */
+export async function createCategory(
+  eventId: string,
+  options: {
+    id?: string;
+    name?: string;
+    description?: string | null;
+    sortOrder?: number;
+    status?: "active" | "archived";
+  } = {},
+): Promise<{ id: string; name: string }> {
+  const id = options.id ?? newId(TEST_NOW);
+  const name = options.name ?? "Kelas Uji";
+  const status = options.status ?? "active";
+
+  await testEnv.DB.prepare(
+    `INSERT INTO categories
+       (id, theme_id, name, description, sort_order, status,
+        created_at, updated_at, archived_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(
+      id,
+      eventId,
+      name,
+      options.description ?? null,
+      options.sortOrder ?? 0,
+      status,
+      TEST_NOW,
+      TEST_NOW,
+      status === "archived" ? TEST_NOW : null,
+    )
+    .run();
+
+  return { id, name };
+}
+
+export async function createCustomField(
+  eventId: string,
+  options: {
+    id?: string;
+    key?: string;
+    label?: string;
+    description?: string | null;
+    type?: string;
+    required?: boolean;
+    options?: string[];
+    scope?: "participant" | "activity";
+    sortOrder?: number;
+    status?: "active" | "archived";
+  } = {},
+): Promise<{ id: string; key: string }> {
+  const id = options.id ?? newId(TEST_NOW);
+  const key = options.key ?? `field_${id.slice(-8).toLowerCase()}`;
+  const status = options.status ?? "active";
+
+  await testEnv.DB.prepare(
+    `INSERT INTO custom_fields
+       (id, theme_id, key, label, description, type, required, options_json,
+        scope, sort_order, status, created_at, updated_at, archived_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(
+      id,
+      eventId,
+      key,
+      options.label ?? key,
+      options.description ?? null,
+      options.type ?? "text",
+      options.required ? 1 : 0,
+      options.options ? JSON.stringify(options.options) : null,
+      options.scope ?? "participant",
+      options.sortOrder ?? 0,
+      status,
+      TEST_NOW,
+      TEST_NOW,
+      status === "archived" ? TEST_NOW : null,
+    )
+    .run();
+
+  return { id, key };
+}
+
+async function ensureCategory(eventId: string, name: string): Promise<string> {
+  const existing = await testEnv.DB.prepare(
+    "SELECT id FROM categories WHERE theme_id = ? AND name = ?",
+  )
+    .bind(eventId, name)
+    .first<{ id: string }>();
+  if (existing) return existing.id;
+  return (await createCategory(eventId, { name })).id;
 }
 
 export async function createParticipant(
@@ -181,6 +279,8 @@ export async function createParticipant(
     phone?: string | null;
     email?: string | null;
     category?: string | null;
+    categoryId?: string;
+    attributes?: Record<string, unknown>;
     note?: string | null;
     status?: "active" | "inactive";
   } = {},
@@ -188,12 +288,14 @@ export async function createParticipant(
   const id = options.id ?? newId(TEST_NOW);
   const externalRef = options.externalRef ?? null;
   const fullName = options.fullName ?? "Peserta Uji";
+  const categoryId =
+    options.categoryId ?? (await ensureCategory(eventId, options.category ?? "Kelas Uji"));
 
   await testEnv.DB.prepare(
     `INSERT INTO participants
-       (id, event_id, external_ref, full_name, phone, email, category, note,
-        status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, event_id, external_ref, full_name, phone, email, category_id,
+        attributes_json, note, status, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       id,
@@ -202,7 +304,8 @@ export async function createParticipant(
       fullName,
       options.phone ?? null,
       options.email ?? null,
-      options.category ?? null,
+      categoryId,
+      JSON.stringify(options.attributes ?? {}),
       options.note ?? null,
       options.status ?? "active",
       TEST_NOW,
@@ -210,7 +313,7 @@ export async function createParticipant(
     )
     .run();
 
-  return { id, externalRef, fullName };
+  return { id, externalRef, fullName, categoryId };
 }
 
 /** Issues the same credential shape the label endpoint writes, for scan tests. */

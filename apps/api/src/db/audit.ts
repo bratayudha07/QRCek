@@ -181,7 +181,12 @@ export function insertAuditAfterAttendanceUpdateStatement(
 }
 
 /** Tables that carry an `updated_at` version column usable as an audit guard. */
-type VersionedAuditTable = "activities" | "activity_sessions";
+type VersionedAuditTable =
+  | "activities"
+  | "activity_sessions"
+  | "categories"
+  | "custom_fields"
+  | "participants";
 
 /**
  * Audit insert that only fires when the versioned row from the same
@@ -241,6 +246,39 @@ export function insertAuditAfterSessionUpdateStatement(
     entry,
     "activity_sessions",
     sessionId,
+    updatedAt,
+  );
+}
+
+export function insertAuditAfterCategoryUpdateStatement(
+  db: D1Database,
+  entry: AuditEntry,
+  categoryId: string,
+  updatedAt: number,
+): D1PreparedStatement {
+  return insertAuditAfterVersionedUpdateStatement(db, entry, "categories", categoryId, updatedAt);
+}
+
+export function insertAuditAfterCustomFieldUpdateStatement(
+  db: D1Database,
+  entry: AuditEntry,
+  fieldId: string,
+  updatedAt: number,
+): D1PreparedStatement {
+  return insertAuditAfterVersionedUpdateStatement(db, entry, "custom_fields", fieldId, updatedAt);
+}
+
+export function insertAuditAfterParticipantUpdateStatement(
+  db: D1Database,
+  entry: AuditEntry,
+  participantId: string,
+  updatedAt: number,
+): D1PreparedStatement {
+  return insertAuditAfterVersionedUpdateStatement(
+    db,
+    entry,
+    "participants",
+    participantId,
     updatedAt,
   );
 }

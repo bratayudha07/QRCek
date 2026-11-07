@@ -7,12 +7,24 @@ import {
 } from "../db/activity-sessions";
 import {
   insertAuditAfterActivityUpdateStatement,
+  insertAuditAfterCategoryUpdateStatement,
+  insertAuditAfterCustomFieldUpdateStatement,
+  insertAuditAfterParticipantUpdateStatement,
   insertAuditAfterSessionUpdateStatement,
   insertAuditAfterThemeStatusStatement,
 } from "../db/audit";
+import { updateCategoryStatement } from "../db/categories";
+import { updateCustomFieldStatement } from "../db/custom-fields";
+import { updateParticipantStatement } from "../db/participants";
 import { newId } from "../domain/ids";
 import { testEnv as env } from "./env";
-import { createEvent, createUser } from "./fixtures";
+import {
+  createCategory,
+  createCustomField,
+  createEvent,
+  createParticipant,
+  createUser,
+} from "./fixtures";
 import { TEST_NOW } from "./http";
 
 /**
@@ -270,5 +282,201 @@ describe("audit guarded write (I-35)", () => {
 
     expect(current.meta.changes).toBe(1);
     expect(await auditCount(themeId)).toBe(1);
+  });
+
+  it("writes no category audit row when the update loses the optimistic race", async () => {
+    const user = await createUser({ role: "event_admin" });
+    const themeId = await createEvent({ createdBy: user });
+    const category = await createCategory(themeId, { name: "Kelas 7A" });
+
+    const stale = await env.DB.batch([
+      updateCategoryStatement(env.DB, {
+        themeId,
+        categoryId: category.id,
+        update: { name: "Kelas 7B" },
+        actorUserId: user,
+        now: TEST_NOW + 1_000,
+        expectedUpdatedAt: TEST_NOW - 1,
+      }),
+      insertAuditAfterCategoryUpdateStatement(
+        env.DB,
+        {
+          id: newId(TEST_NOW + 10),
+          eventId: themeId,
+          actorUserId: user,
+          action: "category.updated",
+          entityType: "category",
+          entityId: category.id,
+          before: { name: "Kelas 7A" },
+          after: { name: "Kelas 7B" },
+          createdAt: TEST_NOW + 1_000,
+        },
+        category.id,
+        TEST_NOW + 1_000,
+      ),
+    ]);
+
+    expect(stale[0]?.meta.changes).toBe(0);
+    expect(await auditCount(category.id)).toBe(0);
+
+    const current = await env.DB.batch([
+      updateCategoryStatement(env.DB, {
+        themeId,
+        categoryId: category.id,
+        update: { name: "Kelas 7B" },
+        actorUserId: user,
+        now: TEST_NOW + 1_000,
+        expectedUpdatedAt: TEST_NOW,
+      }),
+      insertAuditAfterCategoryUpdateStatement(
+        env.DB,
+        {
+          id: newId(TEST_NOW + 11),
+          eventId: themeId,
+          actorUserId: user,
+          action: "category.updated",
+          entityType: "category",
+          entityId: category.id,
+          before: { name: "Kelas 7A" },
+          after: { name: "Kelas 7B" },
+          createdAt: TEST_NOW + 1_000,
+        },
+        category.id,
+        TEST_NOW + 1_000,
+      ),
+    ]);
+
+    expect(current[0]?.meta.changes).toBe(1);
+    expect(await auditCount(category.id)).toBe(1);
+  });
+
+  it("writes no custom-field audit row when the update loses the optimistic race", async () => {
+    const user = await createUser({ role: "event_admin" });
+    const themeId = await createEvent({ createdBy: user });
+    const field = await createCustomField(themeId, { key: "nisn", label: "NISN" });
+
+    const stale = await env.DB.batch([
+      updateCustomFieldStatement(env.DB, {
+        themeId,
+        fieldId: field.id,
+        update: { label: "NISN Baru" },
+        actorUserId: user,
+        now: TEST_NOW + 1_000,
+        expectedUpdatedAt: TEST_NOW - 1,
+      }),
+      insertAuditAfterCustomFieldUpdateStatement(
+        env.DB,
+        {
+          id: newId(TEST_NOW + 12),
+          eventId: themeId,
+          actorUserId: user,
+          action: "custom_field.updated",
+          entityType: "custom_field",
+          entityId: field.id,
+          before: { label: "NISN" },
+          after: { label: "NISN Baru" },
+          createdAt: TEST_NOW + 1_000,
+        },
+        field.id,
+        TEST_NOW + 1_000,
+      ),
+    ]);
+
+    expect(stale[0]?.meta.changes).toBe(0);
+    expect(await auditCount(field.id)).toBe(0);
+
+    const current = await env.DB.batch([
+      updateCustomFieldStatement(env.DB, {
+        themeId,
+        fieldId: field.id,
+        update: { label: "NISN Baru" },
+        actorUserId: user,
+        now: TEST_NOW + 1_000,
+        expectedUpdatedAt: TEST_NOW,
+      }),
+      insertAuditAfterCustomFieldUpdateStatement(
+        env.DB,
+        {
+          id: newId(TEST_NOW + 13),
+          eventId: themeId,
+          actorUserId: user,
+          action: "custom_field.updated",
+          entityType: "custom_field",
+          entityId: field.id,
+          before: { label: "NISN" },
+          after: { label: "NISN Baru" },
+          createdAt: TEST_NOW + 1_000,
+        },
+        field.id,
+        TEST_NOW + 1_000,
+      ),
+    ]);
+
+    expect(current[0]?.meta.changes).toBe(1);
+    expect(await auditCount(field.id)).toBe(1);
+  });
+
+  it("writes no participant audit row when the update loses the optimistic race", async () => {
+    const user = await createUser({ role: "event_admin" });
+    const themeId = await createEvent({ createdBy: user });
+    const participant = await createParticipant(themeId, { fullName: "Siti" });
+
+    const stale = await env.DB.batch([
+      updateParticipantStatement(env.DB, {
+        eventId: themeId,
+        participantId: participant.id,
+        update: { fullName: "Siti Baru" },
+        now: TEST_NOW + 1_000,
+        expectedUpdatedAt: TEST_NOW - 1,
+      }),
+      insertAuditAfterParticipantUpdateStatement(
+        env.DB,
+        {
+          id: newId(TEST_NOW + 14),
+          eventId: themeId,
+          actorUserId: user,
+          action: "participant.updated",
+          entityType: "participant",
+          entityId: participant.id,
+          before: { status: "active" },
+          after: { status: "active" },
+          createdAt: TEST_NOW + 1_000,
+        },
+        participant.id,
+        TEST_NOW + 1_000,
+      ),
+    ]);
+
+    expect(stale[0]?.meta.changes).toBe(0);
+    expect(await auditCount(participant.id)).toBe(0);
+
+    const current = await env.DB.batch([
+      updateParticipantStatement(env.DB, {
+        eventId: themeId,
+        participantId: participant.id,
+        update: { fullName: "Siti Baru" },
+        now: TEST_NOW + 1_000,
+        expectedUpdatedAt: TEST_NOW,
+      }),
+      insertAuditAfterParticipantUpdateStatement(
+        env.DB,
+        {
+          id: newId(TEST_NOW + 15),
+          eventId: themeId,
+          actorUserId: user,
+          action: "participant.updated",
+          entityType: "participant",
+          entityId: participant.id,
+          before: { status: "active" },
+          after: { status: "active" },
+          createdAt: TEST_NOW + 1_000,
+        },
+        participant.id,
+        TEST_NOW + 1_000,
+      ),
+    ]);
+
+    expect(current[0]?.meta.changes).toBe(1);
+    expect(await auditCount(participant.id)).toBe(1);
   });
 });

@@ -112,11 +112,19 @@ CREATE INDEX idx_custom_fields_theme_scope_status
 
 ### 4.3 `participants`
 
-Rebuild mengikuti pola SQLite: buat tabel baru, salin data, ganti nama, buat ulang indeks. Ini diperlukan karena `category_id` harus `NOT NULL` dan SQLite tidak bisa menambah kolom `NOT NULL` tanpa default yang valid.
+`category_id` wajib dan `attributes_json` ditambahkan dengan `ALTER TABLE`; tabel **tidak** di-rebuild. Alasannya: `attendance` dan `sheet_rows` mereferensikan `participants(id)`, dan `DROP TABLE`/rename pada SQLite berisiko memicu cascade atau menulis ulang referensi FK. Batasan `NOT NULL` fisik tidak bisa dipakai lewat `ALTER` pada tabel berisi data (setiap baris punya kategori berbeda), sehingga kewajiban kategori ditegakkan oleh trigger yang setara:
 
 ```sql
--- 1. Backfill kategori dari nilai `category` lama SEBELUM rebuild.
---    Nilai lama dibuat admin, jadi bukan kategori baru yang dikarang.
+ALTER TABLE participants ADD COLUMN category_id TEXT
+  REFERENCES categories(id) ON DELETE RESTRICT;
+
+ALTER TABLE participants ADD COLUMN attributes_json TEXT NOT NULL DEFAULT '{}'
+  CHECK (json_valid(attributes_json));
+```
+
+Backfill kategori dari nilai lama SEBELUM kolom dipakai:
+
+```sql
 INSERT INTO categories (id, theme_id, name, sort_order, status, created_at, updated_at)
 SELECT
   'cat-' || lower(hex(randomblob(16))),
@@ -129,68 +137,29 @@ SELECT
 FROM participants p
 WHERE p.category IS NOT NULL AND TRIM(p.category) <> ''
 GROUP BY p.event_id, LOWER(TRIM(p.category));
+
+UPDATE participants
+   SET category_id = (
+     SELECT c.id FROM categories c
+      WHERE c.theme_id = participants.event_id
+        AND c.name = COALESCE(NULLIF(TRIM(participants.category), ''), 'Tanpa Kategori')
+   )
+ WHERE category_id IS NULL;
 ```
 
-Untuk baris lama tanpa kategori (tidak ada di remote saat ini: 80 peserta, kategori `Kelas A`–`Kelas D`), migrasi membuat satu kategori per Tema bernama `Tanpa Kategori` agar rebuild tidak gagal. Kategori ini **hanya** wadah data lama; pembuatan peserta baru tetap menolak kategori kosong dan tidak pernah memakai wadah ini sebagai default.
+Baris lama tanpa kategori (tidak ada di remote saat ini: 80 peserta, kategori `Kelas A`–`Kelas D`) mendapat satu kategori per Tema bernama `Tanpa Kategori`. Kategori ini **hanya** wadah data lama; pembuatan peserta baru tetap menolak kategori kosong dan tidak pernah memakai wadah ini sebagai default.
 
-```sql
-CREATE TABLE participants_new (
-  id               TEXT PRIMARY KEY,
-  event_id         TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-  external_ref     TEXT,
-  full_name        TEXT NOT NULL,
-  phone            TEXT,
-  email            TEXT,
-  category_id      TEXT NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
-  attributes_json  TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(attributes_json)),
-  note             TEXT,
-  status           TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','inactive')),
-  created_at       INTEGER NOT NULL,
-  updated_at       INTEGER NOT NULL,
-  qr_token_hash       TEXT,
-  qr_token_ciphertext TEXT,
-  qr_token_nonce      TEXT,
-  qr_key_version      INTEGER,
-  qr_issued_at        INTEGER,
-  CHECK (length(full_name) BETWEEN 1 AND 120),
-  CHECK (external_ref IS NULL OR length(external_ref) BETWEEN 1 AND 64),
-  CHECK (phone IS NULL OR length(phone) <= 32),
-  CHECK (email IS NULL OR length(email) <= 254),
-  CHECK (note IS NULL OR length(note) <= 500)
-);
+Trigger yang wajib ada di migrasi:
 
-INSERT INTO participants_new (
-  id, event_id, external_ref, full_name, phone, email, category_id,
-  attributes_json, note, status, created_at, updated_at,
-  qr_token_hash, qr_token_ciphertext, qr_token_nonce, qr_key_version, qr_issued_at
-)
-SELECT
-  p.id, p.event_id, p.external_ref, p.full_name, p.phone, p.email,
-  COALESCE(c.id, legacy.id),
-  '{}', p.note, p.status, p.created_at, p.updated_at,
-  p.qr_token_hash, p.qr_token_ciphertext, p.qr_token_nonce, p.qr_key_version, p.qr_issued_at
-FROM participants p
-LEFT JOIN categories c
-  ON c.theme_id = p.event_id AND c.name = TRIM(p.category)
-LEFT JOIN categories legacy
-  ON legacy.theme_id = p.event_id AND legacy.name = 'Tanpa Kategori';
+| Trigger | Tujuan |
+|---|---|
+| `trg_participant_category_required_insert` | `INSERT` dengan `category_id` NULL → `RAISE(ABORT)`. |
+| `trg_participant_category_required_update` | `UPDATE OF category_id` ke NULL → `RAISE(ABORT)`. |
+| `trg_participant_category_same_theme_insert/update` | Kategori dari Tema lain ditolak di database, bukan hanya di kode. |
+| `trg_participant_category_mirror_insert/update` | Kolom `category` (mirror tampilan lama) diisi dari `categories.name`. |
+| `trg_category_name_mirror_update` | Rename kategori memperbarui mirror peserta. |
 
-DROP TABLE participants;
-ALTER TABLE participants_new RENAME TO participants;
-
-CREATE UNIQUE INDEX idx_participant_event_ref
-  ON participants(event_id, external_ref)
-  WHERE external_ref IS NOT NULL;
-CREATE INDEX idx_participant_event_name ON participants(event_id, full_name);
-CREATE UNIQUE INDEX idx_participant_qr_hash ON participants(qr_token_hash)
-  WHERE qr_token_hash IS NOT NULL;
-CREATE INDEX idx_participant_event_category ON participants(event_id, category_id);
-```
-
-Catatan eksekusi:
-
-- `PRAGMA foreign_keys` tidak diandalkan di migrasi D1; `attendance`/`sheet_rows` mereferensikan `participants(id)` dan tetap valid setelah rename karena SQLite menyimpan nama tabel, bukan pointer. Verifikasi wajib di database lokal yang sudah berisi attendance sebelum remote.
-- Kolom `category` lama **dihapus**; satu sumber kebenaran adalah `categories.name` lewat join. API tetap mengekspos `category` sebagai nama (bukan id) supaya bentuk respons lama tidak pecah, ditambah `categoryId`.
+- Kolom `category` lama **dipertahankan** sebagai mirror nama (bukan sumber kebenaran) agar `sheet-projection`, label, dan format export lama tidak perlu berubah sekaligus. `category_id` adalah otoritas; trigger menjaga keduanya konsisten.
 - Migrasi menaikkan `app_meta.schema_version` menjadi `8`.
 
 ## 5. Tipe dan validator di `packages/shared`
@@ -471,3 +440,30 @@ Remote (hanya setelah konfirmasi pemilik): backup → `npm run db:migrate:remote
 ## 16. Catatan penyimpangan
 
 Diisi setelah eksekusi, seperti Q1 §16: apa yang berubah dari rencana, mengapa, dan hasil uji mutasi.
+
+**Rencana vs aktual (7 November 2026):**
+
+1. **`participants` tidak di-rebuild.** Rencana awal mempertimbangkan table rebuild untuk `category_id NOT NULL`. Aktual memakai `ALTER TABLE ... ADD COLUMN` + trigger `BEFORE INSERT`/`BEFORE UPDATE OF category_id`. Alasan: rebuild pada tabel berisi data berisiko dan tidak diperlukan; SQLite tidak bisa menambah kolom `NOT NULL` tanpa default yang valid per baris. Kewajiban `category_id` tetap ditegakkan database, bukan hanya kode.
+2. **`participants.category` dipertahankan sebagai mirror.** Kolom teks lama tidak dihapus; trigger mengisinya dari `categories.name` dan memperbaruinya saat rename. Sumber kebenaran tetap `category_id`; mirror hanya untuk kompatibilitas UI Q1 dan ekspor lama.
+3. **Kompatibilitas input nama kategori.** Create/update satu peserta menerima `categoryId` (kanonik) **atau** `category` (nama, deprecated). Nama yang belum ada pada jalur ini **membuat kategori** dalam batch yang sama karena admin mengetiknya secara eksplisit. Impor CSV tetap menolak nama tak dikenal tanpa auto-create, sesuai ADR-0014. `PATCH` dengan `category: null` diabaikan dan tidak pernah mengosongkan kategori.
+4. **`mergeParticipantAttributes` tidak memeriksa ulang `required` setelah merge.** Rencana menyebut update tanpa menyentuh field required tetap valid; implementasi awalnya memanggil validasi penuh sehingga peserta lama tanpa field required baru ikut ditolak. Fungsi sekarang hanya memvalidasi nilai yang dikirim/diubah, sedangkan `validateParticipantAttributes` tetap menegakkan `required` saat create. Larangan menghapus nilai required tetap berlaku.
+5. **Nilai untuk field `archived` ditolak pada create maupun patch.** Rencana hanya menyebut "nilai baru ditolak"; implementasi memberlakukan aturan yang sama di kedua jalur. Nilai lama tetap terbaca dan tidak dihapus.
+6. **`key` dikecualikan dari regex field sensitif audit.** `custom_fields.key` adalah identifier publik (`[a-z][a-z0-9_]*`), bukan kredensial. Tanpa pengecualian, allowlist audit tidak bisa mencatat key field. Field lain yang mengandung "key" tetap dianggap sensitif.
+7. **Batas opsi > 100 → `422 BUSINESS_RULE`, bukan `400`.** Skema hanya membatasi panjang array (1.000) untuk mencegah payload tak terbatas; batas bisnis 100 diperiksa di route agar pesan dan kode hasil konsisten dengan batas 50 field.
+8. **Tanggal wajib `YYYY-MM-DD` ketat.** `Date.parse` menerima banyak format longgar; koersi CSV sekarang menolak `06/11/2026` dan hanya menerima ISO date, lalu menyimpannya sebagai ms epoch UTC.
+9. **`businessRule()` menerima `details`.** Dibutuhkan agar `fieldErrors` per key bisa dikirim pada `422` tanpa memakai `validationError` (`400`), sesuai kontrak `BR-016`/`FR-030`.
+10. **Tes baru di luar rencana awal:** `T-020` (client tidak bisa mengirim `id`) dan `T-027`/`BR-077` (sel kosong tidak menghapus nilai lama). Keduanya ditambahkan karena daftar tes wajib §11 belum punya penutup eksplisit.
+11. **Urutan rilis remote adalah prasyarat, bukan detail.** Setelah `0008` diterapkan, trigger `trg_participant_category_required_insert` menolak `INSERT` peserta tanpa `category_id`. Worker yang sedang berjalan di remote masih memakai kode Q1 dan menulis peserta tanpa kolom itu, sehingga **`0008` tidak boleh diterapkan lebih dulu tanpa deploy kode Q2**. Terapkan migrasi dan deploy kode dalam satu jendela; sebelum itu, ambil backup baru dan konfirmasi pemilik. Migrasi hanya diuji di D1 lokal berisi data lama, belum di remote.
+
+**Hasil uji mutasi §11.6 (semua tertangkap):**
+
+| Mutasi sementara | Tes yang gagal |
+|---|---|
+| Hapus filter `scope='participant'` | `participant-attributes.test.ts` — "drops activity-scoped definitions entirely" |
+| Hapus syarat `required` saat create | `participant-attributes.test.ts` — "rejects a missing required field"; `participant-attributes.api.test.ts` — "enforces required fields on create" |
+| Hapus cek kategori `archived` | `categories.api.test.ts` — "archives a category and refuses new assignments…" |
+| Hapus guard `updated_at` pada audit | `audit.guarded-write.test.ts` — 5 tes "loses the optimistic race" (Aktivitas, Sesi, kategori, custom field, peserta) |
+| Hapus header `category` dari `REQUIRED_HEADERS` | `participants.import.test.ts` — "rejects a file without the category header" |
+| Ganti `COALESCE` dengan nilai `excluded` pada upsert impor | `participants.import.test.ts` — "never erases an existing value with an empty cell (BR-077)" |
+
+Catatan: mutasi pertama awalnya **tidak tertangkap** karena tes unit menggabungkan field activity dan archived dalam satu ekspektasi error. Tes dipersempit menjadi dua kasus terpisah sebelum mutasi diulang; itulah alasan hasil akhirnya tertangkap. Mutasi guard audit juga sempat dijalankan dengan SQL rusak (nama tabel hilang); percobaan itu dibuang dan diulang dengan mutasi yang valid secara sintaks.

@@ -10,7 +10,13 @@
  * deploy. Tokens, hashes, ciphertext, peppers, and PII must never be added.
  */
 
-export type AuditEntityType = "theme" | "activity" | "session";
+export type AuditEntityType =
+  | "theme"
+  | "activity"
+  | "session"
+  | "category"
+  | "custom_field"
+  | "participant";
 
 export const REDACTED = "[REDACTED]" as const;
 
@@ -26,12 +32,32 @@ export const AUDIT_FIELDS: Readonly<Record<AuditEntityType, readonly string[]>> 
     "archivedAt",
   ],
   session: ["name", "location", "startsAt", "endsAt", "status", "archivedAt"],
+  category: ["name", "description", "sortOrder", "status", "archivedAt"],
+  // `optionsJson` is excluded: option labels are free text and can contain
+  // personal notes. Stored participant values never enter this allowlist.
+  custom_field: [
+    "key",
+    "label",
+    "description",
+    "type",
+    "required",
+    "scope",
+    "sortOrder",
+    "status",
+    "archivedAt",
+  ],
+  // Names/notes/attribute values are PII; only the category and lifecycle facts
+  // are snapshotted. Attribute changes are recorded separately as key names.
+  participant: ["categoryId", "status", "attributesChanged"],
 };
 
 const SENSITIVE_FIELD_PATTERN =
   /(token|secret|pepper|password|hash|ciphertext|nonce|recovery|phone|email|nik|encrypt|key)/i;
 
 export function isSensitiveAuditField(field: string): boolean {
+  // `custom_fields.key` is a public identifier, not a credential; every other
+  // field containing "key" (encryption keys, API keys) stays sensitive.
+  if (field === "key") return false;
   return SENSITIVE_FIELD_PATTERN.test(field);
 }
 

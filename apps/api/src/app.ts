@@ -8,6 +8,8 @@ import { activitySessionRoutes } from "./routes/activity-sessions";
 import { authRoutes } from "./routes/auth";
 import { attendanceRoutes } from "./routes/attendance";
 import { auditRoutes } from "./routes/audit";
+import { categoryRoutes } from "./routes/categories";
+import { customFieldRoutes } from "./routes/custom-fields";
 import { dashboardRoutes } from "./routes/dashboard";
 import { eventRoutes } from "./routes/events";
 import { healthRoutes } from "./routes/health";
@@ -30,6 +32,8 @@ export const ROUTES: readonly RouteDefinition[] = [
   ...activityRoutes,
   ...activitySessionRoutes,
   ...participantRoutes,
+  ...categoryRoutes,
+  ...customFieldRoutes,
   ...labelRoutes,
   ...scanRoutes,
   ...attendanceRoutes,

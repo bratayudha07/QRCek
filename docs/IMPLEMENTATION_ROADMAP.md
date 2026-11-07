@@ -35,7 +35,7 @@
 |---|---|---|---|
 | Q0 | Penyelarasan dokumen & keputusan | **Berjalan** | `D-001`, `D-002` [A] |
 | Q1 | Fondasi Tema → Aktivitas → Sesi, lifecycle, mekanisme audit | **Selesai (API-only)** | AQ-001, AQ-010, AQ-014 (ADR-0009–0011, Diterima); ADR-0012 (lifecycle), ADR-0013 (registrasi), keduanya Diterima; `D-009`, `D-010`, `D-023` [A]; `OQ-033` [A] untuk aksi arsip Sesi |
-| Q2 | Peserta, kategori, custom field, impor CSV | **Dibuka** | AQ-006 dijawab ADR-0014 (Diterima 6 November 2026); `D-008`, `D-020` [A] |
+| Q2 | Peserta, kategori, custom field, impor CSV | **Selesai secara kode (API-only), menunggu review + migrasi `0008` remote** | AQ-006 dijawab ADR-0014 (Diterima 6 November 2026); `D-008`, `D-020` [A] |
 | Q3 | Entitlement | Belum dibuka | AQ-005 |
 | Q4 | QR Identity per Tema, rotasi, ekspor PNG/ZIP | Belum dibuka | AQ-009; `D-016` [A] |
 | Q5 | Transaksi Attendance, Manual Entry, Reversal/Adjustment | Belum dibuka | AQ-002–AQ-004, AQ-007, AQ-008; `D-010`, `D-011`, `D-022`, `D-024` [A]; `OQ-034` [A] |
@@ -168,6 +168,17 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 **Bukan cakupan:** entitlement per kategori (Q3).
 
 **Prasyarat keputusan:** AQ-006 dijawab ADR-0014 (Diterima 6 November 2026). Tahap **dibuka 6 November 2026** oleh pemilik proyek setelah gate Q1 direview; rencana eksekusi ada di `.opencode/plans/q2-peserta-kategori-impor.md`.
+
+**Hasil implementasi (7 November 2026, API-only):**
+
+- Migrasi `0008_q2_categories_custom_fields.sql`: tabel `categories` dan `custom_fields`, kolom `participants.category_id` + `participants.attributes_json`, backfill kategori dari teks lama, dan trigger yang menegakkan `category_id` wajib + satu Tema + mirror `participants.category`. `0001`–`0007` tidak disentuh.
+- Route: `/api/events/:eventId/categories` (list/create/detail/patch/status), `/api/events/:eventId/custom-fields` (list/create/detail/patch/status/type), dan kontrak peserta baru (`categoryId` wajib, `attributes` tervalidasi tipe) beserta impor CSV yang mewajibkan header + nilai `category`. Semua route otomatis mendapat alias `/api/calendar` dan `/api/themes`.
+- Aturan murni di `packages/shared/src/participant-attributes.ts` (validasi tipe, merge parsial, ubah tipe, koersi CSV) dan skema di `packages/shared/src/schemas/{categories,custom-fields,participants}.ts`.
+- Audit `category.*`, `custom_field.*`, dan `participant.*` ditulis dalam `db.batch()` yang sama; snapshot hanya memuat field allowlist, daftar key atribut yang berubah, dan tidak pernah nilai atribut/PII/`options_json`.
+- Batas 50 field aktif dan 100 opsi ditegakkan di Worker sebagai `422 BUSINESS_RULE`; arsip membebaskan slot.
+- Tes baru: `packages/shared/src/participant-attributes.test.ts`, `apps/api/src/test/categories.api.test.ts`, `custom-fields.api.test.ts`, `participant-attributes.api.test.ts`, perluasan `audit.guarded-write.test.ts` dan tes impor/peserta. Uji mutasi enam guard inti tertangkap (`RENCANA_PENGUJIAN.md` §9.2).
+- **Penyimpangan kompatibilitas:** `participants.category` (teks) tetap ada sebagai mirror yang dijaga trigger; create/update satu peserta masih menerima nama `category` sebagai input deprecated, sedangkan impor CSV **tidak** membuat kategori otomatis (ADR-0014). `PATCH` peserta tidak dapat menghapus kategori (`category: null` diabaikan), sehingga kategori wajib selalu terpenuhi.
+- **Belum:** UI kategori/custom field/atribut (Q9), nilai custom field per Aktivitas/Sesi (Q3), dan migrasi `0008` di remote. **Urutan rilis wajib:** terapkan `0008` dan deploy kode Q2 berdekatan (idealnya satu jendela), karena Worker lama masih menulis peserta tanpa `category_id` dan trigger `0008` akan menolaknya. Jangan menerapkan `0008` sendirian ke remote. Kode Q2 belum masuk `main`; Worker remote masih menjalankan skema `0007`.
 
 ---
 
@@ -367,3 +378,4 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 | Draft v1.1 | 4 November 2026 | Q1: tambah prasyarat ADR-0012 (lifecycle) dan ADR-0013 (registrasi publik nonaktif); perjelas `D-010` [A]. Status tahap belum berubah. |
 | Draft v1.2 | 4 November 2026 | ADR-0009–0013 berstatus Diterima; Q1 **Dibuka** (API-only). |
 | Draft v1.3 | 6 November 2026 | Q1 **Selesai (API-only)** setelah review pemilik proyek dan migrasi `0007` diterapkan di remote; ADR-0014 (AQ-006) dan ADR-0015 Diterima; Q2 **Dibuka**. |
+| Draft v1.4 | 7 November 2026 | Q2 **Selesai secara kode (API-only)**; migrasi `0008` dibuat dan diuji lokal, penerapan remote + review pemilik masih pending. UI dan nilai field per Aktivitas tetap di tahap lanjut. |

@@ -4,7 +4,7 @@ Semua endpoint di bawah `/api`. Otentikasi memakai cookie sesi `HttpOnly` (same-
 
 Sumber kebenaran kontrak: skema zod di `packages/shared/src/schemas/`. Dokumen ini menjelaskan **perilaku**, bukan menggantikan skema.
 
-> **Status dokumen (4 November 2026).** Dokumen ini mencatat **API aktual**: baseline `157c330` ditambah Q1 (Aktivitas/Sesi, API-only) dan penghapusan registrasi publik. Jumlahnya 61 definisi route dan 159 pola efektif setelah alias `/api/calendar` dan `/api/themes` (`REQUIREMENTS.md` §7.1.1). API target untuk entitlement, konsumsi, koreksi Reversal/Adjustment, dan scanner berkonteks **belum ada**; bentuk payload-nya diputuskan lewat AQ di [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6 dan ditambahkan ke dokumen ini bersama route-nya. Endpoint yang tercantum di sini bukan bukti bahwa kebutuhan produk terpenuhi (`FR-178`). Bagian yang bertentangan dengan keputusan produk `[A]` ditandai **Delta**.
+> **Status dokumen (7 November 2026).** Dokumen ini mencatat **API aktual**: baseline `157c330` ditambah Q1 (Aktivitas/Sesi) dan Q2 (kategori, custom field, atribut peserta, impor ber-kategori), semuanya API-only; registrasi publik dihapus. Jumlahnya **74 definisi route** dan **194 pola efektif** setelah alias `/api/calendar` dan `/api/themes` (`60` definisi ber-prefix `/api/events` × 3). API target untuk entitlement, konsumsi, koreksi Reversal/Adjustment, dan scanner berkonteks **belum ada**; bentuk payload-nya diputuskan lewat AQ di [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6 dan ditambahkan ke dokumen ini bersama route-nya. Endpoint yang tercantum di sini bukan bukti bahwa kebutuhan produk terpenuhi (`FR-178`). Bagian yang bertentangan dengan keputusan produk `[A]` ditandai **Delta**.
 
 ---
 
@@ -252,6 +252,31 @@ GET /api/calendar/:eventId/participants?query=budi&status=active&limit=25&cursor
 - Respons: `{ items: ParticipantSummary[], nextCursor: string | null }`.
 - Urutan stabil: `created_at DESC, id DESC` (id sebagai tie-breaker karena impor bisa menulis
   banyak baris dalam milidetik yang sama).
+- `ParticipantSummary` memuat `categoryId` (otoritas), `category` (nama hasil join, mirror
+  lama untuk klien Q1), dan `attributes` (nilai custom field per peserta). Nilai mentah;
+  pemformatan tanggal/angka dilakukan UI.
+
+### Create dan update
+
+`POST` mewajibkan `categoryId`. `PATCH` boleh mengubah `categoryId` dan mengirim `attributes`
+secara parsial (merge). `attributes: { "key": null }` menghapus nilai hanya bila field tidak
+`required`; menghapus field wajib → `422 BUSINESS_RULE`.
+
+```jsonc
+// POST request
+{ "fullName": "Budi", "categoryId": "01J...", "attributes": { "nisn": "12345" } }
+```
+
+- Kategori dari Tema lain → `404 NOT_FOUND`; kategori `archived` → `422 BUSINESS_RULE`.
+- Key yang tidak ada di katalog `scope='participant'` **dibuang**, bukan disimpan. Key milik
+  field `scope='activity'` juga tidak diterima di profil peserta (`FR-033`).
+- Nilai yang tipenya salah → `422 BUSINESS_RULE` dengan `details.fieldErrors` per key.
+- Untuk kompatibilitas UI Q1, `category` (nama) masih diterima sebagai input alternatif:
+  nama yang cocok memakai kategori yang ada; nama baru **membuat kategori** secara eksplisit
+  dalam batch yang sama. Jalur ini tidak dipakai impor CSV (lihat §5). Klien baru wajib
+  memakai `categoryId`.
+- Semua perubahan menulis audit di batch yang sama; snapshot peserta hanya memuat
+  `categoryId`, `status`, dan daftar `attributesChanged` (nama key), tidak pernah nilai PII.
 
 ### `DELETE` peserta
 
@@ -307,8 +332,17 @@ Kolom CSV (urutan bebas, header wajib):
 | `external_ref` | tidak | Unik per acara; kunci idempotensi |
 | `phone` | tidak | Dinormalisasi ke `+62…`; 8–15 digit |
 | `email` | tidak | Huruf kecil, format sederhana |
-| `category` | tidak | Maks 60 karakter |
+| `category` | **ya (header dan nilai)** | Nama kategori **aktif** yang sudah ada di Tema; maks 60 karakter |
 | `note` | tidak | Maks 500 karakter |
+
+- CSV tanpa header `category` → seluruh impor `400 VALIDATION_ERROR` sebelum baris diproses.
+- Nama kategori tidak dikenal atau `archived` → baris dilaporkan `invalid` dengan alasan
+  `kategori "X" tidak ditemukan`; **tidak ada pembuatan kategori otomatis**. Baris valid lain
+  tetap diproses (partial import).
+- Sel `category` kosong → baris `invalid` (`category wajib diisi`).
+- Kolom custom field **belum** didukung di CSV Q2; header asing tetap ditolak. Nilai custom
+  field diisi lewat API peserta.
+- `sample` pratinjau memuat `categoryId` di samping `category`.
 
 Batasan yang disengaja: **tidak ada** kolom `qr_token` di CSV. QR selalu dibuat server pada
 fase QR, sehingga tidak mungkin ada dua peserta dengan token yang sama karena input.
@@ -522,6 +556,85 @@ disabled    → (final)
 - PATCH/status/arsip memakai pemeriksaan optimistis `updated_at`; kalah balapan →
   `409 CONFLICT`.
 
+### Kategori
+
+Q2 menambahkan entitas kategori per Tema (ADR-0014). Kategori tidak pernah dihapus permanen;
+hanya `active` ⇄ `archived`.
+
+| Method | Path | Peran | Keterangan |
+|---|---|---|---|
+| `GET` | `/api/events/:eventId/categories` | anggota Tema | Query `status=active\|archived\|all` (default `active`); menyertakan `participantCount` |
+| `POST` | `/api/events/:eventId/categories` | event_admin, superadmin | Buat; nama unik per Tema (case-insensitive) |
+| `GET` | `/api/events/:eventId/categories/:categoryId` | anggota Tema | Detail; id Tema lain → `404` |
+| `PATCH` | `/api/events/:eventId/categories/:categoryId` | event_admin, superadmin | Nama, deskripsi, `sortOrder`; guard `updatedAt` |
+| `POST` | `/api/events/:eventId/categories/:categoryId/status` | event_admin, superadmin | `active` ⇄ `archived`; arsip mengisi `archivedAt` |
+
+```jsonc
+// POST request
+{ "name": "Kelas 7A", "description": "Rombel pagi", "sortOrder": 0 }
+
+// 201
+{ "ok": true, "data": { "category": {
+  "id": "01J...", "themeId": "01J...", "name": "Kelas 7A",
+  "description": "Rombel pagi", "sortOrder": 0, "status": "active",
+  "createdAt": 173..., "updatedAt": 173..., "archivedAt": null
+} } }
+```
+
+- Nama duplikat di Tema yang sama (beda kapitalisasi sekalipun) → `409 CONFLICT`.
+- Nama sama di Tema lain boleh.
+- Kategori `archived` tetap terbaca dan peserta lama tetap valid; penugasan baru ditolak
+  `422 BUSINESS_RULE`.
+- Rename memperbarui mirror `participants.category` lewat trigger; `category_id` tidak
+  berubah sehingga riwayat aman (`AC-008`).
+- Tidak ada route `DELETE`.
+- Semua mutasi menulis audit (`category.created`, `category.updated`, `category.archived`,
+  `category.activated`) di batch yang sama; snapshot tidak memuat PII.
+
+### Custom field
+
+Katalog custom field per Tema. `key` imutabel (dipakai sebagai kunci JSON), `label` boleh
+di-rename. Sembilan tipe: `text`, `number`, `email`, `phone`, `select`, `multi_select`,
+`date`, `textarea`, `checkbox`.
+
+| Method | Path | Peran | Keterangan |
+|---|---|---|---|
+| `GET` | `/api/events/:eventId/custom-fields` | anggota Tema | Query `scope=participant\|activity`, `status=active\|archived\|all` |
+| `POST` | `/api/events/:eventId/custom-fields` | event_admin, superadmin | Buat; batas 50 aktif / 100 opsi |
+| `GET` | `/api/events/:eventId/custom-fields/:fieldId` | anggota Tema | Detail; id Tema lain → `404` |
+| `PATCH` | `/api/events/:eventId/custom-fields/:fieldId` | event_admin, superadmin | `label`, `description`, `required`, `options`, `sortOrder`; **bukan** `key`/`type` |
+| `POST` | `/api/events/:eventId/custom-fields/:fieldId/status` | event_admin, superadmin | `active` ⇄ `archived` |
+| `POST` | `/api/events/:eventId/custom-fields/:fieldId/type` | event_admin, superadmin | Ubah tipe dengan validasi kompatibilitas nilai tersimpan |
+
+```jsonc
+// POST request
+{ "key": "golongan", "label": "Golongan", "type": "select",
+  "required": false, "options": ["A", "B"], "scope": "participant", "sortOrder": 0 }
+
+// 201
+{ "ok": true, "data": { "field": {
+  "id": "01J...", "themeId": "01J...", "key": "golongan", "label": "Golongan",
+  "description": null, "type": "select", "required": false, "options": ["A", "B"],
+  "scope": "participant", "sortOrder": 0, "status": "active",
+  "createdAt": 173..., "updatedAt": 173..., "archivedAt": null
+} } }
+```
+
+- `key` harus cocok `[a-z][a-z0-9_]*`, maks 40 karakter, unik per Tema termasuk baris
+  terarsip. `PATCH` yang memuat `key`/`type` → `400 VALIDATION_ERROR`.
+- `select`/`multi_select` wajib punya opsi; tipe lain tidak boleh punya opsi.
+- Opsi > 100, field aktif ke-51, atau aktivasi field ke-51 → `422 BUSINESS_RULE`.
+- Menghapus opsi yang masih dipakai peserta → `422 BUSINESS_RULE`; menambah opsi boleh.
+- Ubah tipe mengikuti matriks ADR-0014; bila ada nilai lama yang tidak kompatibel →
+  `422 BUSINESS_RULE` dengan jumlah nilai gagal. Tidak ada pemotongan data.
+- Rename label, ubah `required`, arsip, dan ubah urutan **tidak** menyentuh
+  `participants.attributes_json` (`AC-008`).
+- Field `scope='activity'` boleh dibuat, tetapi nilainya tidak diterima di profil peserta;
+  nilai per Aktivitas/Sesi adalah Q3.
+- Audit: `custom_field.created`, `custom_field.updated`, `custom_field.type_changed`,
+  `custom_field.archived`, `custom_field.activated`. `options` tidak masuk snapshot karena
+  berisi teks bebas.
+
 ### Paginasi dan batas
 
 Q1 **belum** memaginasi daftar Aktivitas/Sesi: kedua endpoint mengembalikan seluruh baris milik Tema/Aktivitas dengan urutan deterministik (`sort_order`, `created_at`, `id` untuk Aktivitas; `starts_at` null-akhir, `created_at`, `id` untuk Sesi). Alasannya:
@@ -542,6 +655,9 @@ disaring allowlist ADR-0011 (`packages/shared/src/audit-allowlist.ts`):
 | `theme.created`, `theme.updated`, `theme.status_changed`, `theme.deleted` | Tema (`events`) |
 | `activity.created`, `activity.updated`, `activity.status_changed` | Aktivitas |
 | `session.created`, `session.updated`, `session.status_changed`, `session.archived`, `session.duplicated` | Sesi |
+| `category.created`, `category.updated`, `category.archived`, `category.activated` | Kategori |
+| `custom_field.created`, `custom_field.updated`, `custom_field.type_changed`, `custom_field.archived`, `custom_field.activated` | Custom field |
+| `participant.created`, `participant.updated`, `participant.deactivated`, `participant.imported` | Peserta |
 
 Baris audit hanya ditulis bila mutasi di batch yang sama benar-benar berhasil: helper audit
 memeriksa `updated_at` (Aktivitas/Sesi) atau `status`/keberadaan baris (Tema). Karena itu

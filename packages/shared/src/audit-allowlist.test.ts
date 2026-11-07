@@ -76,7 +76,14 @@ describe("allowlist table", () => {
     }
   });
 
-  it("covers the three Q1 entity types", () => {
-    expect(Object.keys(AUDIT_FIELDS).sort()).toEqual(["activity", "session", "theme"]);
+  it("covers every mutation entity type", () => {
+    expect(Object.keys(AUDIT_FIELDS).sort()).toEqual([
+      "activity",
+      "category",
+      "custom_field",
+      "participant",
+      "session",
+      "theme",
+    ]);
   });
 });

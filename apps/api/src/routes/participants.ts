@@ -18,18 +18,28 @@ import {
   ParticipantImportQuerySchema,
   ParticipantListQuerySchema,
   ParticipantUpdateRequestSchema,
+  filterAuditFields,
+  mergeParticipantAttributes,
+  validateParticipantAttributes,
 } from "@absensi/shared";
 
+import type { AuditEntry } from "../db/audit";
+import {
+  insertAuditAfterParticipantUpdateStatement,
+  insertAuditStatement,
+} from "../db/audit";
+import { findCategory, findCategoryByName, insertCategoryStatement, listCategories } from "../db/categories";
+import { listCustomFields, parseOptions } from "../db/custom-fields";
 import { findEventById } from "../db/events";
 import {
-  deactivateParticipant,
+  deactivateParticipantStatement,
   findExistingRefs,
   findParticipant,
   findParticipantByRef,
   insertParticipantStatement,
   listParticipants,
   listParticipantsForExport,
-  updateParticipant,
+  updateParticipantStatement,
   upsertParticipantStatement,
 } from "../db/participants";
 import type { ParticipantInput, ParticipantRow } from "../db/participants";
@@ -76,6 +86,17 @@ const ParticipantParamsSchema = z.object({
 
 const IMPORT_RATE_LIMIT = { windowMs: 60 * 60_000, limit: 10 };
 
+function parseAttributes(json: string): Record<string, unknown> {
+  try {
+    const parsed: unknown = JSON.parse(json);
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
 function toSummary(row: ParticipantRow): ParticipantSummary {
   return {
     id: row.id,
@@ -84,6 +105,8 @@ function toSummary(row: ParticipantRow): ParticipantSummary {
     phone: row.phone,
     email: row.email,
     category: row.category,
+    categoryId: row.category_id,
+    attributes: parseAttributes(row.attributes_json),
     note: row.note,
     status: row.status,
     createdAt: row.created_at,
@@ -112,12 +135,148 @@ async function requireWritableEvent(ctx: RouteContext, eventId: string): Promise
   }
 }
 
+async function participantFields(ctx: RouteContext, eventId: string) {
+  const rows = await listCustomFields(ctx.env.DB, eventId, {
+    scope: "participant",
+    status: "all",
+  });
+  return rows.map((row) => ({
+    key: row.key,
+    type: row.type,
+    required: row.required === 1,
+    options: parseOptions(row),
+    scope: row.scope,
+    status: row.status,
+  }));
+}
+
+async function resolveCategory(
+  ctx: RouteContext,
+  eventId: string,
+  categoryId: string,
+): Promise<{ id: string; name: string }> {
+  const category = await findCategory(ctx.env.DB, eventId, categoryId);
+  if (!category) throw notFound("Kategori tidak ditemukan pada acara ini");
+  if (category.status === "archived") {
+    throw businessRule("Kategori yang sudah diarsipkan tidak dapat dipakai peserta baru");
+  }
+  return { id: category.id, name: category.name };
+}
+
+/**
+ * Accepts `categoryId` (canonical) or the Q1 UI's `category` name (deprecated).
+ * A single-record write with a new name creates that category explicitly — the
+ * admin typed it. CSV imports never do this: unknown names reject the row.
+ */
+async function resolveCategoryInput(
+  ctx: RouteContext,
+  eventId: string,
+  input: { categoryId?: string; category?: string | null },
+  actorUserId: string,
+): Promise<{
+  category: { id: string; name: string };
+  createdStatement?: D1PreparedStatement;
+  createdAudit?: AuditEntry;
+}> {
+  if (input.categoryId !== undefined) {
+    return { category: await resolveCategory(ctx, eventId, input.categoryId) };
+  }
+
+  const name = (input.category ?? "").trim();
+  if (name === "") {
+    throw validationError("categoryId wajib diisi", { fieldErrors: { categoryId: ["wajib diisi"] } });
+  }
+
+  const existing = await findCategoryByName(ctx.env.DB, eventId, name);
+  if (existing) {
+    if (existing.status === "archived") {
+      throw businessRule("Kategori yang sudah diarsipkan tidak dapat dipakai peserta baru");
+    }
+    return { category: { id: existing.id, name: existing.name } };
+  }
+
+  const id = newId(ctx.now);
+  const createdStatement = insertCategoryStatement(ctx.env.DB, {
+    id,
+    themeId: eventId,
+    name,
+    description: null,
+    sortOrder: 0,
+    createdBy: actorUserId,
+    createdAt: ctx.now,
+  });
+  const createdAudit = {
+    id: newId(ctx.now),
+    eventId,
+    actorUserId,
+    action: "category.created",
+    entityType: "category",
+    entityId: id,
+    after: filterAuditFields("category", {
+      name,
+      description: null,
+      sortOrder: 0,
+      status: "active",
+      archivedAt: null,
+    }),
+    createdAt: ctx.now,
+  } satisfies AuditEntry;
+
+  return { category: { id, name }, createdStatement, createdAudit };
+}
+
+function attributeKeysChanged(
+  before: Record<string, unknown>,
+  after: Record<string, unknown>,
+): string[] {
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+  return [...keys].filter(
+    (key) => JSON.stringify(before[key]) !== JSON.stringify(after[key]),
+  );
+}
+
+function participantSnapshot(input: {
+  categoryId: string;
+  status: string;
+  attributesChanged?: string[];
+}): Record<string, unknown> | null {
+  return filterAuditFields("participant", {
+    categoryId: input.categoryId,
+    status: input.status,
+    ...(input.attributesChanged === undefined
+      ? {}
+      : { attributesChanged: input.attributesChanged }),
+  });
+}
+
+function participantAudit(
+  ctx: RouteContext,
+  authUserId: string,
+  eventId: string,
+  action: string,
+  participantId: string | null,
+  snapshots: { before?: unknown; after?: unknown },
+): AuditEntry {
+  return {
+    id: newId(ctx.now),
+    eventId,
+    actorUserId: authUserId,
+    action,
+    entityType: "participant",
+    entityId: participantId,
+    before: snapshots.before,
+    after: snapshots.after,
+    createdAt: ctx.now,
+  };
+}
+
 function buildParticipantInput(body: {
   externalRef?: string | null;
   fullName?: string;
   phone?: string | null;
   email?: string | null;
-  category?: string | null;
+  categoryId: string;
+  attributesJson?: string;
   note?: string | null;
 }): ParticipantInput {
   const phone = normalizePhone(body.phone ?? "");
@@ -135,7 +294,8 @@ function buildParticipantInput(body: {
     fullName: normalizeName(body.fullName ?? ""),
     phone: phone.value,
     email: email.value,
-    category: optionalText(body.category),
+    categoryId: body.categoryId,
+    attributesJson: body.attributesJson,
     note: optionalText(body.note),
   };
 }
@@ -191,7 +351,23 @@ async function createEventParticipant(ctx: RouteContext): Promise<RouteResult> {
   await requireWritableEvent(ctx, eventId);
 
   const body = await parseJsonBody(ctx.request, ParticipantCreateRequestSchema);
-  const input = buildParticipantInput(body);
+  const resolvedCategory = await resolveCategoryInput(ctx, eventId, body, auth.user.id);
+  const category = resolvedCategory.category;
+  const fields = await participantFields(ctx, eventId);
+  const attributes = validateParticipantAttributes(fields, body.attributes ?? {});
+  if (!attributes.ok) {
+    throw businessRule("Atribut peserta tidak valid", {
+      fieldErrors: Object.fromEntries(
+        attributes.errors.map((error) => [error.key || "attributes", [error.message]]),
+      ),
+    });
+  }
+
+  const input = buildParticipantInput({
+    ...body,
+    categoryId: category.id,
+    attributesJson: JSON.stringify(attributes.value),
+  });
 
   if (input.externalRef) {
     const duplicate = await findParticipantByRef(ctx.env.DB, eventId, input.externalRef);
@@ -201,12 +377,24 @@ async function createEventParticipant(ctx: RouteContext): Promise<RouteResult> {
   const id = newId(ctx.now);
 
   try {
-    await insertParticipantStatement(ctx.env.DB, {
-      ...input,
-      id,
-      eventId,
-      createdAt: ctx.now,
-    }).run();
+    await ctx.env.DB.batch([
+      ...(resolvedCategory.createdStatement ? [resolvedCategory.createdStatement] : []),
+      ...(resolvedCategory.createdAudit
+        ? [insertAuditStatement(ctx.env.DB, resolvedCategory.createdAudit)]
+        : []),
+      insertParticipantStatement(ctx.env.DB, {
+        ...input,
+        id,
+        eventId,
+        createdAt: ctx.now,
+      }),
+      insertAuditStatement(
+        ctx.env.DB,
+        participantAudit(ctx, auth.user.id, eventId, "participant.created", id, {
+          after: participantSnapshot({ categoryId: category.id, status: "active" }),
+        }),
+      ),
+    ]);
   } catch (error) {
     if (isUniqueViolation(error)) {
       throw conflict("external_ref sudah dipakai peserta lain di acara ini");
@@ -233,7 +421,9 @@ async function patchEventParticipant(ctx: RouteContext): Promise<RouteResult> {
 
   const body = await parseJsonBody(ctx.request, ParticipantUpdateRequestSchema);
 
-  const update: Parameters<typeof updateParticipant>[3] = {};
+  const update: Parameters<typeof updateParticipantStatement>[1]["update"] = {};
+  let createdCategoryStatement: D1PreparedStatement | undefined;
+  let createdCategoryAudit: AuditEntry | undefined;
 
   if (body.externalRef !== undefined) {
     update.externalRef = optionalText(body.externalRef);
@@ -255,7 +445,30 @@ async function patchEventParticipant(ctx: RouteContext): Promise<RouteResult> {
     }
     update.email = email.value;
   }
-  if (body.category !== undefined) update.category = optionalText(body.category);
+  const hasCategoryName =
+    body.category !== undefined && body.category !== null && body.category.trim() !== "";
+  if (body.categoryId !== undefined || hasCategoryName) {
+    const resolved = await resolveCategoryInput(ctx, eventId, body, auth.user.id);
+    update.categoryId = resolved.category.id;
+    createdCategoryStatement = resolved.createdStatement;
+    createdCategoryAudit = resolved.createdAudit;
+  }
+  if (body.attributes !== undefined) {
+    const fields = await participantFields(ctx, eventId);
+    const merged = mergeParticipantAttributes(
+      parseAttributes(existing.attributes_json),
+      body.attributes,
+      fields,
+    );
+    if (!merged.ok) {
+      throw businessRule("Atribut peserta tidak valid", {
+        fieldErrors: Object.fromEntries(
+          merged.errors.map((error) => [error.key || "attributes", [error.message]]),
+        ),
+      });
+    }
+    update.attributesJson = JSON.stringify(merged.value);
+  }
   if (body.note !== undefined) update.note = optionalText(body.note);
   if (body.status !== undefined) update.status = body.status;
 
@@ -271,8 +484,52 @@ async function patchEventParticipant(ctx: RouteContext): Promise<RouteResult> {
     }
   }
 
+  const nextAttributes =
+    update.attributesJson === undefined
+      ? parseAttributes(existing.attributes_json)
+      : parseAttributes(update.attributesJson);
+  const attributesChanged = attributeKeysChanged(
+    parseAttributes(existing.attributes_json),
+    nextAttributes,
+  );
+
   try {
-    await updateParticipant(ctx.env.DB, eventId, participantId, update, ctx.now);
+    const prefixStatements: D1PreparedStatement[] = [];
+    if (createdCategoryStatement) prefixStatements.push(createdCategoryStatement);
+    if (createdCategoryAudit) {
+      prefixStatements.push(insertAuditStatement(ctx.env.DB, createdCategoryAudit));
+    }
+
+    const results = await ctx.env.DB.batch([
+      ...prefixStatements,
+      updateParticipantStatement(ctx.env.DB, {
+        eventId,
+        participantId,
+        update,
+        now: ctx.now,
+        expectedUpdatedAt: existing.updated_at,
+      }),
+      insertAuditAfterParticipantUpdateStatement(
+        ctx.env.DB,
+        participantAudit(ctx, auth.user.id, eventId, "participant.updated", participantId, {
+          before: participantSnapshot({
+            categoryId: existing.category_id,
+            status: existing.status,
+          }),
+          after: participantSnapshot({
+            categoryId: update.categoryId ?? existing.category_id,
+            status: update.status ?? existing.status,
+            attributesChanged,
+          }),
+        }),
+        participantId,
+        ctx.now,
+      ),
+    ]);
+
+    if ((results[prefixStatements.length]?.meta.changes ?? 0) === 0) {
+      throw conflict("Peserta berubah di perangkat lain. Muat ulang lalu coba lagi.");
+    }
   } catch (error) {
     if (isUniqueViolation(error)) {
       throw conflict("external_ref sudah dipakai peserta lain di acara ini");
@@ -298,8 +555,33 @@ async function deactivateEventParticipant(ctx: RouteContext): Promise<RouteResul
   // must say so explicitly. A stray DELETE from a client cannot deactivate.
   await parseJsonBody(ctx.request, ParticipantDeleteRequestSchema);
 
-  const changes = await deactivateParticipant(ctx.env.DB, eventId, participantId, ctx.now);
-  if (changes === 0) throw notFound("Peserta tidak ditemukan pada acara ini");
+  const existing = await findParticipant(ctx.env.DB, eventId, participantId);
+  if (!existing) throw notFound("Peserta tidak ditemukan pada acara ini");
+
+  const results = await ctx.env.DB.batch([
+    deactivateParticipantStatement(ctx.env.DB, {
+      eventId,
+      participantId,
+      now: ctx.now,
+      expectedUpdatedAt: existing.updated_at,
+    }),
+    insertAuditAfterParticipantUpdateStatement(
+      ctx.env.DB,
+      participantAudit(ctx, auth.user.id, eventId, "participant.deactivated", participantId, {
+        before: participantSnapshot({
+          categoryId: existing.category_id,
+          status: existing.status,
+        }),
+        after: participantSnapshot({ categoryId: existing.category_id, status: "inactive" }),
+      }),
+      participantId,
+      ctx.now,
+    ),
+  ]);
+
+  if ((results[0]?.meta.changes ?? 0) === 0) {
+    throw notFound("Peserta tidak ditemukan pada acara ini");
+  }
 
   const payload = { deleted: true as const, status: "inactive" as const };
   return { data: payload };
@@ -426,17 +708,34 @@ async function importEventParticipants(ctx: RouteContext): Promise<RouteResult> 
     throw error;
   }
 
-  const refs = parsed.rows
+  const categories = await listCategories(ctx.env.DB, eventId, "active");
+  const byName = new Map(categories.map((category) => [category.name.toLowerCase(), category]));
+
+  const invalid = [...parsed.invalid];
+  const resolved = parsed.rows.flatMap((row) => {
+    const category = byName.get(row.category.toLowerCase());
+    if (!category) {
+      invalid.push({
+        line: row.line,
+        reason: `kategori "${row.category}" tidak ditemukan`,
+      });
+      return [];
+    }
+    return [{ ...row, categoryId: category.id, categoryName: category.name }];
+  });
+
+  const refs = resolved
     .map((row) => row.externalRef)
     .filter((ref): ref is string => ref !== null);
   const existing = await findExistingRefs(ctx.env.DB, eventId, refs);
 
-  const previewRows: ImportPreviewRow[] = parsed.rows.map((row) => ({
+  const previewRows: ImportPreviewRow[] = resolved.map((row) => ({
     line: row.line,
     externalRef: row.externalRef,
     fullName: row.fullName,
     phone: row.phone,
-    category: row.category,
+    category: row.categoryName,
+    categoryId: row.categoryId,
     action: row.externalRef && existing.has(row.externalRef) ? "update" : "create",
   }));
 
@@ -447,23 +746,23 @@ async function importEventParticipants(ctx: RouteContext): Promise<RouteResult> 
     const payload: ParticipantImportPayload = {
       dryRun: true,
       total: parsed.total,
-      valid: parsed.rows.length,
+      valid: resolved.length,
       created,
       updated,
-      invalid: parsed.invalid,
+      invalid,
       sample: previewRows.slice(0, 10),
     };
     return { data: payload };
   }
 
-  if (parsed.rows.length > 0) {
-    const statements = parsed.rows.map((row) => {
+  if (resolved.length > 0) {
+    const statements = resolved.map((row) => {
       const input: ParticipantInput = {
         externalRef: row.externalRef,
         fullName: row.fullName,
         phone: row.phone,
         email: row.email,
-        category: row.category,
+        categoryId: row.categoryId,
         note: row.note,
       };
       const id = newId(ctx.now);
@@ -485,8 +784,26 @@ async function importEventParticipants(ctx: RouteContext): Promise<RouteResult> 
           });
     });
 
+    // One summary audit row per request instead of one per participant: import
+    // writes thousands of rows and the write budget is real.
+    const audit = participantAudit(
+      ctx,
+      auth.user.id,
+      eventId,
+      "participant.imported",
+      null,
+      {
+        after: {
+          total: parsed.total,
+          created,
+          updated,
+          skipped: invalid.length,
+        },
+      },
+    );
+
     try {
-      await ctx.env.DB.batch(statements);
+      await ctx.env.DB.batch([...statements, insertAuditStatement(ctx.env.DB, audit)]);
     } catch (error) {
       if (isUniqueViolation(error)) {
         throw conflict("Import bentrok dengan perubahan lain. Muat ulang lalu coba lagi.");
@@ -498,11 +815,11 @@ async function importEventParticipants(ctx: RouteContext): Promise<RouteResult> 
   const payload: ParticipantImportPayload = {
     dryRun: false,
     total: parsed.total,
-    valid: parsed.rows.length,
+    valid: resolved.length,
     created,
     updated,
-    skipped: parsed.invalid.length,
-    invalid: parsed.invalid,
+    skipped: invalid.length,
+    invalid,
   };
 
   return { data: payload };
