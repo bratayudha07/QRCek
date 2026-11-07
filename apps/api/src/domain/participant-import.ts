@@ -20,7 +20,7 @@ export const PARTICIPANT_CSV_HEADERS = [
 ] as const;
 
 const ALLOWED_HEADERS = new Set<string>(PARTICIPANT_CSV_HEADERS);
-const REQUIRED_HEADERS = ["full_name"] as const;
+const REQUIRED_HEADERS = ["full_name", "category"] as const;
 
 export interface ValidParticipantRow {
   line: number;
@@ -28,7 +28,7 @@ export interface ValidParticipantRow {
   fullName: string;
   phone: string | null;
   email: string | null;
-  category: string | null;
+  category: string;
   note: string | null;
 }
 
@@ -188,7 +188,9 @@ export function parseParticipantCsv(text: string): ParticipantCsvResult {
     if (email.error) errors.push(email.error);
 
     const category = optional(cell("category"));
-    if (category !== null && category.length > 60) {
+    if (category === null) {
+      errors.push("category wajib diisi");
+    } else if (category.length > 60) {
       errors.push("category maksimal 60 karakter");
     }
 
@@ -228,7 +230,7 @@ export function parseParticipantCsv(text: string): ParticipantCsvResult {
       fullName,
       phone: phone.value,
       email: email.value,
-      category,
+      category: category as string,
       note,
     });
   }

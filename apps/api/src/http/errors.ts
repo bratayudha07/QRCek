@@ -38,8 +38,8 @@ export function conflict(message = "Terjadi konflik data"): ApiError {
   return new ApiError(409, "CONFLICT", message);
 }
 
-export function businessRule(message: string): ApiError {
-  return new ApiError(422, "BUSINESS_RULE", message);
+export function businessRule(message: string, details?: unknown): ApiError {
+  return new ApiError(422, "BUSINESS_RULE", message, details);
 }
 
 export function rateLimited(retryAfterSeconds: number): ApiError {

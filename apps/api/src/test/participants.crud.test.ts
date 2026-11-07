@@ -54,7 +54,7 @@ async function addParticipant(
 ): Promise<ParticipantDetailPayload["participant"]> {
   const response = await callApi(`/api/events/${eventId}/participants`, {
     cookie,
-    body: { fullName: "Budi Santoso", ...overrides },
+    body: { fullName: "Budi Santoso", category: "Kelas Uji", ...overrides },
   });
 
   if (response.status !== 201) {
@@ -123,11 +123,28 @@ describe("POST /api/events/:id/participants", () => {
 
     const response = await callApi(`/api/events/${w.eventA}/participants`, {
       cookie: w.adminA.cookie,
-      body: { fullName: "Peserta Lain", externalRef: "NIS-1" },
+      body: { fullName: "Peserta Lain", externalRef: "NIS-1", category: "Kelas Uji" },
     });
 
     expect(response.status).toBe(409);
     expect(errorCode(response)).toBe("CONFLICT");
+  });
+
+  it("rejects a client-supplied id instead of changing it", async () => {
+    const w = await world();
+    const participant = await addParticipant(w.eventA, w.adminA.cookie);
+
+    const response = await callApi(
+      `/api/events/${w.eventA}/participants/${participant.id}`,
+      {
+        cookie: w.adminA.cookie,
+        method: "PATCH",
+        body: { id: "peserta-palsu", fullName: "Nama Baru" },
+      },
+    );
+
+    expect(response.status).toBe(400);
+    expect(errorCode(response)).toBe("VALIDATION_ERROR");
   });
 
   it("allows the same external_ref in a different event", async () => {
@@ -298,7 +315,7 @@ describe("participant detail, edit, and controlled delete", () => {
       {
         cookie: w.adminA.cookie,
         method: "PATCH",
-        body: { fullName: "Budi Baru", phone: null, category: null },
+        body: { fullName: "Budi Baru", phone: null, category: "Kelas 6B" },
       },
     );
 
@@ -308,7 +325,7 @@ describe("participant detail, edit, and controlled delete", () => {
     expect(body.data.participant).toMatchObject({
       fullName: "Budi Baru",
       phone: null,
-      category: null,
+      category: "Kelas 6B",
     });
 
     await callApi(`/api/events/${w.eventA}/participants/${participant.id}`, {

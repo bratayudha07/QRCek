@@ -10,13 +10,11 @@ import type {
 import {
   ActivateRequestSchema,
   RecoverRequestSchema,
-  RegisterRequestSchema,
   SessionIdSchema,
 } from "@absensi/shared";
 
 import type { MembershipRow, UserRow } from "../db/users";
 import {
-  insertUserStatement,
   listActiveMemberships,
   updateUserRoleStatement,
   upsertMembershipStatement,
@@ -57,11 +55,10 @@ import {
   sessionCookie,
   SESSION_TTL_SECONDS,
 } from "../http/cookies";
-import { ApiError, notFound, rateLimited, unauthenticated } from "../http/errors";
+import { notFound, rateLimited, unauthenticated } from "../http/errors";
 import type { RouteContext, RouteDefinition, RouteResult } from "../http/router";
 import { clientIpHash } from "../http/security";
 import { parseJsonBody, parsePathParams } from "../http/validate";
-import { verifyTurnstile } from "../integrations/turnstile";
 
 /**
  * Auth surface (DESAIN_API.md §2).
@@ -73,8 +70,6 @@ import { verifyTurnstile } from "../integrations/turnstile";
 
 const ACTIVATE_LIMIT = { windowMs: 15 * 60_000, limit: 10 };
 const RECOVER_LIMIT = { windowMs: 15 * 60_000, limit: 5 };
-/** Public registration: enough for a real person, too little for a script. */
-const REGISTER_LIMIT = { windowMs: 60 * 60_000, limit: 5 };
 
 const SessionParamsSchema = z.object({ sessionId: SessionIdSchema });
 
@@ -261,81 +256,6 @@ async function activate(ctx: RouteContext): Promise<RouteResult> {
   return { data: payload, headers: sessionHeaders(ctx, issued.sessionToken) };
 }
 
-/**
- * ADR-007: public self-service registration.
- *
- * Creates an `event_admin` account scoped to events it creates itself — never a
- * superadmin, and never a membership in someone else's event. The response is
- * identical in shape to activation: a session cookie plus a one-time recovery
- * code, because there is no password and no email to fall back on.
- */
-async function register(ctx: RouteContext): Promise<RouteResult> {
-  const ipHash = await clientIpHash(ctx.request, ctx.env.SESSION_PEPPER);
-  const limit = await consumeRateLimit(ctx.env.DB, {
-    bucket: `auth:register:${ipHash}`,
-    now: ctx.now,
-    ...REGISTER_LIMIT,
-  });
-  if (!limit.allowed) throw rateLimited(limit.retryAfterSeconds);
-
-  const body = await parseJsonBody(ctx.request, RegisterRequestSchema);
-
-  // Bot gate runs before the first write. Missing secret means the deployment
-  // has not configured Turnstile; the D1 rate limit is then the only gate.
-  const turnstileSecret = (ctx.env.TURNSTILE_SECRET_KEY ?? "").trim();
-  if (turnstileSecret !== "") {
-    const check = await verifyTurnstile({
-      secret: turnstileSecret,
-      token: body.turnstileToken ?? "",
-    });
-
-    if (!check.success) {
-      // Cloudflare's reason codes ("invalid-input-secret", "timeout-or-duplicate",
-      // "hostname-mismatch"…) are the only way to tell a wrong secret from a
-      // replayed token. They carry no PII and no credential, so they are safe to
-      // log; the token and the secret never are.
-      console.warn("turnstile_rejected", { codes: check.errorCodes });
-
-      throw new ApiError(
-        400,
-        "TURNSTILE_FAILED",
-        "Verifikasi anti-bot gagal. Muat ulang halaman lalu coba lagi.",
-      );
-    }
-  }
-
-  const userId = newId(ctx.now);
-  const issued = await issueSessionStatements(ctx, userId, body.label ?? null);
-
-  await ctx.env.DB.batch([
-    insertUserStatement(ctx.env.DB, {
-      id: userId,
-      displayName: body.displayName,
-      role: "event_admin",
-      createdAt: ctx.now,
-      createdBy: null,
-      createdVia: "self_signup",
-    }),
-    ...issued.statements,
-  ]);
-
-  const user = await ctx.env.DB.prepare(
-    "SELECT id, display_name, role, status FROM users WHERE id = ?",
-  )
-    .bind(userId)
-    .first<UserRow>();
-
-  if (!user) throw unauthenticated("Akun tidak ditemukan");
-
-  const payload: ActivatePayload = {
-    user: toUserSummary(user),
-    memberships: [],
-    recoveryCode: issued.recoveryCode,
-  };
-
-  return { status: 201, data: payload, headers: sessionHeaders(ctx, issued.sessionToken) };
-}
-
 async function recover(ctx: RouteContext): Promise<RouteResult> {
   const ipHash = await clientIpHash(ctx.request, ctx.env.SESSION_PEPPER);
   const limit = await consumeRateLimit(ctx.env.DB, {
@@ -476,7 +396,6 @@ async function rotateRecoveryCode(ctx: RouteContext): Promise<RouteResult> {
 
 export const authRoutes: readonly RouteDefinition[] = [
   { method: "POST", pattern: "/api/auth/activate", public: true, handler: activate },
-  { method: "POST", pattern: "/api/auth/register", public: true, handler: register },
   { method: "POST", pattern: "/api/auth/recover", public: true, handler: recover },
   { method: "GET", pattern: "/api/auth/me", public: false, handler: me },
   { method: "POST", pattern: "/api/auth/logout", public: false, handler: logout },

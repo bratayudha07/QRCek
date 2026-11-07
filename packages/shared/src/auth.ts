@@ -20,7 +20,7 @@ export interface MePayload {
   memberships: MembershipSummary[];
 }
 
-/** `POST /api/auth/activate`, `POST /api/auth/recover`, `POST /api/auth/register` */
+/** `POST /api/auth/activate`, `POST /api/auth/recover` */
 export interface ActivatePayload {
   user: UserSummary;
   memberships: MembershipSummary[];

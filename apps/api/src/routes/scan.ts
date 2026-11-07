@@ -20,7 +20,7 @@ import { clientIpHash } from "../http/security";
 import { parseJsonBody, parsePathParams } from "../http/validate";
 
 /**
- * QR scan (DESAIN_API.md §6, AGENTS.md §Integritas data).
+ * QR scan (DESAIN_API.md §7, AGENTS.md §Integritas data).
  *
  * The QR payload is only a lookup key. Authorization comes from the session and
  * the event membership; the payload never names a participant, an event, or a

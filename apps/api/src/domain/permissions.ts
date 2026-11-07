@@ -17,6 +17,10 @@ export type Action =
   | "participant:read"
   | "participant:write"
   | "participant:import"
+  | "category:read"
+  | "category:write"
+  | "custom_field:read"
+  | "custom_field:write"
   | "qr:print"
   | "scan"
   | "recap:read"
@@ -43,6 +47,10 @@ const MIN_MEMBERSHIP: Record<Action, EventRole | null> = {
   "participant:read": "officer",
   "participant:write": "event_admin",
   "participant:import": "event_admin",
+  "category:read": "officer",
+  "category:write": "event_admin",
+  "custom_field:read": "officer",
+  "custom_field:write": "event_admin",
   "qr:print": "event_admin",
   scan: "officer",
   "recap:read": "officer",

@@ -19,6 +19,10 @@ const EXPECTED: Record<Action, { superadmin: boolean; eventAdmin: boolean; offic
   "participant:read": { superadmin: true, eventAdmin: true, officer: true },
   "participant:write": { superadmin: true, eventAdmin: true, officer: false },
   "participant:import": { superadmin: true, eventAdmin: true, officer: false },
+  "category:read": { superadmin: true, eventAdmin: true, officer: true },
+  "category:write": { superadmin: true, eventAdmin: true, officer: false },
+  "custom_field:read": { superadmin: true, eventAdmin: true, officer: true },
+  "custom_field:write": { superadmin: true, eventAdmin: true, officer: false },
   "qr:print": { superadmin: true, eventAdmin: true, officer: false },
   scan: { superadmin: true, eventAdmin: true, officer: true },
   "recap:read": { superadmin: true, eventAdmin: true, officer: true },
@@ -60,7 +64,7 @@ describe("authorization matrix", () => {
     }
   });
 
-  /** ADR-007: self-registered admins must be able to start their own event. */
+  /** ADR-0013: an invited admin can still start its own Tema. */
   it("lets a global event_admin create an event without any membership", () => {
     expect(isAllowed({ role: "event_admin", action: "event:create", membershipRole: null })).toBe(
       true,

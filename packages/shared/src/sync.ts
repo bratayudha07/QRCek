@@ -1,4 +1,4 @@
-/** Google Sheets sync contracts (DESAIN_API.md §8). */
+/** Google Sheets sync contracts (DESAIN_API.md §9). */
 
 export const OUTBOX_STATUSES = ["pending", "inflight", "done", "failed", "dead"] as const;
 export type OutboxStatus = (typeof OUTBOX_STATUSES)[number];

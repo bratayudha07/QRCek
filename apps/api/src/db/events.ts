@@ -116,11 +116,11 @@ export interface EventUpdate {
   allowManual?: boolean;
 }
 
-export async function updateEvent(
+export function updateEventStatement(
   db: D1Database,
   eventId: string,
   update: EventUpdate,
-): Promise<number> {
+): D1PreparedStatement {
   const sets: string[] = [];
   const values: Array<string | number | null> = [];
 
@@ -149,52 +149,44 @@ export async function updateEvent(
     values.push(update.allowManual ? 1 : 0);
   }
 
-  if (sets.length === 0) return 0;
+  if (sets.length === 0) {
+    throw new Error("updateEventStatement: empty update");
+  }
 
   values.push(eventId);
-  const result = await db
-    .prepare(`UPDATE events SET ${sets.join(", ")} WHERE id = ?`)
-    .bind(...values)
-    .run();
-
-  return result.meta.changes;
+  return db.prepare(`UPDATE events SET ${sets.join(", ")} WHERE id = ?`).bind(...values);
 }
 
-export async function updateEventStatus(
+export function updateEventStatusStatement(
   db: D1Database,
   eventId: string,
   status: EventStatus,
   now: number,
-): Promise<number> {
+): D1PreparedStatement {
   const archivedAt = status === "archived" ? now : null;
-  const result = await db
+  return db
     .prepare("UPDATE events SET status = ?, archived_at = ? WHERE id = ?")
-    .bind(status, archivedAt, eventId)
-    .run();
-
-  return result.meta.changes;
+    .bind(status, archivedAt, eventId);
 }
 
 /**
  * Hard delete is limited to an empty draft. The condition lives in SQL so a
- * participant inserted concurrently cannot be cascaded away between a check
- * and a delete.
+ * participant or activity inserted concurrently cannot be cascaded away
+ * between a check and a delete.
  */
-export async function deleteEmptyDraft(
+export function deleteEmptyDraftStatement(
   db: D1Database,
   eventId: string,
-): Promise<number> {
-  const result = await db
+): D1PreparedStatement {
+  return db
     .prepare(
       `DELETE FROM events
         WHERE id = ?
           AND status = 'draft'
-          AND NOT EXISTS (SELECT 1 FROM participants p WHERE p.event_id = events.id)`,
+          AND NOT EXISTS (SELECT 1 FROM participants p WHERE p.event_id = events.id)
+          AND NOT EXISTS (SELECT 1 FROM activities a WHERE a.theme_id = events.id)`,
     )
-    .bind(eventId)
-    .run();
-
-  return result.meta.changes;
+    .bind(eventId);
 }
 
 export async function countParticipantsByStatus(

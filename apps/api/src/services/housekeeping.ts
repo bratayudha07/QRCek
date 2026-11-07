@@ -7,7 +7,7 @@ import type { Env } from "../env";
  *
  * `rate_limits` gains one row per (bucket, window) and `sessions` gains one row
  * per login; neither is ever deleted by a user request. Cron runs this every
- * five minutes (DESAIN_API.md §11), so the sweep must stay bounded: 500 rows
+ * five minutes (DESAIN_API.md §12), so the sweep must stay bounded: 500 rows
  * per category per tick is far below the free-tier write budget and still
  * drains a backlog within a day.
  *

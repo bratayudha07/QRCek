@@ -16,7 +16,7 @@ Anda adalah security auditor untuk **QRCek**. Acuan: `AGENTS.md` §Integritas da
 
 1. **Auth & sesi** (ADR-0002) — cookie `absensi_session` (`HttpOnly`, `SameSite=Lax`, `Secure` di HTTPS); D1 hanya menyimpan HMAC-SHA256 token; tidak ada token mentah di DB/log/frontend; entropi ≥ 100 bit.
 2. **CSRF** — semua non-GET wajib `X-Absensi-Csrf: 1` dan `Origin` cocok, dicek sebelum routing.
-3. **Secret** — `SESSION_PEPPER`, `QR_PEPPER`, `QR_ENCRYPTION_KEY`, `QR_KEY_VERSION`, `GOOGLE_SA_KEY`, `TURNSTILE_SECRET_KEY` tidak di bundle frontend dan tidak di-commit.
+3. **Secret** — `SESSION_PEPPER`, `QR_PEPPER`, `QR_ENCRYPTION_KEY`, `QR_KEY_VERSION`, `GOOGLE_SA_KEY` tidak di bundle frontend dan tidak di-commit.
 4. **QR** (ADR-0003, ADR-0006, `D-004` [A]) — payload opaque `absensi:v1:<token>` tanpa PII; hash untuk lookup + ciphertext untuk cetak ulang; lookup di-scope ke Tema/acara konteks; rotasi membatalkan token lama dan tercatat di audit; data token hanya untuk konteks berwenang (`FR-200`).
 5. **Otorisasi** — dievaluasi di Worker setiap route; cek kepemilikan Tema/acara dan penugasan Petugas eksplisit; URL tidak memberi otorisasi (`FR-190`); 404 untuk resource Tema/acara lain.
 6. **Konteks transaksi** — peserta, petugas, Aktivitas, dan Sesi di Tema yang sama; Sesi milik Aktivitas; lifecycle diperiksa backend.

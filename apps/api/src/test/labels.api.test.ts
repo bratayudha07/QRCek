@@ -100,7 +100,11 @@ async function audits(eventId: string): Promise<AuditRow[]> {
 describe("POST /participants/qr-labels", () => {
   it("issues a credential for every active participant and stores only encrypted data", async () => {
     const { eventA, adminA } = await world();
-    const first = await createParticipant(eventA, { fullName: "Siti", externalRef: "A-1" });
+    const first = await createParticipant(eventA, {
+      fullName: "Siti",
+      externalRef: "A-1",
+      category: "Kelas 7",
+    });
     await createParticipant(eventA, { fullName: "Budi", category: "Kelas 7" });
 
     expect((await credentialOf(first.id))?.qr_token_hash).toBeNull();
@@ -139,7 +143,7 @@ describe("POST /participants/qr-labels", () => {
     const siti = payload.data.labels.find((label) => label.participantId === first.id);
     expect(siti?.values.fullName).toBe("Siti");
     expect(siti?.values.externalRef).toBe("A-1");
-    expect(siti?.values.category).toBeUndefined();
+    expect(siti?.values.category).toBe("Kelas 7");
   });
 
   it("rejects unauthenticated, under-privileged, and cross-event callers", async () => {
@@ -425,7 +429,10 @@ describe("label configuration", () => {
     const payload = response.json<QrLabelPayload>();
     if (!payload.ok) throw new Error("expected success");
 
-    expect(payload.data.labels[0]?.values).toEqual({ fullName: "Siti" });
+    expect(payload.data.labels[0]?.values).toEqual({
+      fullName: "Siti",
+      category: "Kelas Uji",
+    });
   });
 
   it("rejects unsupported fields, duplicates, and more than four fields", async () => {

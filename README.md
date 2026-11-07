@@ -84,9 +84,9 @@ Dua lapis, dipisah tegas: **secret Worker tidak pernah masuk bundle frontend**.
 
 | Lapis | File | Isi | Git |
 |---|---|---|---|
-| Worker (secret) | `apps/api/.dev.vars` | `SESSION_PEPPER`, `QR_PEPPER`, `QR_ENCRYPTION_KEY`, `QR_KEY_VERSION`, `GOOGLE_SA_KEY`, `TURNSTILE_SECRET_KEY` | **tidak** di-commit |
+| Worker (secret) | `apps/api/.dev.vars` | `SESSION_PEPPER`, `QR_PEPPER`, `QR_ENCRYPTION_KEY`, `QR_KEY_VERSION`, `GOOGLE_SA_KEY` | **tidak** di-commit |
 | Worker (contoh) | `.dev.vars.example` | daftar kunci dengan nilai kosong | di-commit |
-| Web (publik) | `apps/web/.env.local` | `VITE_API_BASE_URL`, `VITE_TURNSTILE_SITE_KEY` | **tidak** di-commit |
+| Web (publik) | `apps/web/.env.local` | `VITE_API_BASE_URL` (opsional) | **tidak** di-commit |
 | Web (contoh) | `apps/web/.env.example` | dokumentasi variabel | di-commit |
 
 `VITE_API_BASE_URL` **kosong secara default** dan itu memang yang diinginkan: SPA dan Worker berbagi origin (ADR-001), jadi tidak ada URL production yang di-hardcode. Isi hanya kalau frontend benar-benar disajikan dari origin lain (mis. preview ke Worker staging).
@@ -199,39 +199,54 @@ Detail lingkungan dan hasil pengukuran: `docs/OPERASIONAL.md`.
 
 ## Deploy
 
-Repo ini terhubung ke Cloudflare lewat **Git integration (Workers Builds)**:
-setiap push ke `main` di [`github.com/bratayudha07/QRCek`](https://github.com/bratayudha07/QRCek)
-memicu build + deploy otomatis. Worker produksi:
-[`qrcek.hamdirobbi5.workers.dev`](https://qrcek.hamdirobbi5.workers.dev).
+Deploy produksi memakai **GitHub Actions**, bukan Workers Builds. Hanya push ke `main`
+(atau `workflow_dispatch` dari `main`) yang boleh deploy:
 
-Pengaturan build yang harus cocok dengan struktur monorepo (Settings → Build di dashboard):
+| Workflow | Trigger | Tugas |
+|---|---|---|
+| `.github/workflows/ci.yml` | Pull request | `typecheck` → `lint` → `test` → `build` |
+| `.github/workflows/deploy.yml` | Push/`workflow_dispatch` di `main` | Verifikasi yang sama, lalu `wrangler deploy` |
+| `.github/workflows/migrate.yml` | `workflow_dispatch` di `main` | `wrangler d1 migrations apply absensi-db --remote` (manual, dengan approval) |
 
-| Setelan | Nilai |
-|---|---|
-| Branch produksi | `main` |
-| Root directory | `apps/api` (lokasi `wrangler.jsonc`) |
-| Build command | `cd ../.. && npm ci && npm run build` — memasang workspace **dan** menghasilkan `apps/web/dist` sebelum deploy |
-| Deploy command | `npx wrangler deploy` (default) |
+Worker produksi: [`qrcek.hamdirobbi5.workers.dev`](https://qrcek.hamdirobbi5.workers.dev).
 
-Tanpa langkah build web, `assets.directory` (`../web/dist`) kosong dan situs tampil 404
-walau build hijau.
+### Setup sekali
 
-> Kalau dashboard memakai **root directory = root repo** (bukan `apps/api`), ganti deploy
-> command menjadi `npx wrangler deploy --config apps/api/wrangler.jsonc`; build command cukup
-> `npm ci && npm run build`. Dua susunan ini setara — yang penting build menghasilkan
-> `apps/web/dist` sebelum deploy.
+1. **Putuskan Workers Builds** di dashboard Cloudflare (Worker → Settings → Build) agar tidak
+   ada dua deployer. Kalau tidak dimatikan, push ke `main` bisa deploy dua kali.
+2. Set repo secret dan variable (nilai tidak pernah masuk repo):
 
-**Yang tidak dilakukan otomatis oleh deploy Git:**
+   ```bash
+   gh secret set CLOUDFLARE_API_TOKEN      # token dengan izin Workers Scripts:Edit + D1:Edit
+   gh secret set CLOUDFLARE_ACCOUNT_ID
+   ```
 
-- **Migrasi D1 tidak dijalankan.** Deploy hanya mengunggah kode. Setelah perubahan skema,
-  jalankan `npm run db:migrate:remote` secara sadar (butuh konfirmasi pemilik proyek).
-  Urutannya: migrasi dulu, baru kode yang bergantung padanya.
+   Tidak ada `VITE_*` wajib saat ini. Bila nanti ditambah, nilainya harus publik dan diatur
+   sebagai repo variable/build environment.
+
+3. Opsional: buat GitHub Environment bernama `production` dan tambahkan required reviewers.
+   Workflow deploy dan migrate sudah memakai environment itu; tanpa proteksi, deploy dari
+   `main` berjalan otomatis setelah verifikasi hijau.
+
+### Urutan rilis saat skema berubah
+
+1. Jalankan **Migrate D1** dari `main` (Actions → Migrate D1 → Run workflow), setujui environment.
+2. Jalankan **Deploy** dari `main` (otomatis lewat push, atau `workflow_dispatch`).
+
+Jangan menerapkan migrasi yang mengubah kontrak tabel lebih dulu tanpa kode yang cocok:
+Worker lama tetap melayani request sampai deploy selesai. Untuk `0008`, trigger kategori
+membuat Worker lama gagal membuat peserta, jadi migrasi dan deploy harus berdekatan
+(`docs/IMPLEMENTATION_ROADMAP.md` Q2).
+
+**Yang tidak dilakukan otomatis oleh deploy:**
+
+- **Migrasi D1 tidak ikut deploy.** Workflow `migrate.yml` terpisah dan manual.
 - **Secret tidak ikut ter-deploy.** `SESSION_PEPPER`, `QR_PEPPER`, `QR_ENCRYPTION_KEY`,
-  `QR_KEY_VERSION`, `GOOGLE_SA_KEY`, `TURNSTILE_SECRET_KEY` tetap lewat
+  `QR_KEY_VERSION`, `GOOGLE_SA_KEY` tetap lewat
   `npx wrangler secret put <NAMA>` dari `apps/api`. Jangan menampilkan atau mencatat nilainya.
-- **`VITE_TURNSTILE_SITE_KEY` harus ada di build environment** Cloudflare (Settings → Build →
-  Variables and Secrets) kalau Turnstile dipakai; kalau tidak, bundle frontend ter-build tanpa
-  site key.
+- **Tidak ada variabel build frontend yang wajib.** `VITE_API_BASE_URL` kosong secara default
+  karena SPA dan Worker berbagi origin. Bila suatu saat menambah `VITE_*`, nilainya harus
+  publik dan diatur sebagai repo variable / build environment.
 
 Deploy manual tetap mungkin sebagai fallback:
 

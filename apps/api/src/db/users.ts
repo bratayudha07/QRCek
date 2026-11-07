@@ -13,32 +13,6 @@ export interface MembershipRow {
   role: EventRole;
 }
 
-export interface InsertUserInput {
-  id: string;
-  displayName: string;
-  role: Role;
-  createdAt: number;
-  createdBy?: string | null;
-  /** ADR-007. Defaults to `invite` — the pre-existing path. */
-  createdVia?: "seed" | "invite" | "self_signup";
-}
-
-export function insertUserStatement(db: D1Database, input: InsertUserInput): D1PreparedStatement {
-  return db
-    .prepare(
-      `INSERT INTO users (id, display_name, role, status, created_at, created_by, created_via)
-       VALUES (?, ?, ?, 'active', ?, ?, ?)`,
-    )
-    .bind(
-      input.id,
-      input.displayName,
-      input.role,
-      input.createdAt,
-      input.createdBy ?? null,
-      input.createdVia ?? "invite",
-    );
-}
-
 /**
  * Re-inviting a previously revoked member must revive the same row: the table
  * has a unique `(event_id, user_id)` constraint, so a plain INSERT would fail

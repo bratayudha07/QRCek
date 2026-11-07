@@ -10,7 +10,7 @@ import { testEnv } from "./env";
 
 /**
  * Fase 6 operational surface: readiness probe, usage snapshot, and the security
- * headers that must ride on every response (DESAIN_API.md §9, ADR-008).
+ * headers that must ride on every response (DESAIN_API.md §10, ADR-008).
  */
 
 describe("GET /api/health/ready", () => {

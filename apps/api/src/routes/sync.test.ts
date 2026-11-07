@@ -7,7 +7,7 @@ import { testEnv } from "../test/env";
 import { TEST_NOW, callApi, errorCode } from "../test/http";
 
 /**
- * Manual Sheets sync (DESAIN_API.md §8, §10).
+ * Manual Sheets sync (DESAIN_API.md §9, §11).
  *
  * The queue is empty in these tests, so `processOutbox` returns before it
  * builds a Google client: no test reaches the network.

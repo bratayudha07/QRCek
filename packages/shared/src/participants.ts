@@ -8,7 +8,11 @@ export interface ParticipantSummary {
   fullName: string;
   phone: string | null;
   email: string | null;
+  /** Display name of `categoryId` (legacy clients read this). */
   category: string | null;
+  categoryId: string;
+  /** Participant-scoped custom field values, keyed by `custom_fields.key`. */
+  attributes: Record<string, unknown>;
   note: string | null;
   status: ParticipantStatus;
   createdAt: number;
@@ -40,6 +44,7 @@ export interface ImportPreviewRow {
   fullName: string;
   phone: string | null;
   category: string | null;
+  categoryId: string;
   action: "create" | "update";
 }
 
