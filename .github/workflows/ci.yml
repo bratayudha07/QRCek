@@ -1,9 +1,10 @@
 name: CI
 
+# Pull requests run the full gate. Pushes to main are covered by Deploy, which
+# repeats the same verification before shipping, so main is not verified twice.
 on:
-  push:
-    branches: [main]
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

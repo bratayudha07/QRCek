@@ -1,0 +1,43 @@
+name: Migrate D1
+
+# Deliberately manual: remote migrations are not reversible like code.
+# Run this from main, then deploy code that depends on the new schema.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: d1-migrations
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    # workflow_dispatch can select any branch; only main may touch production.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Recommended: require reviewers on this environment in GitHub settings.
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Wrangler skips the interactive confirmation in CI and still captures a
+      # backup of the remote database before applying.
+      - name: Apply remote migrations
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/api
+          command: d1 migrations apply absensi-db --remote

@@ -42,25 +42,28 @@ Semua angka di bawah dikutip dari dokumentasi resmi pada tanggal verifikasi (lih
 
 Sumber: <https://developers.cloudflare.com/workers/platform/limits/> (diperbarui 29 Okt 2026).
 
-### Batas Workers Builds (deploy dari GitHub)
+### Batas GitHub Actions (deploy dari GitHub)
 
-Produksi di-deploy lewat Git integration, jadi kuota build ikut relevan:
+Produksi di-deploy lewat GitHub Actions (`.github/workflows/deploy.yml`), bukan Workers
+Builds. Kuota yang relevan:
 
-| Fitur | Free | Paid |
-|---|---|---|
-| Build minutes | **3.000/bulan** | 6.000/bulan, lalu $0,005/menit |
-| Build bersamaan | **1** | 6 |
-| Timeout satu build | 20 menit | 20 menit |
-| CPU / memori build | 2 vCPU / 8 GB | 4 vCPU / 8 GB |
-| Environment variable | 64 (5 KB masing-masing) | 64 (5 KB masing-masing) |
-| Retensi log build | 90 hari | 90 hari |
+| Fitur | GitHub Free |
+|---|---|
+| Menit Actions untuk repo privat | **2.000/bulan** |
+| Menit Actions untuk repo publik | Gratis (tanpa batas menit) |
+| Penyimpanan artefak (repo privat) | 500 MB |
+| Job bersamaan (runner standar) | 20 |
+| Timeout job | Maksimum 6 jam; workflow ini membatasi 15–20 menit |
+| Retensi log | 90 hari (default) |
 
-Sumber: <https://developers.cloudflare.com/workers/ci-cd/builds/limits-and-pricing/> (28 Okt 2026).
+Sumber: <https://docs.github.com/en/actions/learn-github-actions/usage-limits-billing-and-administration> (7 Nov 2026).
 
-Satu build repo ini (install workspace + Vite + dry-run bundle) memakan puluhan detik, jadi
-3.000 menit/bulan setara ratusan deploy. Yang perlu diingat hanya: build bersamaan **satu**,
-jadi push beruntun mengantre. Build tidak memakai kuota request Worker, karena build berjalan
-di runner Cloudflare, bukan di edge.
+Satu siklus verifikasi + build repo ini berada di kisaran beberapa menit. Karena `ci.yml`
+hanya berjalan di pull request dan `deploy.yml` di `main`, commit yang sama tidak diverifikasi
+dua kali. Build tidak memakai kuota request Worker, karena berjalan di runner GitHub.
+
+> Alternatif gratis lain: repo publik tidak memakai menit Actions. Jika repo privat dan kuota
+> menipis, kurangi frekuensi push ke `main` atau jalankan verifikasi manual sebelum merge.
 
 ### Arti praktisnya
 
@@ -266,8 +269,8 @@ Tidak ada langkah berbayar, tetapi ada langkah **manual** yang harus dilakukan s
 | D1 pricing | https://developers.cloudflare.com/d1/platform/pricing/ | 21 Apr 2026 |
 | Pages limits | https://developers.cloudflare.com/pages/platform/limits/ | 5 Sep 2026 |
 | Workers Static Assets | https://developers.cloudflare.com/workers/static-assets/ | 12 Okt 2026 |
-| Workers Builds limits | https://developers.cloudflare.com/workers/ci-cd/builds/limits-and-pricing/ | 28 Okt 2026 |
-| Workers Builds configuration | https://developers.cloudflare.com/workers/ci-cd/builds/configuration/ | 22 Sep 2026 |
+| GitHub Actions limits | https://docs.github.com/en/actions/learn-github-actions/usage-limits-billing-and-administration | 7 Nov 2026 |
+| Cloudflare Workers Builds (tidak dipakai) | https://developers.cloudflare.com/workers/ci-cd/builds/limits-and-pricing/ | 28 Okt 2026 |
 | Sheets API limits | https://developers.google.com/sheets/api/limits | — |
 | Drive file limits | https://support.google.com/drive/answer/37603 | — |
 | Vitest integration | https://developers.cloudflare.com/workers/testing/vitest-integration/ | Okt 2026 |
