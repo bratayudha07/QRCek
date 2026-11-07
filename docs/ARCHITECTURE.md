@@ -269,6 +269,7 @@ Setiap AQ harus dijawab dengan ADR baru (`adr/NNNN-*.md`) **sebelum** fase roadm
 - **Pertanyaan:** bentuk penyimpanan aturan lima tingkat (Individual/Category × Session/Activity + Theme default) dengan status Inherit/Allowed/Denied, dan cara me-resolve-nya per scan dalam anggaran query/CPU.
 - **Sub-pertanyaan produk:** bagaimana `FR-040`/`FR-041` ditegakkan — apakah Aktivitas tidak boleh diaktifkan sebelum semua kategori dikonfigurasi eksplisit? Ini perlu konfirmasi product owner sebelum dijadikan aturan.
 - **Arah wajib:** resolver adalah fungsi murni di `domain/` dengan tes tabel lengkap (`AC-011`); data yang dibutuhkan diambil dengan sedikit query terindeks.
+- **Status:** **belum dijawab.** Draf usulan tersedia di [ADR-0016](./adr/0016-entitlement-resolution.md) (Diusulkan 7 November 2026): satu tabel `entitlement_rules` + resolver murni + default deny. Sub-keputusan `FR-040`/`FR-041` (titik penegakan konfigurasi eksplisit) masih menunggu pemilik proyek, jadi ADR belum boleh dijadikan dasar implementasi final.
 - **Masukan:** `D-005` [A].
 - **Memblokir:** Q3.
 
