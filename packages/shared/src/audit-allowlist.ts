@@ -16,6 +16,7 @@ export type AuditEntityType =
   | "session"
   | "category"
   | "custom_field"
+  | "entitlement_rule"
   | "participant";
 
 export const REDACTED = "[REDACTED]" as const;
@@ -45,6 +46,16 @@ export const AUDIT_FIELDS: Readonly<Record<AuditEntityType, readonly string[]>> 
     "sortOrder",
     "status",
     "archivedAt",
+  ],
+  // Only the rule coordinates and its status. Names, emails, phones, and custom
+  // field values (including participant attribute values) must never appear.
+  entitlement_rule: [
+    "themeId",
+    "activityId",
+    "sessionId",
+    "participantId",
+    "categoryId",
+    "status",
   ],
   // Names/notes/attribute values are PII; only the category and lifecycle facts
   // are snapshotted. Attribute changes are recorded separately as key names.

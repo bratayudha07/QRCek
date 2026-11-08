@@ -2,7 +2,7 @@
 
 Dokumen ini mencatat hasil pengukuran, instruksi operasi, status deployment, dan quirk lingkungan yang tidak terlihat dari kode.
 
-> **Konteks (8 November 2026).** Semua pengukuran dan prosedur di sini berlaku untuk baseline (model `events` datar, commit acuan `157c330`) ditambah fondasi Q1 (Aktivitas/Sesi) dan Q2 (kategori, custom field, atribut peserta) — keduanya API-only. Model target QRCek ([`REQUIREMENTS.md`](./REQUIREMENTS.md)) akan menambah tabel, indeks, dan jalur transaksi baru; angka CPU/statement/baris di bawah **tidak** otomatis berlaku untuk model itu dan harus diukur ulang di tahap roadmap terkait ([`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md) Q5 dan Q11). Uji perangkat fisik scanner, akun Google Sheets nyata, dan CPU produksi belum pernah dilakukan (`REQUIREMENTS.md` §7.3). Rujukan "ADR-00N" di dokumen ini = `docs/adr/000N-*.md`.
+> **Konteks (8 November 2026).** Semua pengukuran dan prosedur di sini berlaku untuk baseline (model `events` datar, commit acuan `157c330`) ditambah fondasi Q1 (Aktivitas/Sesi), Q2 (kategori, custom field, atribut peserta), dan Q3 (konfigurasi entitlement) — semuanya API-only. Model target QRCek ([`REQUIREMENTS.md`](./REQUIREMENTS.md)) akan menambah tabel, indeks, dan jalur transaksi baru; angka CPU/statement/baris di bawah **tidak** otomatis berlaku untuk model itu dan harus diukur ulang di tahap roadmap terkait ([`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md) Q5 dan Q11). Uji perangkat fisik scanner, akun Google Sheets nyata, dan CPU produksi belum pernah dilakukan (`REQUIREMENTS.md` §7.3). Rujukan "ADR-00N" di dokumen ini = `docs/adr/000N-*.md`.
 
 ## Status operasi saat ini (8 November 2026)
 
@@ -22,6 +22,10 @@ Dokumen ini mencatat hasil pengukuran, instruksi operasi, status deployment, dan
 - Verifikasi data pasca-`0008`: 80 peserta, 32 kategori, **0** peserta tanpa `category_id`,
   **0** kategori orphan, **0** peserta dengan kategori lintas Tema, **0** `attributes_json`
   invalid, dan 6 trigger `trg_participant_category_*` ada.
+- `0009_entitlement_rules.sql` (Q3) **belum diterapkan di remote**. Migrasi sudah diuji di
+  database lokal kosong (`schema_version = 9`, lima `uq_ent_*` ada, backfill 0 baris) dan
+  backfill-nya diukur pada fixture representatif: **40 baris**. Penerapan remote menunggu
+  konfirmasi eksplisit pemilik proyek dan backup; lihat §6.1.
 - Backup pra-`0008` **gagal** karena auth token Wrangler kedaluwarsa saat `d1 export`.
   Pemulihan pada jendela itu bergantung pada Time Travel D1 (7 hari). Export pasca-migrasi
   berhasil: `/tmp/opencode/qrcek-backup-2026-11-08-post-0008.sql` (144 KB). Untuk rilis
@@ -237,7 +241,7 @@ Konsekuensi yang disengaja:
 
 ```bash
 npm run db:reset:local    # hapus apps/api/.wrangler/state
-npm run db:migrate:local  # terapkan semua migrasi yang belum diterapkan (0001–0008)
+npm run db:migrate:local  # terapkan semua migrasi yang belum diterapkan (0001–0009)
 npm run db:migrate:local  # "✅ No migrations to apply!" (idempoten)
 ```
 
@@ -253,6 +257,8 @@ melalui migrasi `0004`–`0007`.
 | `0005_attendance_sync.sql` | `attendance`, `sync_state`, `sheet_rows`, `outbox` |
 | `0006_self_signup.sql` | metadata jalur pembuatan akun |
 | `0007_q1_activities_sessions.sql` | `activities`, `activity_sessions`, indeks Q1 |
+| `0008_q2_categories_custom_fields.sql` | `categories`, `custom_fields`, `participants.category_id` + `attributes_json`, trigger kategori |
+| `0009_entitlement_rules.sql` | `entitlement_rules`, 5 partial unique index, 2 trigger konteks, backfill Aktivitas aktif |
 
 > `participants` kini memiliki kolom kredensial QR dari `0004_qr.sql`. Migrasi yang sudah
 > diterapkan tidak boleh diedit.
@@ -262,6 +268,24 @@ melalui migrasi `0004`–`0007`.
 npx wrangler d1 execute absensi-db --local \
   --command "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
 ```
+
+### 6.1 Pengukuran Q3 — entitlement
+
+Diukur 8 November 2026 di `workerd` lokal (D1 uji) dan pada database SQLite salinan
+(`/tmp/opencode/q3-measure.sqlite`). Bukan CPU produksi; lihat peringatan §2.
+
+| Metrik | Hasil | Cara |
+|---|---|---|
+| Query resolver | **1 statement**, paling banyak **5 baris** | `listRulesForContext`; tes "returns at most five rows" |
+| Query plan resolver | **5/5** cabang `SEARCH ... USING INDEX` dengan Sesi; **3/3** tanpa Sesi; **0** `SCAN` | `EXPLAIN QUERY PLAN` di `entitlements.db.test.ts` |
+| Backfill `0009` pada DB lokal kosong | **0 baris** | `npm run db:reset:local && npm run db:migrate:local` |
+| Backfill `0009` pada fixture representatif | **40 baris** (Tema e1: a1 = 16, a2 = 16; Tema e2: b1 = 8) | SQLite salinan `0001`–`0008` + seed, lalu `0009`; `schema_version = 9` |
+| Statement batch kategori | 1 baris = 2 (upsert + audit); 15 baris = 30 + 1 kelengkapan + ±4 pembacaan konteks | Anggaran **50 statement/invokasi** D1; karena itu batas 15 |
+| Statement Theme default / override individual | 2 (mutasi + audit) + 2–4 pembacaan | Satu `db.batch()` per mutasi |
+
+Angka backfill produksi **belum** diukur karena `0009` belum diterapkan di remote. Sebelum
+apply, hitung `COUNT(*)` kandidat dengan predikat backfill dan bandingkan dengan batas
+100.000 baris tulis/hari; bila >10.000 baris, pecah per Tema atau minta persetujuan pemilik.
 
 ---
 
@@ -428,6 +452,8 @@ lama, dan itu akan terlihat sebagai `500` pada cetak ulang (bukan kerusakan data
 | Batas batch label 50 | Setelah deploy pertama | Ukur CPU `wrangler tail` saat cetak 50 label; angka lokal (crypto 100 ≈ 12 ms p50) adalah proksi, bukan CPU tertagih |
 | Ukuran dan keterbacaan QR hasil cetak | Uji manual sebelum rilis | Cetak A4 + stiker, ukur dengan penggaris, pindai dengan kamera HP |
 | Rotasi kunci QR | Sebelum rotasi produksi pertama | Uji prosedur §7.5 di database salinan; pastikan QR lama tetap identik |
+| Penerapan `0009` dan jumlah backfill produksi | Sebelum Q3 ditutup | Backup, hitung kandidat backfill, apply remote, verifikasi `schema_version = 9` dan jumlah baris |
+| CPU produksi route entitlement | Setelah deploy Q3 | `wrangler tail`; matriks/batch 15 baris adalah kandidat terberat |
 
 Repo ini tidak memakai GitHub Actions. Workers Builds hanya menjalankan build dan deploy, bukan
 test suite, jadi verifikasi wajib dijalankan lokal sebelum merge/deploy; jangan menyimpulkan

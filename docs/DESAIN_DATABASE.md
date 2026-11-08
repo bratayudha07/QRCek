@@ -2,7 +2,7 @@
 
 Database: Cloudflare D1, binding `DB`. Dialek **SQLite**, bukan Postgres.
 
-> **Status dokumen (8 November 2026).** Dokumen ini mencatat **skema aktual**: migrasi `0001`–`0008`. `0001`–`0006` sudah diterapkan di remote dan **tidak boleh diedit**; `0007_q1_activities_sessions.sql` diterapkan di remote pada 6 November 2026 (backup: `/tmp/opencode/qrcek-backup-2026-11-06.sql`). `0008_q2_categories_custom_fields.sql` diterapkan di remote pada **8 November 2026 02:28 UTC** (`app_meta.schema_version = 8`) berdekatan dengan deploy kode Q2; verifikasi data: 80 peserta, 32 kategori, 0 peserta tanpa `category_id`, 0 kategori lintas Tema (`docs/OPERASIONAL.md`). Model target QRCek yang tersisa (entitlement, transaksi efektif, Reversal/Adjustment, kuota konsumsi) **belum punya skema**; bentuknya diputuskan lewat AQ-002–AQ-005, AQ-009 di [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6 — AQ-006 sudah dijawab ADR-0014 dan menjadi `0008`. `D-007` [A] menghapus kewajiban migrasi data produksi, **bukan** kewajiban regression test, dan bukan izin mengedit migrasi lama.
+> **Status dokumen (8 November 2026).** Dokumen ini mencatat **skema aktual**: migrasi `0001`–`0009`. `0001`–`0006` sudah diterapkan di remote dan **tidak boleh diedit**; `0007_q1_activities_sessions.sql` diterapkan di remote pada 6 November 2026 (backup: `/tmp/opencode/qrcek-backup-2026-11-06.sql`). `0008_q2_categories_custom_fields.sql` diterapkan di remote pada **8 November 2026 02:28 UTC** (`app_meta.schema_version = 8`) berdekatan dengan deploy kode Q2; verifikasi data: 80 peserta, 32 kategori, 0 peserta tanpa `category_id`, 0 kategori lintas Tema (`docs/OPERASIONAL.md`). `0009_entitlement_rules.sql` (Q3) sudah diuji di database lokal (`schema_version = 9`) dan **belum diterapkan di remote**; penerapannya menunggu konfirmasi eksplisit pemilik proyek. Model target QRCek yang tersisa (transaksi efektif, Reversal/Adjustment, kuota konsumsi) **belum punya skema**; bentuknya diputuskan lewat AQ-002–AQ-004, AQ-009 di [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6 — AQ-005 sudah dijawab ADR-0016 dan menjadi `0009`, AQ-006 menjadi `0008`. `D-007` [A] menghapus kewajiban migrasi data produksi, **bukan** kewajiban regression test, dan bukan izin mengedit migrasi lama.
 >
 > Bagian yang bertentangan dengan keputusan produk `[A]` ditandai **Delta**: `attendance` satu baris per `(event_id, participant_id)` (target: per ruang lingkup Aktivitas/Sesi, `D-003`), koreksi via `UPDATE attendance` (target: Reversal/Adjustment, `D-006`), dan kredensial QR per baris peserta per acara (target: per Tema + Peserta, `D-004`).
 
@@ -44,6 +44,7 @@ events ──┬──< event_memberships >── users ──┬──< device_
          ├──< categories ──< participants ──┬──< attendance (1:1 per acara)
          │                                  └──< sheet_rows (1:1)
          ├──< custom_fields
+         ├──< entitlement_rules (tema/aktivitas/sesi/peserta/kategori)
          ├──< invites
          ├──< outbox
          ├──< audit_log
@@ -322,8 +323,9 @@ CREATE TABLE rate_limits (
 
 > Nomor file aktual: `0001_init.sql`, `0002_auth.sql`, `0003_participants.sql`,
 > `0004_qr.sql`, `0005_attendance_sync.sql`, `0006_self_signup.sql`,
-> `0007_q1_activities_sessions.sql`, `0008_q2_categories_custom_fields.sql`. Perubahan
-> berikutnya harus memakai `0009_*.sql` atau nomor berurutan berikutnya.
+> `0007_q1_activities_sessions.sql`, `0008_q2_categories_custom_fields.sql`,
+> `0009_entitlement_rules.sql`. Perubahan berikutnya harus memakai `0010_*.sql` atau nomor
+> berurutan berikutnya.
 
 > **ADR-007 (`0006_self_signup.sql`) dan ADR-0013.** Satu kolom baru pada `users`:
 >
@@ -563,6 +565,110 @@ Baris lama tanpa kategori mendapat satu wadah `Tanpa Kategori` per Tema. Trigger
 > 6. Field `scope='activity'` boleh didefinisikan di Q2, tetapi nilainya tidak diterima di
 >    `participants.attributes_json` (Q3).
 
+File: `migrations/0009_entitlement_rules.sql` (Q3, ADR-0016, `D-005`)
+
+```sql
+CREATE TABLE entitlement_rules (
+  id             TEXT PRIMARY KEY,
+  theme_id       TEXT NOT NULL REFERENCES events(id) ON DELETE RESTRICT,
+  activity_id    TEXT REFERENCES activities(id) ON DELETE RESTRICT,
+  session_id     TEXT REFERENCES activity_sessions(id) ON DELETE RESTRICT,
+  participant_id TEXT REFERENCES participants(id) ON DELETE RESTRICT,
+  category_id    TEXT REFERENCES categories(id) ON DELETE RESTRICT,
+  status         TEXT NOT NULL CHECK (status IN ('inherit','allowed','denied')),
+  created_at     INTEGER NOT NULL,
+  created_by     TEXT REFERENCES users(id),
+  updated_at     INTEGER NOT NULL,
+  updated_by     TEXT REFERENCES users(id),
+  CHECK (created_at > 0),
+  CHECK (updated_at >= created_at),
+  CHECK (session_id IS NULL OR activity_id IS NOT NULL),
+  CHECK (
+    (activity_id IS NULL AND session_id IS NULL
+     AND participant_id IS NULL AND category_id IS NULL)          -- Theme default
+    OR
+    (activity_id IS NOT NULL
+     AND ((participant_id IS NOT NULL) <> (category_id IS NOT NULL)))  -- level 1–4
+  )
+);
+
+CREATE UNIQUE INDEX uq_ent_theme_default ON entitlement_rules(theme_id)
+  WHERE activity_id IS NULL AND session_id IS NULL
+    AND participant_id IS NULL AND category_id IS NULL;
+CREATE UNIQUE INDEX uq_ent_individual_activity
+  ON entitlement_rules(theme_id, participant_id, activity_id)
+  WHERE participant_id IS NOT NULL AND activity_id IS NOT NULL AND session_id IS NULL;
+CREATE UNIQUE INDEX uq_ent_category_activity
+  ON entitlement_rules(theme_id, category_id, activity_id)
+  WHERE category_id IS NOT NULL AND activity_id IS NOT NULL AND session_id IS NULL;
+CREATE UNIQUE INDEX uq_ent_individual_session
+  ON entitlement_rules(theme_id, participant_id, activity_id, session_id)
+  WHERE participant_id IS NOT NULL AND activity_id IS NOT NULL AND session_id IS NOT NULL;
+CREATE UNIQUE INDEX uq_ent_category_session
+  ON entitlement_rules(theme_id, category_id, activity_id, session_id)
+  WHERE category_id IS NOT NULL AND activity_id IS NOT NULL AND session_id IS NOT NULL;
+```
+
+Tingkat dibaca dari kombinasi kolom:
+
+| Tingkat | `activity_id` | `session_id` | `participant_id` | `category_id` |
+|---|---|---|---|---|
+| Individual–Session | NOT NULL | NOT NULL | NOT NULL | NULL |
+| Category–Session | NOT NULL | NOT NULL | NULL | NOT NULL |
+| Individual–Activity | NOT NULL | NULL | NOT NULL | NULL |
+| Category–Activity | NOT NULL | NULL | NULL | NOT NULL |
+| Theme default | NULL | NULL | NULL | NULL |
+
+Trigger `trg_entitlement_context_insert` dan
+`trg_entitlement_context_update` (`BEFORE UPDATE OF theme_id, activity_id, session_id,
+participant_id, category_id`) menolak: kategori/peserta/Aktivitas dari Tema lain, Sesi yang bukan
+milik Aktivitas, Theme default yang membawa konteks, dan aturan Aktivitas yang tidak punya tepat
+satu subjek (peserta XOR kategori). Route memvalidasi hal yang sama lebih dulu agar pesan ke
+admin jelas; trigger adalah pertahanan terakhir untuk SQL langsung.
+
+Backfill satu kali (antara penanda `-- >>> backfill` / `-- <<< backfill`, diuji apa adanya oleh
+`entitlements.db.test.ts`):
+
+```sql
+INSERT INTO entitlement_rules (
+  id, theme_id, activity_id, session_id, participant_id, category_id,
+  status, created_at, created_by, updated_at, updated_by
+)
+SELECT lower(hex(randomblob(16))),
+       a.theme_id, a.id, NULL, NULL, c.id, 'allowed',
+       CAST(strftime('%s','now') AS INTEGER) * 1000, NULL,
+       CAST(strftime('%s','now') AS INTEGER) * 1000, NULL
+FROM activities a
+JOIN categories c ON c.theme_id = a.theme_id
+WHERE a.status = 'active'
+  AND (c.status = 'active'
+       OR EXISTS (SELECT 1 FROM participants p WHERE p.category_id = c.id))
+  AND NOT EXISTS (
+    SELECT 1 FROM entitlement_rules r
+     WHERE r.theme_id = a.theme_id AND r.activity_id = a.id
+       AND r.category_id = c.id AND r.session_id IS NULL
+       AND r.participant_id IS NULL
+  );
+```
+
+> **Catatan 0009.**
+>
+> 1. **Satu tabel, bukan lima.** Tingkat adalah kombinasi kolom; tidak ada kolom enum tingkat
+>    yang bisa tidak sinkron dengan kolom konteks.
+> 2. **Lima partial unique index**, satu per tingkat, karena SQLite menganggap `NULL` berbeda
+>    di unique index. Predikatnya diulang persis oleh query resolver agar setiap cabang
+>    `UNION ALL` menjadi `SEARCH ... USING INDEX`.
+> 3. **Default deny bukan baris.** Tidak adanya aturan yang menentukan adalah hasil resolver,
+>    bukan baris `denied` yang harus dipelihara.
+> 4. **Backfill hanya Aktivitas `active`.** Aktivitas `draft` sengaja tidak di-backfill agar
+>    gate `draft → active` (`FR-040`/`FR-041`) tetap bermakna. Kategori arsip yang masih punya
+>    peserta ikut di-backfill agar riwayat lama tidak berubah saat Q5 menegakkan resolver.
+> 5. **Backfill tidak menulis audit** karena migrasi bukan aksi admin. Ini pengecualian yang
+>    dicatat, bukan pola untuk mutasi runtime.
+> 6. **`ON DELETE RESTRICT`** menjaga aturan tidak kehilangan konteks; penghapusan Tema yang
+>    masih punya aturan ditolak. Produk mengarsipkan, bukan menghapus.
+> 7. Perubahan aturan **tidak** menyalin atau mengubah transaksi historis (`FR-199`, `BR-075`).
+
 ---
 
 ## 4. Indeks: alasan dan biaya
@@ -591,6 +697,7 @@ Setiap indeks menambah baris tulis. Indeks di bawah dipilih karena setiap halama
 | `idx_custom_fields_theme_key` (UNIQUE) | Key custom field unik per Tema |
 | `idx_custom_fields_theme_scope_status` | Katalog field per scope/status/urutan |
 | `idx_participant_event_category` | Jumlah peserta per kategori dan filter kategori |
+| `uq_ent_*` (5 partial unique, `0009`) | Satu sel per tingkat; dipakai resolver untuk `SEARCH` per cabang `UNION ALL` |
 
 **Wajib diverifikasi di Fase 0**: jalankan semua query utama dengan `EXPLAIN QUERY PLAN` dan pastikan memakai indeks (`SEARCH ... USING INDEX`), bukan `SCAN`.
 
@@ -624,6 +731,14 @@ Setiap indeks menambah baris tulis. Indeks di bawah dipilih karena setiap halama
 | Custom field tidak bisa dihapus permanen | Tidak ada route DELETE; arsip lewat status | `custom-fields.api.test.ts`, `authz.unauthenticated.test.ts` |
 | Nilai atribut tidak valid / field asing tidak tersimpan | `validateParticipantAttributes` + `CHECK json_valid` | `participant-attributes.test.ts`, `participant-attributes.api.test.ts` |
 | Rename/arsip field tidak menghapus nilai peserta | Nilai hidup di `attributes_json`, katalog terpisah | `custom-fields.api.test.ts` |
+| Satu sel entitlement per tingkat | `uq_ent_*` (5 partial unique) + guard `updated_at` | `entitlements.db.test.ts` — tes insert duplikat langsung |
+| Aturan entitlement tidak bisa lintas Tema/Aktivitas/Sesi | Trigger `trg_entitlement_context_*` + scope `theme_id` di query | `entitlements.db.test.ts` — 4 tes trigger; `entitlements.api.test.ts` — id lintas Tema/Sesi → 404 |
+| Theme default hanya satu per Tema | `uq_ent_theme_default` | `entitlements.db.test.ts` — "allows exactly one theme default per Tema" |
+| Resolver selalu default deny dan prioritas tetap | `resolveEntitlement` murni + `ENTITLEMENT_PRIORITY` | `packages/shared/src/entitlements.test.ts` — tabel 5 tingkat × 3 status |
+| Aktivitas aktif hanya bila semua kategori aktif punya aturan | `getEntitlementCompleteness` + gate `draft → active` | `entitlements.api.test.ts` — gate dan kategori baru fail-closed |
+| Override individual tidak hilang saat kategori peserta berubah | Baris individual terpisah dari baris kategori | `entitlements.api.test.ts` — "preserves an individual override…" |
+| Audit entitlement hanya tertulis bila mutasi mendarat | `INSERT ... WHERE EXISTS (updated_at = ?)` / `NOT EXISTS` di `db.batch` | `audit.guarded-write.test.ts` — update dan delete |
+| Snapshot audit entitlement tanpa PII | Allowlist `entitlement_rule` (6 field) | `entitlements.api.test.ts` — "stores only rule coordinates and status" |
 
 ---
 
@@ -742,6 +857,7 @@ Perkiraan kasar per baris (termasuk overhead indeks):
 | `attendance` | ~250 B + 2 indeks | ~60 MB | Satu baris per peserta |
 | `audit_log` | ~600 B + 3 indeks | ~150 MB (250k baris) | **Tumbuh paling cepat** |
 | `outbox` | ~350 B | kecil setelah pruning | `done` dipangkas 7 hari |
+| `entitlement_rules` | ~300 B + 5 indeks parsial | kecil–sedang | Satu baris per sel yang dikonfigurasi; backfill lama = Aktivitas aktif × kategori |
 | `sessions` | ~300 B | kecil | Pangkas sesi kedaluwarsa |
 
 Kesimpulan: **satu database 500 MB cukup untuk puluhan ribu peserta**, tetapi `audit_log` adalah penentu umur database.
@@ -763,7 +879,7 @@ Kesimpulan: **satu database 500 MB cukup untuk puluhan ribu peserta**, tetapi `a
 | 2 | `meta.changes` akurat untuk `INSERT ... ON CONFLICT DO NOTHING` | Tes unit + integrasi | ✅ Terverifikasi melalui tes scan/attendance yang memeriksa hasil insert idempoten |
 | 3 | Partial unique index didukung D1 | Migrasi lokal + tes insert duplikat | ✅ Terverifikasi — `spike.index.test.ts` memakai tabel sekali-pakai `spike_outbox` dengan bentuk & indeks identik. **Catatan**: `ON CONFLICT` wajib mengulang predikat indeks (§6) |
 | 4 | Trigger `RAISE(ABORT)` berjalan normal di D1 | `apps/api/src/test/qr.db.test.ts` | ✅ Terverifikasi; UPDATE/DELETE ditolak oleh trigger |
-| 5 | `EXPLAIN QUERY PLAN` menampilkan `SEARCH` untuk semua query utama | Skrip pemeriksaan indeks | ✅ Terverifikasi — `spike.explain.test.ts`, 10/10 query memakai `SEARCH ... USING INDEX` (tabel sekali-pakai) + `app_meta` yang nyata |
+| 5 | `EXPLAIN QUERY PLAN` menampilkan `SEARCH` untuk semua query utama | Skrip pemeriksaan indeks | ✅ Terverifikasi — `spike.explain.test.ts`, 10/10 query memakai `SEARCH ... USING INDEX` (tabel sekali-pakai) + `app_meta` yang nyata. Query resolver entitlement: 5/5 cabang dengan Sesi dan 3/3 tanpa Sesi `SEARCH`, tanpa `SCAN` (`entitlements.db.test.ts`) |
 | 6 | Ukuran nyata per baris | `SELECT SUM(pgsize) FROM dbstat` bila tersedia, atau `wrangler d1 export` + hitung file | ⬜ **Belum** — `dbstat` tidak tersedia di D1; perlu data nyata + `wrangler d1 export` (Fase 2, setelah import peserta) |
 
 Detail angka dan quirk lingkungan ada di `docs/OPERASIONAL.md` §1–§2.

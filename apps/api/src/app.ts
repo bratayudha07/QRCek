@@ -11,6 +11,7 @@ import { auditRoutes } from "./routes/audit";
 import { categoryRoutes } from "./routes/categories";
 import { customFieldRoutes } from "./routes/custom-fields";
 import { dashboardRoutes } from "./routes/dashboard";
+import { entitlementRoutes } from "./routes/entitlements";
 import { eventRoutes } from "./routes/events";
 import { healthRoutes } from "./routes/health";
 import { labelRoutes } from "./routes/labels";
@@ -34,6 +35,7 @@ export const ROUTES: readonly RouteDefinition[] = [
   ...participantRoutes,
   ...categoryRoutes,
   ...customFieldRoutes,
+  ...entitlementRoutes,
   ...labelRoutes,
   ...scanRoutes,
   ...attendanceRoutes,

@@ -455,3 +455,53 @@ Tidak ada jendela inkompatibilitas seperti `0008` karena tidak ada kolom/trigger
 ## 16. Catatan penyimpangan
 
 Diisi setelah implementasi. Jangan menulis ulang rencana; catat apa yang berbeda dan mengapa, seperti `.opencode/plans/q2-peserta-kategori-impor.md` §16.
+
+**Status 8 November 2026:** Q3 diimplementasikan API-only; `0009` sudah diuji lokal dan **belum
+diterapkan di remote**. Gate Q3 (§13) belum ditutup karena penerapan remote dan review pemilik
+masih menunggu.
+
+### 16.1 Perbedaan dari rencana
+
+1. **Upsert tanpa `ON CONFLICT`.** Sesuai §6, setiap sel dibaca dulu lalu memakai `INSERT` atau
+   `UPDATE ... WHERE updated_at = ?`. Predikat partial unique index tidak perlu diulang di
+   `ON CONFLICT`; pelanggaran unik saat balapan ditangkap sebagai `409 CONFLICT`. Pola ini
+   dipilih agar audit bisa memakai nilai `before`/`after` yang sudah dibaca dan guard
+   `updated_at` bekerja sama seperti Q2.
+2. **Error validasi body entitlement menjadi `422 BUSINESS_RULE`, bukan `400`.** `parseJsonBody`
+   melempar `400 VALIDATION_ERROR`; handler membungkusnya agar batas 15 baris, `categoryId`
+   ganda, dan `inherit` pada Theme default terbaca sebagai kesalahan konfigurasi (§7.3).
+3. **`requireMutableEvent` menerima parameter `action` opsional.** Default tetap
+   `"event:update"`; mutasi entitlement memakai `"entitlement:write"` tanpa menduplikasi guard.
+4. **Matriks memakai beberapa query, bukan satu `listActivityRules`.** Setelah implementasi awal,
+   query tunggal menarik semua override individual tanpa batas. Matriks sekarang memakai
+   `listActivityCategoryRules`, `listSessionCategoryRulesForActivity`,
+   `listParticipantOverrides` (limit 200), dan `listSessionParticipantOverrides` (limit 200):
+   8 statement per matriks, tetap di bawah 50. `listActivityRules` dihapus agar tidak ada jalur
+   tanpa batas.
+5. **Backfill diukur pada fixture representatif, bukan data produksi.** `0009` belum diterapkan
+   di remote, jadi angka 40 baris berasal dari salinan SQLite `0001`–`0008` + seed (e1/a1=16,
+   e1/a2=16, e2/b1=8). Database lokal kosong menghasilkan 0 baris. Angka produksi wajib diukur
+   sebelum apply (§6.1 `OPERASIONAL.md`).
+6. **Tes audit tidak boleh bergantung urutan `created_at`.** Beberapa baris audit ditulis pada
+   milidetik yang sama dan `id` ULID memuat komponen acak; tes membandingkan himpunan aksi atau
+   memilih baris berdasarkan `action`, bukan posisi. Ini memperbaiki flakiness, bukan
+   melonggarkan aturan.
+
+### 16.2 Hasil uji mutasi
+
+Enam guard diuji dengan merusak kode sementara; keenamnya **tertangkap**:
+
+| Mutasi | Tes yang gagal |
+|---|---|
+| Hapus `category_activity` dari tabel prioritas | `packages/shared/src/entitlements.test.ts` |
+| Ubah default deny menjadi allow | `packages/shared/src/entitlements.test.ts` |
+| Hapus pelewatan tingkat Sesi saat `sessionId = null` | `packages/shared/src/entitlements.test.ts` |
+| Hapus tingkat `individual_activity` | `entitlements.api.test.ts` — override individual |
+| Hapus gate kelengkapan `draft → active` | `entitlements.api.test.ts` — gate |
+| Hapus trigger konteks `BEFORE INSERT` | `entitlements.db.test.ts` — kategori lintas Tema |
+
+### 16.3 Yang belum diverifikasi
+
+- Penerapan `0009` di remote dan jumlah backfill produksi.
+- CPU produksi route matriks/batch (wall-clock lokal bukan CPU tertagih).
+- Penolakan transaksi `NOT_ENTITLED` dan `FR-033` nilai custom field Aktivitas: Q5.

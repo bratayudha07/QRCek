@@ -4,7 +4,7 @@ Semua endpoint di bawah `/api`. Otentikasi memakai cookie sesi `HttpOnly` (same-
 
 Sumber kebenaran kontrak: skema zod di `packages/shared/src/schemas/`. Dokumen ini menjelaskan **perilaku**, bukan menggantikan skema.
 
-> **Status dokumen (7 November 2026).** Dokumen ini mencatat **API aktual**: baseline `157c330` ditambah Q1 (Aktivitas/Sesi) dan Q2 (kategori, custom field, atribut peserta, impor ber-kategori), semuanya API-only; registrasi publik dihapus. Jumlahnya **74 definisi route** dan **194 pola efektif** setelah alias `/api/calendar` dan `/api/themes` (`60` definisi ber-prefix `/api/events` × 3). API target untuk entitlement, konsumsi, koreksi Reversal/Adjustment, dan scanner berkonteks **belum ada**; bentuk payload-nya diputuskan lewat AQ di [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6 dan ditambahkan ke dokumen ini bersama route-nya. Endpoint yang tercantum di sini bukan bukti bahwa kebutuhan produk terpenuhi (`FR-178`). Bagian yang bertentangan dengan keputusan produk `[A]` ditandai **Delta**.
+> **Status dokumen (8 November 2026).** Dokumen ini mencatat **API aktual**: baseline `157c330` ditambah Q1 (Aktivitas/Sesi), Q2 (kategori, custom field, atribut peserta, impor ber-kategori), dan Q3 (konfigurasi entitlement), semuanya API-only; registrasi publik dihapus. Jumlahnya **83 definisi route** dan **225 pola efektif** setelah alias `/api/calendar` dan `/api/themes` (`71` definisi ber-prefix `/api/events` × 3). API target untuk konsumsi, koreksi Reversal/Adjustment, dan scanner berkonteks **belum ada**; bentuk payload-nya diputuskan lewat AQ di [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6 dan ditambahkan ke dokumen ini bersama route-nya. Endpoint yang tercantum di sini bukan bukti bahwa kebutuhan produk terpenuhi (`FR-178`). Bagian yang bertentangan dengan keputusan produk `[A]` ditandai **Delta**.
 
 ---
 
@@ -508,6 +508,12 @@ archived  → (final, tidak ada transisi)
 
   `active → archived` sengaja tidak ada: Aktivitas harus diselesaikan dulu. Tidak ada reopen
   (`completed → active`, `archived → draft`). Melanggar tabel → `422 BUSINESS_RULE`.
+- **Gate `draft → active` (`FR-040`, `FR-041`).** Transisi ke `active` hanya diterima bila
+  setiap kategori **aktif** di Tema sudah punya baris `category_activity`. Bila belum,
+  Worker membalas `422 BUSINESS_RULE` dengan pesan Indonesia dan
+  `details.missingCategoryIds`; tidak ada aturan yang ditulis otomatis. `POST` tetap membuat
+  Aktivitas `draft`. Kategori baru pada Aktivitas yang sudah `active` tidak mematikan
+  Aktivitas itu — kategori tersebut fail-closed (deny) sampai barisnya dibuat.
 - PATCH memakai pemeriksaan optimistis `updated_at`; kalah balapan → `409 CONFLICT`.
 
 ### Sesi
@@ -635,6 +641,155 @@ di-rename. Sembilan tipe: `text`, `number`, `email`, `phone`, `select`, `multi_s
   `custom_field.archived`, `custom_field.activated`. `options` tidak masuk snapshot karena
   berisi teks bebas.
 
+### Entitlement
+
+Q3 menambahkan konfigurasi entitlement per Tema (ADR-0016, `D-005` [A]). Cakupan **API-only**:
+belum ada UI (Q9) dan belum ada penegakan di jalur scan (Q5). Semua path memakai prefix kanonik
+`/api/events`; alias `/api/calendar` dan `/api/themes` berlaku sama.
+
+Model aturan: satu baris `entitlement_rules` per sel. Tingkat dibaca dari kombinasi kolom, bukan
+kolom enum. Prioritas tetap, dari tertinggi ke terendah:
+
+```
+Individual–Session → Category–Session → Individual–Activity → Category–Activity → Theme default
+```
+
+`inherit` melanjutkan ke tingkat berikutnya; `allowed`/`denied` pertama yang menentukan langsung
+menjadi hasil, sehingga `denied` di tingkat lebih tinggi tidak dapat ditimpa tingkat lebih rendah
+(`BR-018`–`BR-023`). Tanpa aturan yang menentukan, hasilnya **deny** dengan `decidedBy: null`
+(fail-closed). Sesi hanya dibaca bila konteks memuat `sessionId`; Sesi tidak pernah disimpulkan
+dari jam. Perubahan aturan hanya berlaku untuk transaksi berikutnya (`FR-199`, `BR-075`).
+
+Otorisasi:
+
+| Aksi | Membership minimum | Catatan |
+|---|---|---|
+| `entitlement:read` | `officer` | Petugas boleh membaca matriks/preview |
+| `entitlement:write` | `event_admin` | Petugas tidak pernah menulis, termasuk atas dirinya sendiri |
+
+Superadmin lolos lewat aturan global. Non-anggota Tema → `404`; anggota dengan peran kurang →
+`403`. Tema `archived` menolak seluruh mutasi aturan (`422 BUSINESS_RULE`, ADR-0015).
+
+| Method | Path | Peran | Keterangan |
+|---|---|---|---|
+| `GET` | `/api/events/:eventId/entitlements/default` | `entitlement:read` | Baca Theme default |
+| `PUT` | `/api/events/:eventId/entitlements/default` | `entitlement:write` | Upsert Theme default (`allowed`/`denied` saja) |
+| `DELETE` | `/api/events/:eventId/entitlements/default` | `entitlement:write` | Hapus Theme default |
+| `GET` | `/api/events/:eventId/activities/:activityId/entitlements` | `entitlement:read` | Matriks Aktivitas + kelengkapan |
+| `PUT` | `/api/events/:eventId/activities/:activityId/entitlements/categories` | `entitlement:write` | Batch `category_activity`, maks. 15 baris |
+| `PUT` | `/api/events/:eventId/activities/:activityId/sessions/:sessionId/entitlements/categories` | `entitlement:write` | Batch `category_session`, maks. 15 baris |
+| `PUT` | `/api/events/:eventId/activities/:activityId/entitlements/participants/:participantId` | `entitlement:write` | Upsert override individual Aktivitas |
+| `DELETE` | `/api/events/:eventId/activities/:activityId/entitlements/participants/:participantId` | `entitlement:write` | Hapus override individual Aktivitas |
+| `PUT` | `/api/events/:eventId/activities/:activityId/sessions/:sessionId/entitlements/participants/:participantId` | `entitlement:write` | Upsert override individual Sesi |
+| `DELETE` | `/api/events/:eventId/activities/:activityId/sessions/:sessionId/entitlements/participants/:participantId` | `entitlement:write` | Hapus override individual Sesi |
+| `GET` | `/api/events/:eventId/activities/:activityId/entitlements/resolve?participantId=&sessionId=` | `entitlement:read` | Preview hasil resolver |
+
+Theme default:
+
+```jsonc
+// PUT request
+{ "status": "allowed" }        // allowed | denied
+
+// 200
+{ "ok": true, "data": { "themeDefault": { "status": "allowed" } } }
+```
+
+- `inherit` di Theme default **ditolak** `422 BUSINESS_RULE`: tidak ada tingkat di bawahnya, jadi
+  nilainya sama dengan deny tetapi membingungkan admin.
+- `DELETE` yang tidak menemukan baris → `404 NOT_FOUND`. Setelah dihapus, resolver kembali deny.
+- Theme default hanya **fallback lewat `inherit`**; ia bukan konfigurasi final per kategori dan
+  tidak menggantikan baris `category_activity` (`BR-019`, `AC-012`).
+
+Batch kategori:
+
+```jsonc
+// PUT .../entitlements/categories
+{ "rules": [{ "categoryId": "01J...", "status": "allowed" }] }
+
+// 200
+{
+  "ok": true,
+  "data": {
+    "activityId": "01J...",
+    "sessionId": null,
+    "rules": [{ "categoryId": "01J...", "status": "allowed" }],
+    "entitlementComplete": false,
+    "missingCategoryIds": ["01J..."]
+  }
+}
+```
+
+- `rules` wajib 1–15 baris dan `categoryId` unik dalam satu request. Batas 15 berasal dari
+  anggaran **50 statement/invokasi D1**: satu baris butuh upsert + audit, ditambah query
+  kelengkapan dan pembacaan konteks. Matriks 20 kategori dikirim dalam dua request. Lebih dari
+  15, `categoryId` ganda, atau status invalid → `422 BUSINESS_RULE` tanpa penulisan.
+- Kategori wajib milik Tema (`404`) dan **aktif** untuk penulisan baru; kategori `archived`
+  ditolak `422`. Baris lama untuk kategori arsip tetap dibaca resolver dan tetap muncul di
+  matriks.
+- Sesi wajib milik Aktivitas dan Tema yang sama (`404`); peserta wajib milik Tema yang sama.
+- Upsert memakai baca-lalu-insert/update dengan guard `updated_at`; balapan unique index →
+  `409 CONFLICT`, bukan `500`.
+- Respons mengembalikan aturan tersimpan dan kelengkapan **setelah** batch.
+
+Override individual:
+
+```jsonc
+// PUT .../entitlements/participants/:participantId
+{ "status": "denied" }         // inherit | allowed | denied
+
+// 200
+{ "ok": true, "data": { "participantOverride": {
+  "participantId": "01J...", "sessionId": null, "status": "denied"
+} } }
+```
+
+- `DELETE` menulis audit `entitlement_rule.deleted`; override yang tidak ada → `404`.
+- Override individual tidak dihapus atau diubah saat kategori peserta berubah (`FR-042`,
+  `AC-014`). Resolver membaca `category_id` peserta terkini, bukan snapshot kategori.
+- Override Sesi hanya berlaku untuk Sesi itu; Sesi lain memakai aturan Aktivitas.
+
+Matriks Aktivitas mengembalikan Theme default, satu sel per kategori, sel per Sesi, override
+individual (maksimum 200 baris per query), `entitlementComplete`, dan `missingCategoryIds`:
+
+```jsonc
+{
+  "ok": true,
+  "data": {
+    "activityId": "01J...",
+    "entitlementComplete": true,
+    "missingCategoryIds": [],
+    "themeDefault": { "status": "denied" },
+    "categories": [{ "categoryId": "01J...", "name": "Kelas 7A", "status": "allowed" }],
+    "sessions": [{
+      "sessionId": "01J...",
+      "categories": [{ "categoryId": "01J...", "name": "Kelas 7A", "status": "inherit" }],
+      "participants": [{ "participantId": "01J...", "status": "denied" }]
+    }],
+    "participants": [{ "participantId": "01J...", "status": "allowed" }]
+  }
+}
+```
+
+`name` kategori boleh ada (bukan PII); nama/email peserta tidak dimasukkan, hanya
+`participantId`.
+
+Preview resolver:
+
+```
+GET /api/events/:eventId/activities/:activityId/entitlements/resolve?participantId=01J...&sessionId=01J...
+→ { "ok": true, "data": { "allowed": false, "status": "denied", "decidedBy": "category_activity" } }
+```
+
+- `sessionId` opsional. Bila diisi, Sesi wajib milik Aktivitas itu (`404`).
+- Peserta dari Tema lain → `404`. Respons tidak memuat PII dan tidak ditulis ke log.
+- Hasil preview memakai fungsi murni yang sama dengan jalur baca Q5, bukan implementasi kedua.
+
+Gate `draft → active` Aktivitas dijelaskan di §6 (Aktivitas).
+
+Biaya query: satu resolve = **1 statement**, paling banyak **5 baris**. Satu batch kategori 15
+baris = 30 statement upsert+audit + 1 kelengkapan + pembacaan konteks (±4), di bawah 50. Angka
+dan query plan dicatat di [`OPERASIONAL.md`](./OPERASIONAL.md) §6.1.
+
 ### Paginasi dan batas
 
 Q1 **belum** memaginasi daftar Aktivitas/Sesi: kedua endpoint mengembalikan seluruh baris milik Tema/Aktivitas dengan urutan deterministik (`sort_order`, `created_at`, `id` untuk Aktivitas; `starts_at` null-akhir, `created_at`, `id` untuk Sesi). Alasannya:
@@ -657,11 +812,13 @@ disaring allowlist ADR-0011 (`packages/shared/src/audit-allowlist.ts`):
 | `session.created`, `session.updated`, `session.status_changed`, `session.archived`, `session.duplicated` | Sesi |
 | `category.created`, `category.updated`, `category.archived`, `category.activated` | Kategori |
 | `custom_field.created`, `custom_field.updated`, `custom_field.type_changed`, `custom_field.archived`, `custom_field.activated` | Custom field |
+| `entitlement_rule.created`, `entitlement_rule.updated`, `entitlement_rule.deleted` | Aturan entitlement |
 | `participant.created`, `participant.updated`, `participant.deactivated`, `participant.imported` | Peserta |
 
 Baris audit hanya ditulis bila mutasi di batch yang sama benar-benar berhasil: helper audit
-memeriksa `updated_at` (Aktivitas/Sesi) atau `status`/keberadaan baris (Tema). Karena itu
-"audit tertulis" berarti "mutasi mendarat".
+memeriksa `updated_at` (Aktivitas/Sesi/aturan entitlement) atau `status`/keberadaan baris (Tema).
+Karena itu "audit tertulis" berarti "mutasi mendarat". Snapshot `entitlement_rule` hanya memuat
+`themeId`, `activityId`, `sessionId`, `participantId`, `categoryId`, dan `status` (`FR-207`).
 
 ---
 

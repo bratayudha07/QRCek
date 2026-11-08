@@ -186,6 +186,7 @@ type VersionedAuditTable =
   | "activity_sessions"
   | "categories"
   | "custom_fields"
+  | "entitlement_rules"
   | "participants";
 
 /**
@@ -281,6 +282,56 @@ export function insertAuditAfterParticipantUpdateStatement(
     participantId,
     updatedAt,
   );
+}
+
+/** Entitlement rules carry `updated_at`; a lost optimistic write writes no audit. */
+export function insertAuditAfterEntitlementRuleUpdateStatement(
+  db: D1Database,
+  entry: AuditEntry,
+  ruleId: string,
+  updatedAt: number,
+): D1PreparedStatement {
+  return insertAuditAfterVersionedUpdateStatement(
+    db,
+    entry,
+    "entitlement_rules",
+    ruleId,
+    updatedAt,
+  );
+}
+
+/**
+ * Delete audit fires only when the row is gone after the delete statement in the
+ * same batch. A stale `updated_at` leaves the row in place, so no audit row.
+ */
+export function insertAuditAfterEntitlementRuleDeleteStatement(
+  db: D1Database,
+  entry: AuditEntry,
+  ruleId: string,
+): D1PreparedStatement {
+  return db
+    .prepare(
+      `INSERT INTO audit_log
+         (id, event_id, actor_user_id, action, entity_type, entity_id,
+          before_json, after_json, reason, request_id, ip_hash, created_at)
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        WHERE NOT EXISTS (SELECT 1 FROM entitlement_rules WHERE id = ?)`,
+    )
+    .bind(
+      entry.id,
+      entry.eventId,
+      entry.actorUserId,
+      entry.action,
+      entry.entityType,
+      entry.entityId ?? null,
+      jsonOrNull(entry.before),
+      jsonOrNull(entry.after),
+      entry.reason ?? null,
+      entry.requestId ?? null,
+      entry.ipHash ?? null,
+      entry.createdAt,
+      ruleId,
+    );
 }
 
 /**

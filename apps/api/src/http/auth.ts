@@ -135,8 +135,9 @@ export async function requireMutableEvent(
   env: Env,
   auth: AuthContext,
   eventId: string,
+  action: Action = "event:update",
 ): Promise<EventRow> {
-  await requireEventAccess(env, auth, eventId, "event:update");
+  await requireEventAccess(env, auth, eventId, action);
 
   const event = await findEventById(env.DB, eventId);
   if (!event) throw notFound("Acara tidak ditemukan");

@@ -9,11 +9,18 @@ import {
   insertAuditAfterActivityUpdateStatement,
   insertAuditAfterCategoryUpdateStatement,
   insertAuditAfterCustomFieldUpdateStatement,
+  insertAuditAfterEntitlementRuleDeleteStatement,
+  insertAuditAfterEntitlementRuleUpdateStatement,
   insertAuditAfterParticipantUpdateStatement,
   insertAuditAfterSessionUpdateStatement,
   insertAuditAfterThemeStatusStatement,
 } from "../db/audit";
 import { updateCategoryStatement } from "../db/categories";
+import {
+  deleteEntitlementRuleStatement,
+  insertEntitlementRuleStatement,
+  updateEntitlementRuleStatusStatement,
+} from "../db/entitlement-rules";
 import { updateCustomFieldStatement } from "../db/custom-fields";
 import { updateParticipantStatement } from "../db/participants";
 import { newId } from "../domain/ids";
@@ -478,5 +485,135 @@ describe("audit guarded write (I-35)", () => {
 
     expect(current[0]?.meta.changes).toBe(1);
     expect(await auditCount(participant.id)).toBe(1);
+  });
+
+  it("guards entitlement rule audit on updated_at and on the row being gone", async () => {
+    const user = await createUser({ role: "event_admin" });
+    const { themeId, activityId } = await seedActivity(user);
+    const category = await createCategory(themeId, { name: "Kelas Entitlement" });
+    const ruleId = newId(TEST_NOW + 20);
+    const now = TEST_NOW + 1_000;
+
+    await insertEntitlementRuleStatement(env.DB, {
+      id: ruleId,
+      themeId,
+      activityId,
+      sessionId: null,
+      participantId: null,
+      categoryId: category.id,
+      status: "inherit",
+      createdAt: TEST_NOW,
+      createdBy: user,
+    }).run();
+
+    const stale = await env.DB.batch([
+      updateEntitlementRuleStatusStatement(env.DB, {
+        themeId,
+        ruleId,
+        status: "allowed",
+        actorUserId: user,
+        now,
+        expectedUpdatedAt: TEST_NOW - 1,
+      }),
+      insertAuditAfterEntitlementRuleUpdateStatement(
+        env.DB,
+        {
+          id: newId(TEST_NOW + 21),
+          eventId: themeId,
+          actorUserId: user,
+          action: "entitlement_rule.updated",
+          entityType: "entitlement_rule",
+          entityId: ruleId,
+          before: { status: "inherit" },
+          after: { status: "allowed" },
+          createdAt: now,
+        },
+        ruleId,
+        now,
+      ),
+    ]);
+
+    expect(stale[0]?.meta.changes).toBe(0);
+    expect(await auditCount(ruleId)).toBe(0);
+
+    const current = await env.DB.batch([
+      updateEntitlementRuleStatusStatement(env.DB, {
+        themeId,
+        ruleId,
+        status: "allowed",
+        actorUserId: user,
+        now,
+        expectedUpdatedAt: TEST_NOW,
+      }),
+      insertAuditAfterEntitlementRuleUpdateStatement(
+        env.DB,
+        {
+          id: newId(TEST_NOW + 22),
+          eventId: themeId,
+          actorUserId: user,
+          action: "entitlement_rule.updated",
+          entityType: "entitlement_rule",
+          entityId: ruleId,
+          before: { status: "inherit" },
+          after: { status: "allowed" },
+          createdAt: now,
+        },
+        ruleId,
+        now,
+      ),
+    ]);
+
+    expect(current[0]?.meta.changes).toBe(1);
+    expect(await auditCount(ruleId)).toBe(1);
+
+    const staleDelete = await env.DB.batch([
+      deleteEntitlementRuleStatement(env.DB, {
+        themeId,
+        ruleId,
+        expectedUpdatedAt: TEST_NOW,
+      }),
+      insertAuditAfterEntitlementRuleDeleteStatement(
+        env.DB,
+        {
+          id: newId(TEST_NOW + 23),
+          eventId: themeId,
+          actorUserId: user,
+          action: "entitlement_rule.deleted",
+          entityType: "entitlement_rule",
+          entityId: ruleId,
+          before: { status: "allowed" },
+          createdAt: now,
+        },
+        ruleId,
+      ),
+    ]);
+
+    expect(staleDelete[0]?.meta.changes).toBe(0);
+    expect(await auditCount(ruleId)).toBe(1);
+
+    const deleted = await env.DB.batch([
+      deleteEntitlementRuleStatement(env.DB, {
+        themeId,
+        ruleId,
+        expectedUpdatedAt: now,
+      }),
+      insertAuditAfterEntitlementRuleDeleteStatement(
+        env.DB,
+        {
+          id: newId(TEST_NOW + 24),
+          eventId: themeId,
+          actorUserId: user,
+          action: "entitlement_rule.deleted",
+          entityType: "entitlement_rule",
+          entityId: ruleId,
+          before: { status: "allowed" },
+          createdAt: now,
+        },
+        ruleId,
+      ),
+    ]);
+
+    expect(deleted[0]?.meta.changes).toBe(1);
+    expect(await auditCount(ruleId)).toBe(2);
   });
 });

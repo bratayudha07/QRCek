@@ -81,6 +81,7 @@ describe("allowlist table", () => {
       "activity",
       "category",
       "custom_field",
+      "entitlement_rule",
       "participant",
       "session",
       "theme",

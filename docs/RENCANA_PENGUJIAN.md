@@ -6,7 +6,12 @@ Tujuan pengujian di proyek ini **bukan** mengejar angka coverage, tetapi membukt
 
 ## Snapshot verifikasi terkini
 
-- Snapshot 8 November 2026 (Q2 live): `typecheck` PASS, `lint` PASS, `test` **587 tes di 57 file** lulus, `build` PASS; produksi `schema_version = 8`, `/api/health/ready` 200, route kategori/custom field 401 tanpa sesi, dan verifikasi data bersih (0 peserta tanpa kategori, 0 lintas Tema). Angka tes adalah snapshot; hitung ulang dengan `npm run test`.
+- Snapshot 8 November 2026 (Q3 API-only, `0009` lokal): `typecheck` PASS, `lint` PASS,
+  `test` **637 tes di 60 file** lulus, `build` PASS. Produksi masih `schema_version = 8`;
+  `0009_entitlement_rules.sql` **belum** diterapkan di remote. Verifikasi Q2 live sebelumnya:
+  produksi `schema_version = 8`, `/api/health/ready` 200, route kategori/custom field 401 tanpa
+  sesi, dan data bersih (0 peserta tanpa kategori, 0 lintas Tema). Angka tes adalah snapshot;
+  hitung ulang dengan `npm run test`.
 - Snapshot 5 November 2026 (Q1, commit `a196109` + penguatan tes): `typecheck` PASS, `lint` PASS, `test` **525 tes di 53 file** lulus, `build` PASS.
 - Commit acuan `157c330` (3 November 2026, `REQUIREMENTS.md` §0.1): `npm run test` → **458 tes di 48 file** lulus. Angka ini snapshot; hitung ulang dengan `npm run test`.
 - Snapshot sebelumnya (2 November 2026): `typecheck` PASS, `lint` PASS, `test` 450 tes di 47 file.
@@ -245,6 +250,10 @@ Tambahan yang tidak ada di daftar awal tetapi diuji karena Tahap 2 dan 3:
 | Ekspor CSV dapat diimpor ulang; template header-only; PII hanya admin | `participants.crud.test.ts` |
 | Impor: header/baris invalid, duplikasi file, `;`, JSON, idempoten, rate limit, archived | `participants.import.test.ts` |
 | Parser CSV dan normalisasi telepon/email | `csv.test.ts` |
+| Entitlement: resolver lima tingkat, `inherit`, default deny, override Sesi, completeness (murni) | `packages/shared/src/entitlements.test.ts` |
+| Entitlement DB: partial unique per tingkat, trigger lintas Tema/Aktivitas/Sesi, satu Theme default, RESTRICT, backfill `0009`, query plan `SEARCH`, batas 5 baris | `entitlements.db.test.ts` |
+| Entitlement API: baca/tulis per peran, Tema arsip, Theme default, batch 15, duplikat/invalid/lintas Tema, kategori arsip, override individual, scope Sesi, audit, preview, gate, allowlist PII | `entitlements.api.test.ts` |
+| Audit entitlement hanya tertulis bila mutasi mendarat (update dan delete) | `audit.guarded-write.test.ts` |
 | Router web, query peserta, konversi zona waktu | `apps/web/src/lib/*.test.ts` |
 
 
@@ -291,7 +300,7 @@ Yang diuji: reklaim item `inflight` macet, housekeeping tidak menghapus data yan
 
 Sumber kebenaran tunggal: `domain/permissions.ts`. Tes mengiterasi matriks ini, sehingga penambahan route baru tanpa aturan akan gagal.
 
-> Matriks ini menggambarkan **baseline**. Dua baris bertentangan dengan target: "Koreksi absensi" untuk superadmin (`D-006` [A] hanya Admin Acara; kewenangan Super Admin menunggu `D-024` [A]) dan "Buat acara" untuk `event_admin` (baseline ADR-0007 mengizinkan lewat peran global; tabel ini belum memuatnya). Matriks target ditulis ulang di Q1/Q5 setelah AQ-007 dijawab.
+> Matriks ini menggambarkan **baseline**. Dua baris bertentangan dengan target: "Koreksi absensi" untuk superadmin (`D-006` [A] hanya Admin Acara; kewenangan Super Admin menunggu `D-024` [A]) dan "Buat acara" untuk `event_admin` (baseline ADR-0007 mengizinkan lewat peran global; tabel ini belum memuatnya). Matriks target ditulis ulang di Q1/Q5 setelah AQ-007 dijawab. Dua baris `entitlement:*` adalah aksi Q3 yang sudah aktif di `domain/permissions.ts`, bukan baseline.
 
 | Aksi | superadmin | event_admin | officer | anonim |
 |---|---|---|---|---|
@@ -310,6 +319,8 @@ Sumber kebenaran tunggal: `domain/permissions.ts`. Tes mengiterasi matriks ini, 
 | Koreksi absensi | ✅ | ✅ | ❌ | ❌ |
 | Baca audit | ✅ | ✅ | ❌ | ❌ |
 | Konfigurasi sync | ✅ | ✅ | ❌ | ❌ |
+| Lihat aturan entitlement (`entitlement:read`) | ✅ | ✅ (Tema sendiri) | ✅ (Tema sendiri) | ❌ |
+| Ubah aturan entitlement (`entitlement:write`) | ✅ | ✅ (Tema sendiri) | ❌ | ❌ |
 | Pemakaian lintas acara (`/api/admin/usage`) | ✅ | ❌ | ❌ | ❌ |
 
 ### 5.2 Skenario serangan yang wajib diuji
@@ -511,6 +522,19 @@ Semua keputusan produk D-001…D-024 sudah disetujui `[A]`; AQ arsitektur ditang
 | T-028 | > 2 MB atau > 1.000 baris data (header tidak dihitung) ditolak dengan pesan actionable | `BR-076` | `D-020` [A] |
 
 ### 9.3 Entitlement (Q3, penegakan di Q5)
+
+> **Status per 8 November 2026 (Q3, API-only).** `T-040`, `T-041`, `T-042`, dan `T-045` sudah
+> punya tes yang gagal bila aturannya dihapus. `T-043` (penolakan transaksi tanpa entitlement)
+> dan `T-044` (transaksi lama tidak berubah) **belum** dapat diuji penuh karena transaksi baru
+> ada di Q5; Q3 membuktikan resolvernya default deny dan tidak menyentuh tabel transaksi.
+> Berkas: `packages/shared/src/entitlements.test.ts`,
+> `apps/api/src/test/entitlements.db.test.ts`, `entitlements.api.test.ts`,
+> `audit.guarded-write.test.ts`, dan `permissions.test.ts`.
+>
+> **Uji mutasi Q3.** Enam guard inti diuji dengan merusak kodenya sementara: urutan prioritas,
+> default deny, filter tingkat Sesi, pelestarian override individual, gate kelengkapan
+> `draft → active`, dan trigger konteks Tema/Sesi. **Keenamnya tertangkap** (tes gagal saat
+> aturan dihapus). Rincian di `.opencode/plans/q3-entitlement.md` §16.2.
 
 | ID | Tes | Rujukan | Status keputusan |
 |---|---|---|---|

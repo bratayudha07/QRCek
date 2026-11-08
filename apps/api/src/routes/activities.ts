@@ -33,6 +33,7 @@ import {
   activityTransitionMessage,
   canTransitionActivity,
 } from "../domain/lifecycle";
+import { getEntitlementCompleteness } from "../db/entitlement-rules";
 import { authOf, requireEventAccess, requireMutableEvent } from "../http/auth";
 import { businessRule, conflict, notFound } from "../http/errors";
 import type { RouteContext, RouteDefinition, RouteResult } from "../http/router";
@@ -239,6 +240,24 @@ async function changeActivityStatus(ctx: RouteContext): Promise<RouteResult> {
 
   if (!canTransitionActivity(existing.status, body.status)) {
     throw businessRule(activityTransitionMessage(existing.status, body.status));
+  }
+
+  // FR-040/FR-041: every active category must have an explicit category–activity
+  // rule before the activity can go live. `POST` still creates a draft.
+  if (existing.status === "draft" && body.status === "active") {
+    const completeness = await getEntitlementCompleteness(
+      ctx.env.DB,
+      eventId,
+      activityId,
+    );
+
+    if (!completeness.complete) {
+      const names = completeness.missingCategoryNames.join(", ");
+      throw businessRule(
+        `Aktivitas belum dapat diaktifkan. Kategori berikut belum punya aturan entitlement: ${names}.`,
+        { missingCategoryIds: completeness.missingCategoryIds },
+      );
+    }
   }
 
   const updated: ActivityRow = {

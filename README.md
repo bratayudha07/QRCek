@@ -6,11 +6,14 @@ sinkronisasi opsional ke Google Sheets.
 
 Stack: React + Vite · Cloudflare Workers + D1 · Google Sheets API (opsional).
 
-> **Status:** baseline Fase 0–6 sudah dilampaui. Q1 (Tema → Aktivitas → Sesi) dan Q2
-> (kategori, custom field, atribut peserta, impor CSV) sudah live **API-only**; UI tahap itu
-> masuk Q9. Model QRCek yang belum ada: entitlement (Q3), QR per Tema (Q4), transaksi
-> efektif + Reversal/Adjustment (Q5), scanner/kiosk, konsumsi, dan laporan target. Kebutuhan
-> ada di [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md), urutan kerja di
+> **Status:** baseline Fase 0–6 sudah dilampaui. Q1 (Tema → Aktivitas → Sesi) sudah live
+> **API-only**; Q2 (kategori, custom field, atribut peserta, impor CSV) sudah live **API-only**
+> (deploy `2a0eeba` + fix `eca5cd3`, `schema_version = 8`). Q3 (konfigurasi entitlement,
+> ADR-0016) **sudah terimplementasi API-only** (migrasi `0009`, resolver, gate `draft → active`)
+> dan menunggu penerapan `0009` di remote + deploy lewat Workers Builds sebelum gate Q3 bisa
+> ditutup. QR per Tema (Q4), transaksi efektif + Reversal/Adjustment (Q5), scanner/kiosk,
+> konsumsi, dan laporan target masih di atas. Kebutuhan ada di
+> [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md), urutan kerja di
 > [`docs/IMPLEMENTATION_ROADMAP.md`](docs/IMPLEMENTATION_ROADMAP.md).
 >
 > Identifier teknis tetap memakai `absensi` (`@absensi/*`, cookie `absensi_session`, prefix QR
@@ -296,7 +299,7 @@ Status, batas platform, dan prosedur rollback ada di
 | `AGENTS.md` | Aturan mengikat untuk agent AI dan kontributor |
 | `docs/REQUIREMENTS.md` | Kebutuhan produk, keputusan produk, baseline, delta |
 | `docs/DECISIONS.md` | Indeks keputusan produk, ADR, dan pertanyaan arsitektur |
-| `docs/adr/` | Keputusan arsitektur individual (ADR-0001–0016; ADR-0016 masih Diusulkan) |
+| `docs/adr/` | Keputusan arsitektur individual (ADR-0001–0016; ADR-0016 diterima 8 November 2026) |
 | `docs/ARCHITECTURE.md` | Boundary, model domain target, alur baseline |
 | `docs/IMPLEMENTATION_ROADMAP.md` | Tahap Q0–Q11, prasyarat, gate |
 | `docs/DESAIN_API.md` | Tabel endpoint aktual |

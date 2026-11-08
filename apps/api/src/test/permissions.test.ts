@@ -23,6 +23,8 @@ const EXPECTED: Record<Action, { superadmin: boolean; eventAdmin: boolean; offic
   "category:write": { superadmin: true, eventAdmin: true, officer: false },
   "custom_field:read": { superadmin: true, eventAdmin: true, officer: true },
   "custom_field:write": { superadmin: true, eventAdmin: true, officer: false },
+  "entitlement:read": { superadmin: true, eventAdmin: true, officer: true },
+  "entitlement:write": { superadmin: true, eventAdmin: true, officer: false },
   "qr:print": { superadmin: true, eventAdmin: true, officer: false },
   scan: { superadmin: true, eventAdmin: true, officer: true },
   "recap:read": { superadmin: true, eventAdmin: true, officer: true },
