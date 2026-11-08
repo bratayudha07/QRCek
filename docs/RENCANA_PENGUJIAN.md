@@ -333,16 +333,16 @@ Sumber kebenaran tunggal: `domain/permissions.ts`. Tes mengiterasi matriks ini, 
 
 ### 5.3 Pemeriksaan statis
 
-- `grep` CI: tidak ada `console.log` yang mencetak objek request; tidak ada `process.env`.
-- `grep` CI: tidak ada string `SELECT * FROM` tanpa `WHERE` pada tabel ber-`event_id`.
-- `grep` CI: tidak ada `UPDATE audit_log` / `DELETE FROM audit_log` di luar modul arsip.
+- `grep` manual: tidak ada `console.log` yang mencetak objek request; tidak ada `process.env`.
+- `grep` manual: tidak ada string `SELECT * FROM` tanpa `WHERE` pada tabel ber-`event_id`.
+- `grep` manual: tidak ada `UPDATE audit_log` / `DELETE FROM audit_log` di luar modul arsip.
 - Secret tidak boleh muncul di bundle: cek `apps/web/dist` tidak memuat nama variabel secret.
 
 ---
 
-## 6. Gerbang kualitas (CI)
+## 6. Gerbang kualitas (lokal)
 
-`.github/workflows/ci.yml` menjalankan, dalam urutan ini:
+Repo ini tidak memakai CI hosted. Sebelum merge/deploy, jalankan dari root dalam urutan ini:
 
 ```
 npm ci
@@ -352,7 +352,8 @@ npm run test
 npm run build
 ```
 
-CI gagal bila salah satu gagal. Tidak ada `--passWithNoTests`, tidak ada `continue-on-error`.
+Rilis tidak boleh dilanjutkan bila salah satu gagal. Tidak ada `--passWithNoTests`, tidak ada
+`continue-on-error`.
 
 Ambang tambahan yang dicek manual sebelum merge:
 
@@ -421,7 +422,7 @@ Checklist singkat yang dijalankan pada staging sebelum deploy produksi:
     ada kontrol yang tertutup bottom nav.
 18. Secret QR sengaja dikosongkan di lokal → pratinjau menampilkan pesan konfigurasi server,
     bukan halaman kosong atau QR rusak.
-19. Setelah merge ke `main`, tunggu workflow **Deploy** hijau lalu verifikasi produksi:
+19. Setelah `npx wrangler deploy` manual berhasil, verifikasi produksi:
     `/api/health` 200, `/api/health/ready` 200, `curl -I` memuat
     `content-security-policy` dan `permissions-policy: camera=(self)`, dan pemindai kamera
     tetap berjalan di HP (CSP tidak memblokir bundle).

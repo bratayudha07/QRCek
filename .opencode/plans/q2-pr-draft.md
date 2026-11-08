@@ -7,7 +7,7 @@ Dokumen kerja untuk pemilik proyek. Bukan pengganti `docs/REQUIREMENTS.md` atau 
 - **Branch:** `q1-foundation`
 - **Head Q2:** `b18989c` — `feat(q2): add categories, custom fields, and participant attributes`
 - **Base:** `main` (`ae5737b`)
-- **Isi PR:** Q1, Q2 (`b18989c`), workflow deploy (`6df604d`), dan draf ADR-0016 (commit dokumen setelahnya). `main` belum memiliki Q1.
+- **Isi PR:** Q1, Q2 (`b18989c`), dokumentasi deploy manual, dan draf ADR-0016. `main` belum memiliki Q1.
 - **Sifat Q2:** API-only. Tidak ada UI kategori/custom field/atribut; web tetap kompilasi.
 
 Kalau Q1 dan Q2 ingin direview terpisah, merge Q1 lebih dulu (branch ini sudah berisi Q1), lalu buka PR Q2 dari commit setelahnya. Kalau tidak, satu PR mencakup keduanya dan reviewer perlu melihat dua tahap roadmap.
@@ -110,13 +110,26 @@ Uji mutasi Q2 (enam guard inti) semuanya tertangkap; detail di `.opencode/plans/
 `0008` **tidak boleh** diterapkan ke remote sendirian. Setelah migrasi aktif, trigger menolak `INSERT` peserta tanpa `category_id`, sedangkan Worker Q1 yang masih live menulis peserta tanpa kolom itu.
 
 1. Pastikan Q2 sudah direview dan siap merge.
-2. Ambil backup remote: `npx wrangler d1 export absensi-db --remote --output /tmp/opencode/qrcek-backup-<tanggal>.sql` dari `apps/api`.
-3. Merge Q2 ke `main`.
-4. Jalankan workflow **Migrate D1** dari `main` (manual, environment `production`).
-5. Jalankan workflow **Deploy** dari `main` (otomatis setelah push/merge, atau manual).
-6. Verifikasi `/api/health`, `/api/health/ready`, dan security headers.
+2. Pastikan branch protection `main` **tidak** mewajibkan status check GitHub, karena repo tidak memakai CI hosted. Verifikasi dilakukan lokal.
+3. Ambil backup remote dari `apps/api`:
+   ```bash
+   npx wrangler d1 export absensi-db --remote \
+     --output /tmp/opencode/qrcek-backup-<tanggal>.sql
+   ```
+4. Merge Q2 ke `main`.
+5. Terapkan migrasi manual dari `apps/api`:
+   ```bash
+   npx wrangler d1 migrations apply absensi-db --remote
+   ```
+6. Build dan deploy dari mesin lokal:
+   ```bash
+   npm run build
+   cd apps/api
+   npx wrangler deploy
+   ```
+7. Verifikasi `/api/health`, `/api/health/ready`, dan security headers.
 
-Catatan: workflow GitHub Actions dan dokumen deploy berada di commit terpisah setelah `b18989c`. Pastikan commit tersebut sudah ada di `main` dan repo secret sudah diatur sebelum menjalankan Migrate D1.
+Catatan: tidak ada GitHub Actions atau Workers Builds. Migrasi dan deploy dijalankan manual dalam satu jendela; jangan menunda deploy setelah `0008` diterapkan.
 
 ## Bukan cakupan Q2
 

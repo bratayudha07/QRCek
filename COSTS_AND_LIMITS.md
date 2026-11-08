@@ -42,28 +42,19 @@ Semua angka di bawah dikutip dari dokumentasi resmi pada tanggal verifikasi (lih
 
 Sumber: <https://developers.cloudflare.com/workers/platform/limits/> (diperbarui 29 Okt 2026).
 
-### Batas GitHub Actions (deploy dari GitHub)
+### Deploy manual tanpa CI hosted
 
-Produksi di-deploy lewat GitHub Actions (`.github/workflows/deploy.yml`), bukan Workers
-Builds. Kuota yang relevan:
+Produksi di-deploy dari mesin lokal dengan `npm run build` + `npx wrangler deploy`. Repo ini
+tidak memakai GitHub Actions atau Cloudflare Workers Builds, jadi **tidak ada kuota build
+hosted** yang dikonsumsi dan tidak ada tagihan Actions. GitHub hanya menyimpan source dan
+pull request.
 
-| Fitur | GitHub Free |
-|---|---|
-| Menit Actions untuk repo privat | **2.000/bulan** |
-| Menit Actions untuk repo publik | Gratis (tanpa batas menit) |
-| Penyimpanan artefak (repo privat) | 500 MB |
-| Job bersamaan (runner standar) | 20 |
-| Timeout job | Maksimum 6 jam; workflow ini membatasi 15–20 menit |
-| Retensi log | 90 hari (default) |
+Yang tetap membatasi adalah batas platform Cloudflare di §2–§3: CPU Worker per request, baris
+tulis D1, ukuran database, dan kuota request harian. Verifikasi lokal (`typecheck` → `lint` →
+`test` → `build`) tidak memakai kuota Cloudflare.
 
-Sumber: <https://docs.github.com/en/actions/learn-github-actions/usage-limits-billing-and-administration> (7 Nov 2026).
-
-Satu siklus verifikasi + build repo ini berada di kisaran beberapa menit. Karena `ci.yml`
-hanya berjalan di pull request dan `deploy.yml` di `main`, commit yang sama tidak diverifikasi
-dua kali. Build tidak memakai kuota request Worker, karena berjalan di runner GitHub.
-
-> Alternatif gratis lain: repo publik tidak memakai menit Actions. Jika repo privat dan kuota
-> menipis, kurangi frekuensi push ke `main` atau jalankan verifikasi manual sebelum merge.
+> Konsekuensi: tidak ada status check otomatis di GitHub. Jangan aktifkan “Require status
+> checks” pada branch protection `main`; jalankan verifikasi lokal sebelum merge.
 
 ### Arti praktisnya
 
@@ -269,8 +260,6 @@ Tidak ada langkah berbayar, tetapi ada langkah **manual** yang harus dilakukan s
 | D1 pricing | https://developers.cloudflare.com/d1/platform/pricing/ | 21 Apr 2026 |
 | Pages limits | https://developers.cloudflare.com/pages/platform/limits/ | 5 Sep 2026 |
 | Workers Static Assets | https://developers.cloudflare.com/workers/static-assets/ | 12 Okt 2026 |
-| GitHub Actions limits | https://docs.github.com/en/actions/learn-github-actions/usage-limits-billing-and-administration | 7 Nov 2026 |
-| Cloudflare Workers Builds (tidak dipakai) | https://developers.cloudflare.com/workers/ci-cd/builds/limits-and-pricing/ | 28 Okt 2026 |
 | Sheets API limits | https://developers.google.com/sheets/api/limits | — |
 | Drive file limits | https://support.google.com/drive/answer/37603 | — |
 | Vitest integration | https://developers.cloudflare.com/workers/testing/vitest-integration/ | Okt 2026 |
