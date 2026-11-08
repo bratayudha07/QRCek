@@ -1,6 +1,6 @@
 # Rencana Q2 — Peserta, kategori, custom field, impor CSV
 
-Status: **dibuka 6 November 2026** oleh pemilik proyek. Dokumen ini adalah rencana eksekusi; status implementasi dicatat di bagian akhir setelah dieksekusi.
+Status: **dibuka 6 November 2026**, **live 8 November 2026** (API-only). Dokumen ini adalah rencana eksekusi; status implementasi dan penyimpangan dicatat di bagian akhir setelah dieksekusi.
 
 ## 0. Keputusan yang mengikat rencana ini
 

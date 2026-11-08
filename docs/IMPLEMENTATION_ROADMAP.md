@@ -35,7 +35,7 @@
 |---|---|---|---|
 | Q0 | Penyelarasan dokumen & keputusan | **Berjalan** | `D-001`, `D-002` [A] |
 | Q1 | Fondasi Tema → Aktivitas → Sesi, lifecycle, mekanisme audit | **Selesai (API-only)** | AQ-001, AQ-010, AQ-014 (ADR-0009–0011, Diterima); ADR-0012 (lifecycle), ADR-0013 (registrasi), keduanya Diterima; `D-009`, `D-010`, `D-023` [A]; `OQ-033` [A] untuk aksi arsip Sesi |
-| Q2 | Peserta, kategori, custom field, impor CSV | **Selesai secara kode (API-only), menunggu review + migrasi `0008` remote** | AQ-006 dijawab ADR-0014 (Diterima 6 November 2026); `D-008`, `D-020` [A] |
+| Q2 | Peserta, kategori, custom field, impor CSV | **Selesai (API-only) — kode + migrasi `0008` live 8 November 2026** | AQ-006 dijawab ADR-0014 (Diterima 6 November 2026); `D-008`, `D-020` [A] |
 | Q3 | Entitlement | Belum dibuka | AQ-005 |
 | Q4 | QR Identity per Tema, rotasi, ekspor PNG/ZIP | Belum dibuka | AQ-009; `D-016` [A] |
 | Q5 | Transaksi Attendance, Manual Entry, Reversal/Adjustment | Belum dibuka | AQ-002–AQ-004, AQ-007, AQ-008; `D-010`, `D-011`, `D-022`, `D-024` [A]; `OQ-034` [A] |
@@ -178,7 +178,9 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 - Batas 50 field aktif dan 100 opsi ditegakkan di Worker sebagai `422 BUSINESS_RULE`; arsip membebaskan slot.
 - Tes baru: `packages/shared/src/participant-attributes.test.ts`, `apps/api/src/test/categories.api.test.ts`, `custom-fields.api.test.ts`, `participant-attributes.api.test.ts`, perluasan `audit.guarded-write.test.ts` dan tes impor/peserta. Uji mutasi enam guard inti tertangkap (`RENCANA_PENGUJIAN.md` §9.2).
 - **Penyimpangan kompatibilitas:** `participants.category` (teks) tetap ada sebagai mirror yang dijaga trigger; create/update satu peserta masih menerima nama `category` sebagai input deprecated, sedangkan impor CSV **tidak** membuat kategori otomatis (ADR-0014). `PATCH` peserta tidak dapat menghapus kategori (`category: null` diabaikan), sehingga kategori wajib selalu terpenuhi.
-- **Belum:** UI kategori/custom field/atribut (Q9), nilai custom field per Aktivitas/Sesi (Q3), dan migrasi `0008` di remote. **Urutan rilis wajib:** terapkan `0008` dan deploy kode Q2 berdekatan (idealnya satu jendela), karena Worker lama masih menulis peserta tanpa `category_id` dan trigger `0008` akan menolaknya. Jangan menerapkan `0008` sendirian ke remote. Kode Q2 belum masuk `main`; Worker remote masih menjalankan skema `0007`.
+- **Belum:** UI kategori/custom field/atribut (Q9) dan nilai custom field per Aktivitas/Sesi (Q3).
+- **Gate ditutup 8 November 2026:** PR #1 di-merge ke `main` (`2a0eeba`), Workers Builds hijau, `0008` diterapkan ke remote (`schema_version = 8`), dan verifikasi produksi bersih: 80 peserta, 32 kategori, 0 peserta tanpa kategori, 0 kategori lintas Tema, 0 `attributes_json` invalid, 6 trigger ada. Route Q2 merespons `401` tanpa sesi (bukan `404`). Rincian di `docs/OPERASIONAL.md` §"Status operasi saat ini".
+- **Pelajaran rilis:** build Workers Builds selesai sebelum migrasi diterapkan (jendela ~14 menit) karena export backup gagal akibat token Wrangler kedaluwarsa. Data akhir bersih, tetapi rilis yang mengubah kontrak berikutnya harus memakai expand/contract atau mematikan auto-deploy sementara. Form peserta di web kini menandai kategori wajib agar tidak menabrak validasi API.
 
 ---
 
@@ -379,3 +381,4 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 | Draft v1.2 | 4 November 2026 | ADR-0009–0013 berstatus Diterima; Q1 **Dibuka** (API-only). |
 | Draft v1.3 | 6 November 2026 | Q1 **Selesai (API-only)** setelah review pemilik proyek dan migrasi `0007` diterapkan di remote; ADR-0014 (AQ-006) dan ADR-0015 Diterima; Q2 **Dibuka**. |
 | Draft v1.4 | 7 November 2026 | Q2 **Selesai secara kode (API-only)**; migrasi `0008` dibuat dan diuji lokal, penerapan remote + review pemilik masih pending. UI dan nilai field per Aktivitas tetap di tahap lanjut. |
+| Draft v1.5 | 8 November 2026 | Q2 **Selesai (API-only)**: PR #1 merge ke `main`, Workers Builds aktif, `0008` diterapkan ke remote (`schema_version = 8`), verifikasi produksi bersih, gate ditutup. Deploy kode memakai Workers Builds; migrasi D1 tetap manual. Q3 belum dibuka karena AQ-005. |

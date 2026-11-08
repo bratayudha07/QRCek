@@ -105,30 +105,13 @@ Uji mutasi Q2 (enam guard inti) semuanya tertangkap; detail di `.opencode/plans/
 - [ ] `docs/IMPLEMENTATION_ROADMAP.md` Q2 mencatat "kode selesai, migrasi remote belum".
 - [ ] Tidak ada klaim UI Q2 selesai; UI masuk Q9.
 
-## Urutan rilis (wajib)
+## Urutan rilis (sudah dijalankan 8 November 2026)
 
-`0008` **tidak boleh** diterapkan ke remote sendirian. Setelah migrasi aktif, trigger menolak `INSERT` peserta tanpa `category_id`, sedangkan Worker Q1 yang masih live menulis peserta tanpa kolom itu.
+`0008` **tidak boleh** diterapkan ke remote sendirian. Setelah migrasi aktif, trigger menolak `INSERT` peserta tanpa `category_id`, sedangkan Worker lama menulis peserta tanpa kolom itu.
 
-1. Pastikan Q2 sudah direview dan siap merge.
-2. Verifikasi lokal hijau. Workers Builds hanya build + deploy, bukan test suite.
-3. Pastikan Workers Builds diarahkan ke repo, branch `main`, build command `npm ci && npm run build`, dan deploy command `npx wrangler deploy --config apps/api/wrangler.jsonc` (lihat README).
-4. Ambil backup remote dari `apps/api`:
-   ```bash
-   npx wrangler d1 export absensi-db --remote \
-     --output /tmp/opencode/qrcek-backup-<tanggal>.sql
-   ```
-5. Merge Q2 ke `main`. Workers Builds mulai build Q2.
-6. Segera setelah merge, terapkan migrasi dari `apps/api` sambil build berjalan:
-   ```bash
-   npx wrangler d1 migrations apply absensi-db --remote
-   npx wrangler deploy
-   ```
-   Rilis `0008` ini adalah **satu-satunya** rilis manual yang disengaja: migrasi dan kode harus
-   berdekatan. `wrangler deploy` lokal yang selesai lebih dulu aman karena kodenya sama dengan
-   yang sedang dibuild Workers Builds.
-7. Tunggu build Workers Builds hijau dan verifikasi `/api/health`, `/api/health/ready`, dan security headers.
+Hasil: PR #1 merge (`2a0eeba`), Workers Builds hijau, `0008` diterapkan ke remote, `schema_version = 8`, verifikasi data bersih. Rincian di `docs/OPERASIONAL.md`.
 
-Catatan: setelah skema `0008` aktif dan kode Q2 live, rilis berikutnya cukup lewat Workers Builds otomatis. Migrasi D1 tetap manual dan tidak ikut build.
+**Catatan evaluasi:** backup pra-migrasi gagal karena token Wrangler kedaluwarsa, sehingga migrasi tertunda ~14 menit setelah build selesai. Jendela itu tidak ideal. Untuk rilis berikutnya pakai expand/contract atau matikan auto-deploy sementara (lihat README §Deploy).
 
 ## Bukan cakupan Q2
 
@@ -136,7 +119,6 @@ Catatan: setelah skema `0008` aktif dan kode Q2 live, rilis berikutnya cukup lew
 - Nilai custom field per Aktivitas/Sesi (Q3).
 - Entitlement dan resolver (Q3; menunggu AQ-005).
 - Perubahan pada `attendance`/scan (Q5).
-- Migrasi remote `0008` tanpa persetujuan pemilik.
 
 ## Risiko yang perlu diputuskan reviewer
 

@@ -22,16 +22,17 @@ Detail, kuota, dan rollback: `docs/OPERASIONAL.md` §10.
 ## Sebelum merge/push ke main
 
 1. Lokal hijau: `npm run typecheck` → `npm run lint` → `npm run test` → `npm run build`.
-2. Bila ada migrasi baru: backup remote lalu terapkan migrasi manual. Urutannya penting:
-   Worker lama tetap melayani request sampai Workers Builds selesai deploy.
+2. Bila ada migrasi baru: backup remote **dan pastikan export sukses** sebelum apply. Untuk
+   perubahan yang mengubah kontrak, pakai expand/contract: migrasi additive → deploy kode →
+   migrasi penegakan. Jangan biarkan build mendahului migrasi lebih dari hitungan detik.
    ```bash
    cd apps/api
-   npx wrangler d1 export absensi-db --remote --output /tmp/opencode/qrcek-backup-$(date -u +%Y-%m-%d).sql
-   npx wrangler d1 migrations apply absensi-db --remote
+   npx wrangler whoami
+   npx wrangler d1 export absensi-db --remote --output /tmp/opencode/qrcek-backup-$(date -u +%Y-%m-%d-%H%M).sql
    ```
-3. Untuk rilis Q2/`0008`, lakukan satu kali rilis manual (migrasi lalu `npx wrangler deploy`)
-   atau jalankan migrasi saat build Workers Builds sedang berjalan. Jangan menerapkan `0008`
-   lalu menunda deploy.
+3. Kalau trigger harus aktif segera, matikan auto-deploy sementara di dashboard Cloudflare,
+   lalu jalankan migrasi + `npx wrangler deploy` berurutan tanpa jeda, baru aktifkan lagi.
+   Jangan ulangi pola rilis `0008` yang membiarkan kode baru live di atas skema lama.
 4. Secret Worker diatur lewat `npx wrangler secret put <NAMA>` dari `apps/api` — jangan pernah menampilkan atau mencatat nilainya: `SESSION_PEPPER`, `QR_PEPPER`, `QR_ENCRYPTION_KEY`, `QR_KEY_VERSION`, `GOOGLE_SA_KEY`.
 5. Tidak ada `VITE_*` wajib saat ini. Bila menambah satu, pastikan nilainya publik.
 

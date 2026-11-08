@@ -2,7 +2,7 @@
 
 Dokumen ini mencatat hasil pengukuran, instruksi operasi, status deployment, dan quirk lingkungan yang tidak terlihat dari kode.
 
-> **Konteks (4 November 2026).** Semua pengukuran dan prosedur di sini berlaku untuk baseline (model `events` datar, commit acuan `157c330`) ditambah fondasi Q1 (Aktivitas/Sesi, API-only). Model target QRCek ([`REQUIREMENTS.md`](./REQUIREMENTS.md)) akan menambah tabel, indeks, dan jalur transaksi baru; angka CPU/statement/baris di bawah **tidak** otomatis berlaku untuk model itu dan harus diukur ulang di tahap roadmap terkait ([`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md) Q5 dan Q11). Uji perangkat fisik scanner, akun Google Sheets nyata, dan CPU produksi belum pernah dilakukan (`REQUIREMENTS.md` §7.3). Rujukan "ADR-00N" di dokumen ini = `docs/adr/000N-*.md`.
+> **Konteks (8 November 2026).** Semua pengukuran dan prosedur di sini berlaku untuk baseline (model `events` datar, commit acuan `157c330`) ditambah fondasi Q1 (Aktivitas/Sesi) dan Q2 (kategori, custom field, atribut peserta) — keduanya API-only. Model target QRCek ([`REQUIREMENTS.md`](./REQUIREMENTS.md)) akan menambah tabel, indeks, dan jalur transaksi baru; angka CPU/statement/baris di bawah **tidak** otomatis berlaku untuk model itu dan harus diukur ulang di tahap roadmap terkait ([`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md) Q5 dan Q11). Uji perangkat fisik scanner, akun Google Sheets nyata, dan CPU produksi belum pernah dilakukan (`REQUIREMENTS.md` §7.3). Rujukan "ADR-00N" di dokumen ini = `docs/adr/000N-*.md`.
 
 ## Status operasi saat ini (8 November 2026)
 
@@ -10,17 +10,30 @@ Dokumen ini mencatat hasil pengukuran, instruksi operasi, status deployment, dan
   **Cloudflare Workers Builds** (Git integration): push/merge ke `main` memicu build lalu
   `wrangler deploy` dari runner Cloudflare. Repo ini tidak memakai GitHub Actions. Migrasi D1
   tetap manual — lihat §10.
-- Terverifikasi 2 November 2026 05:49 UTC pada URL produksi: `GET /api/health` → `200`
-  (Worker hidup), sedangkan `GET /api/health/ready` dan `GET /api/admin/usage` masih `404`
-  dan security headers belum ada di respons aset. Artinya versi yang live lebih lama dari
-  commit yang menambahkan permukaan Fase 6; endpoint itu muncul setelah push berikutnya.
-- Migrasi remote `0001`–`0007` sudah diterapkan. `0007_q1_activities_sessions.sql`
-  diterapkan **6 November 2026** (sebelum kode Q1 masuk `main`), setelah backup penuh:
-  `npx wrangler d1 export absensi-db --remote --output /tmp/opencode/qrcek-backup-2026-11-06.sql`
-  (122 KB; 17 `CREATE TABLE`, termasuk `d1_migrations`). Verifikasi pasca-migrasi:
-  tabel `activities` dan `activity_sessions` ada, `app_meta.schema_version = 7`.
-  Migrasi **tidak** dijalankan otomatis oleh deploy; terapkan manual dari `apps/api` dengan
-  `npx wrangler d1 migrations apply absensi-db --remote` — lihat §10.3.
+- Terverifikasi 8 November 2026 02:28 UTC pada URL produksi: `GET /api/health` → `200`,
+  `GET /api/health/ready` → `200` (`database: ok`), dan security headers
+  (`content-security-policy`, `permissions-policy: camera=(self)`, HSTS) ada. Route Q2
+  `GET /api/events/x/categories` dan `/custom-fields` → `401 UNAUTHENTICATED` (route ada,
+  sesi belum dikirim), bukan `404`.
+- Migrasi remote `0001`–`0008` sudah diterapkan. `0007_q1_activities_sessions.sql`
+  diterapkan **6 November 2026** (backup: `/tmp/opencode/qrcek-backup-2026-11-06.sql`,
+  122 KB). `0008_q2_categories_custom_fields.sql` diterapkan **8 November 2026 02:28 UTC**
+  dari `apps/api`; `app_meta.schema_version = 8`.
+- Verifikasi data pasca-`0008`: 80 peserta, 32 kategori, **0** peserta tanpa `category_id`,
+  **0** kategori orphan, **0** peserta dengan kategori lintas Tema, **0** `attributes_json`
+  invalid, dan 6 trigger `trg_participant_category_*` ada.
+- Backup pra-`0008` **gagal** karena auth token Wrangler kedaluwarsa saat `d1 export`.
+  Pemulihan pada jendela itu bergantung pada Time Travel D1 (7 hari). Export pasca-migrasi
+  berhasil: `/tmp/opencode/qrcek-backup-2026-11-08-post-0008.sql` (144 KB). Untuk rilis
+  berikutnya, pastikan `npx wrangler whoami` dan export sukses sebelum apply.
+- Deploy: merge PR #1 (`2a0eeba`) memicu Workers Builds `Workers Builds: qrcek` (success
+  02:14 UTC). Deploy manual Q2 dari `main` pukul 02:27 UTC menghasilkan Version ID
+  `944951fe-3030-41fb-b55a-34d97a736b6c`.
+- **Catatan jendela campuran:** build Workers Builds selesai 02:14, migrasi `0008` baru
+  02:28, jadi sekitar 14 menit kode Q2 live di atas skema `0007`. Endpoint peserta yang
+  membaca `category_id` tidak kompatibel pada jendela itu; tidak ada bukti kerusakan data
+  (verifikasi di atas bersih). Rilis berikutnya yang mengubah kontrak harus memakai pola
+  expand/contract atau mematikan auto-deploy sementara agar jendela itu tidak terulang.
 - Pendaftaran mandiri publik sudah dihapus (ADR-0013). `POST /api/auth/register` → 404, dan
   tidak ada lagi `TURNSTILE_SECRET_KEY` maupun `VITE_TURNSTILE_SITE_KEY` yang perlu diatur.
   Akun Admin Acara hanya dibuat lewat undangan Super Admin. Saat deploy pertama setelah
@@ -224,7 +237,7 @@ Konsekuensi yang disengaja:
 
 ```bash
 npm run db:reset:local    # hapus apps/api/.wrangler/state
-npm run db:migrate:local  # terapkan semua migrasi yang belum diterapkan (0001–0007)
+npm run db:migrate:local  # terapkan semua migrasi yang belum diterapkan (0001–0008)
 npm run db:migrate:local  # "✅ No migrations to apply!" (idempoten)
 ```
 
@@ -564,10 +577,11 @@ npx wrangler d1 export absensi-db --remote \
 npx wrangler d1 migrations apply absensi-db --remote
 ```
 
-> Peringatan urutan: setelah trigger `0008` aktif, Worker lama yang belum mengenal
-> `category_id` akan gagal membuat peserta. Untuk rilis Q2, lakukan **satu kali rilis manual**
-> (migrasi lalu `wrangler deploy`), atau merge/push dulu dan jalankan migrasi saat build
-> Workers Builds sedang berjalan. Jangan menerapkan `0008` lalu menunda deploy.
+> Peringatan urutan: `0008` sudah diterapkan 8 November 2026. Jendela campuran pada rilis itu
+> (~14 menit) terjadi karena build selesai sebelum migrasi; data akhir bersih. Untuk rilis
+> berikutnya, pakai expand/contract: migrasi additive → deploy kode → migrasi penegakan. Bila
+> trigger harus aktif segera, matikan auto-deploy sementara dan jalankan migrasi + deploy
+> manual tanpa jeda.
 
 ### 10.4 Batas free tier Workers Builds
 

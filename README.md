@@ -6,10 +6,11 @@ sinkronisasi opsional ke Google Sheets.
 
 Stack: React + Vite · Cloudflare Workers + D1 · Google Sheets API (opsional).
 
-> **Status:** kode saat ini adalah baseline Fase 0–6 dengan model acara datar (satu kehadiran
-> per peserta per acara). Model QRCek (Tema → Aktivitas → Sesi, entitlement, konsumsi,
-> Reversal/Adjustment) **belum diimplementasikan**. Kebutuhan ada di
-> [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md), urutan kerja di
+> **Status:** baseline Fase 0–6 sudah dilampaui. Q1 (Tema → Aktivitas → Sesi) dan Q2
+> (kategori, custom field, atribut peserta, impor CSV) sudah live **API-only**; UI tahap itu
+> masuk Q9. Model QRCek yang belum ada: entitlement (Q3), QR per Tema (Q4), transaksi
+> efektif + Reversal/Adjustment (Q5), scanner/kiosk, konsumsi, dan laporan target. Kebutuhan
+> ada di [`docs/REQUIREMENTS.md`](docs/REQUIREMENTS.md), urutan kerja di
 > [`docs/IMPLEMENTATION_ROADMAP.md`](docs/IMPLEMENTATION_ROADMAP.md).
 >
 > Identifier teknis tetap memakai `absensi` (`@absensi/*`, cookie `absensi_session`, prefix QR
@@ -265,12 +266,17 @@ npx wrangler d1 migrations apply absensi-db --remote
 
 Urutannya menentukan:
 
-- **Rilis Q2/`0008`** mengubah kontrak tulis peserta. Setelah migrasi aktif, Worker lama gagal
-  membuat peserta tanpa `category_id`. Untuk rilis ini, cara paling aman adalah **satu kali
-  rilis manual** (migrasi lalu `wrangler deploy`), atau merge/push dulu dan jalankan migrasi
-  saat build Workers Builds sedang berjalan. Jangan menerapkan `0008` lalu menunda deploy.
-- Setelah skema `0008` aktif dan kode Q2 live, rilis kode berikutnya cukup lewat Workers
-  Builds otomatis.
+- **Jangan mengandalkan jendela satu-dua menit.** Pada rilis Q2/`0008`, build Workers Builds
+  selesai 02:14 UTC tetapi migrasi baru 02:28 karena export backup gagal (token Wrangler
+  kedaluwarsa). Kode Q2 sempat live di atas skema `0007` selama ~14 menit; data akhirnya
+  bersih, tetapi endpoint peserta tidak kompatibel pada jendela itu.
+- **Pola yang benar untuk perubahan kontrak:** expand/contract. Terapkan migrasi additive
+  yang masih kompatibel dengan Worker lama → deploy kode baru lewat Workers Builds → baru
+  terapkan migrasi pembersihan/penegakan. Kalau trigger harus aktif segera, **matikan
+  auto-deploy sementara**, lalu jalankan migrasi + `npx wrangler deploy` berurutan tanpa jeda.
+- `0009` (Q3) hanya menambah tabel `entitlement_rules`; Worker lama mengabaikannya, jadi
+  migrasi additive itu aman diterapkan sebelum atau sesudah deploy kode.
+- Setelah skema target live, rilis kode biasa tetap cukup lewat Workers Builds otomatis.
 
 **Yang tidak ikut ter-deploy:**
 
@@ -290,7 +296,7 @@ Status, batas platform, dan prosedur rollback ada di
 | `AGENTS.md` | Aturan mengikat untuk agent AI dan kontributor |
 | `docs/REQUIREMENTS.md` | Kebutuhan produk, keputusan produk, baseline, delta |
 | `docs/DECISIONS.md` | Indeks keputusan produk, ADR, dan pertanyaan arsitektur |
-| `docs/adr/` | Keputusan arsitektur individual (ADR-0001–0008) |
+| `docs/adr/` | Keputusan arsitektur individual (ADR-0001–0016; ADR-0016 masih Diusulkan) |
 | `docs/ARCHITECTURE.md` | Boundary, model domain target, alur baseline |
 | `docs/IMPLEMENTATION_ROADMAP.md` | Tahap Q0–Q11, prasyarat, gate |
 | `docs/DESAIN_API.md` | Tabel endpoint aktual |

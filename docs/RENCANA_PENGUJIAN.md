@@ -6,7 +6,7 @@ Tujuan pengujian di proyek ini **bukan** mengejar angka coverage, tetapi membukt
 
 ## Snapshot verifikasi terkini
 
-- Snapshot 7 November 2026 (Q2, API-only): `typecheck` PASS, `lint` PASS, `test` **587 tes di 57 file** lulus, `build` PASS. Angka ini snapshot; hitung ulang dengan `npm run test`.
+- Snapshot 8 November 2026 (Q2 live): `typecheck` PASS, `lint` PASS, `test` **587 tes di 57 file** lulus, `build` PASS; produksi `schema_version = 8`, `/api/health/ready` 200, route kategori/custom field 401 tanpa sesi, dan verifikasi data bersih (0 peserta tanpa kategori, 0 lintas Tema). Angka tes adalah snapshot; hitung ulang dengan `npm run test`.
 - Snapshot 5 November 2026 (Q1, commit `a196109` + penguatan tes): `typecheck` PASS, `lint` PASS, `test` **525 tes di 53 file** lulus, `build` PASS.
 - Commit acuan `157c330` (3 November 2026, `REQUIREMENTS.md` §0.1): `npm run test` → **458 tes di 48 file** lulus. Angka ini snapshot; hitung ulang dengan `npm run test`.
 - Snapshot sebelumnya (2 November 2026): `typecheck` PASS, `lint` PASS, `test` 450 tes di 47 file.
