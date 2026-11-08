@@ -26,7 +26,7 @@ export const ParticipantCreateRequestSchema = z
   })
   .strict()
   .refine((value) => value.categoryId !== undefined || (value.category ?? "").trim() !== "", {
-    message: "categoryId wajib diisi",
+    message: "Kategori wajib diisi",
     path: ["categoryId"],
   });
 

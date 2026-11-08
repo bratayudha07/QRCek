@@ -184,7 +184,7 @@ async function resolveCategoryInput(
 
   const name = (input.category ?? "").trim();
   if (name === "") {
-    throw validationError("categoryId wajib diisi", { fieldErrors: { categoryId: ["wajib diisi"] } });
+    throw validationError("Kategori wajib diisi", { fieldErrors: { categoryId: ["wajib diisi"] } });
   }
 
   const existing = await findCategoryByName(ctx.env.DB, eventId, name);

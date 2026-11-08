@@ -49,6 +49,11 @@ export function ParticipantForm({
       return;
     }
 
+    if (category.trim() === "") {
+      setLocalError("Kategori wajib diisi");
+      return;
+    }
+
     onSubmit({
       externalRef: externalRef.trim(),
       fullName: fullName.trim(),
@@ -110,12 +115,18 @@ export function ParticipantForm({
           />
         </Field>
 
-        <Field label="Kategori" htmlFor="participant-category" hint="Contoh: Kelas 5A, Wali murid.">
+        <Field
+          label="Kategori"
+          htmlFor="participant-category"
+          hint="Wajib. Contoh: Kelas 5A, Wali murid."
+          required
+        >
           <Input
             id="participant-category"
             value={category}
             onChange={(event) => setCategory(event.target.value)}
             maxLength={60}
+            required
           />
         </Field>
       </div>
