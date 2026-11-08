@@ -7,11 +7,12 @@ Tujuan pengujian di proyek ini **bukan** mengejar angka coverage, tetapi membukt
 ## Snapshot verifikasi terkini
 
 - Snapshot 8 November 2026 (Q3 API-only, `0009` lokal): `typecheck` PASS, `lint` PASS,
-  `test` **637 tes di 60 file** lulus, `build` PASS. Produksi masih `schema_version = 8`;
-  `0009_entitlement_rules.sql` **belum** diterapkan di remote. Verifikasi Q2 live sebelumnya:
-  produksi `schema_version = 8`, `/api/health/ready` 200, route kategori/custom field 401 tanpa
-  sesi, dan data bersih (0 peserta tanpa kategori, 0 lintas Tema). Angka tes adalah snapshot;
-  hitung ulang dengan `npm run test`.
+  `test` **637 tes di 60 file** lulus, `build` PASS. Produksi kini `schema_version = 9`
+  (`0009_entitlement_rules.sql` diterapkan remote 8 November 2026, deploy `dc8b8546`,
+  `GET /api/health/ready` → `200 database: ok`); backfill 0 baris. Verifikasi live Q2
+  sebelumnya: produksi `schema_version = 8`, route kategori/custom field 401 tanpa sesi, dan
+  data bersih (0 peserta tanpa kategori, 0 lintas Tema). Angka tes adalah snapshot; hitung ulang
+  dengan `npm run test`.
 - Snapshot 5 November 2026 (Q1, commit `a196109` + penguatan tes): `typecheck` PASS, `lint` PASS, `test` **525 tes di 53 file** lulus, `build` PASS.
 - Commit acuan `157c330` (3 November 2026, `REQUIREMENTS.md` §0.1): `npm run test` → **458 tes di 48 file** lulus. Angka ini snapshot; hitung ulang dengan `npm run test`.
 - Snapshot sebelumnya (2 November 2026): `typecheck` PASS, `lint` PASS, `test` 450 tes di 47 file.

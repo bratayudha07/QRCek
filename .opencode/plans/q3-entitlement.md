@@ -456,9 +456,10 @@ Tidak ada jendela inkompatibilitas seperti `0008` karena tidak ada kolom/trigger
 
 Diisi setelah implementasi. Jangan menulis ulang rencana; catat apa yang berbeda dan mengapa, seperti `.opencode/plans/q2-peserta-kategori-impor.md` §16.
 
-**Status 8 November 2026:** Q3 diimplementasikan API-only; `0009` sudah diuji lokal dan **belum
-diterapkan di remote**. Gate Q3 (§13) belum ditutup karena penerapan remote dan review pemilik
-masih menunggu.
+**Status 8 November 2026:** Q3 diimplementasikan API-only; `0009` sudah diuji lokal dan **sudah
+diterapkan di remote** (deploy `dc8b8546`, 04:26 UTC; `schema_version = 9`; backfill produksi
+diukur **0 baris**; `activities` di produksi kosong). Deploy sukses, health `200 database: ok`.
+Gate Q3 (§13) menunggu **review pemilik** untuk ditutup.
 
 ### 16.1 Perbedaan dari rencana
 

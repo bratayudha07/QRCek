@@ -22,17 +22,22 @@ Dokumen ini mencatat hasil pengukuran, instruksi operasi, status deployment, dan
 - Verifikasi data pasca-`0008`: 80 peserta, 32 kategori, **0** peserta tanpa `category_id`,
   **0** kategori orphan, **0** peserta dengan kategori lintas Tema, **0** `attributes_json`
   invalid, dan 6 trigger `trg_participant_category_*` ada.
-- `0009_entitlement_rules.sql` (Q3) **belum diterapkan di remote**. Migrasi sudah diuji di
-  database lokal kosong (`schema_version = 9`, lima `uq_ent_*` ada, backfill 0 baris) dan
-  backfill-nya diukur pada fixture representatif: **40 baris**. Penerapan remote menunggu
-  konfirmasi eksplisit pemilik proyek dan backup; lihat §6.1.
+- `0009_entitlement_rules.sql` (Q3) **sudah diterapkan di remote** pada 8 November 2026
+  (deploy `dc8b8546` lewat Workers Builds pukul 04:26 UTC; sukses). Migrasi diuji di database
+  lokal kosong (`schema_version = 9`, lima `uq_ent_*` ada, backfill 0 baris), backfill diukur
+  pada fixture representatif: **40 baris**, dan di produksi berkemungkinan **0 baris** (tabel
+  `activities` di produksi kosong). Verifikasi pasca-apply: `app_meta.schema_version = 9`,
+  tabel + 5 partial unique index + 2 trigger konteks ada, backfill menghasilkan 0 baris.
+  Lihat §6.1.
 - Backup pra-`0008` **gagal** karena auth token Wrangler kedaluwarsa saat `d1 export`.
   Pemulihan pada jendela itu bergantung pada Time Travel D1 (7 hari). Export pasca-migrasi
   berhasil: `/tmp/opencode/qrcek-backup-2026-11-08-post-0008.sql` (144 KB). Untuk rilis
   berikutnya, pastikan `npx wrangler whoami` dan export sukses sebelum apply.
 - Deploy: merge PR #1 (`2a0eeba`) memicu Workers Builds `Workers Builds: qrcek` (success
   02:14 UTC). Deploy manual Q2 dari `main` pukul 02:27 UTC menghasilkan Version ID
-  `944951fe-3030-41fb-b55a-34d97a736b6c`.
+  `944951fe-3030-41fb-b55a-34d97a736b6c`. Deploy Q3 (`51103e8`) lewat Workers Builds sukses
+  04:26:11 UTC, Version ID `dc8b8546-9a40-46f9-96af-e047987b553e`; `GET /api/health/ready`
+  → `200 (database: ok)`.
 - **Catatan jendela campuran:** build Workers Builds selesai 02:14, migrasi `0008` baru
   02:28, jadi sekitar 14 menit kode Q2 live di atas skema `0007`. Endpoint peserta yang
   membaca `category_id` tidak kompatibel pada jendela itu; tidak ada bukti kerusakan data
@@ -283,9 +288,11 @@ Diukur 8 November 2026 di `workerd` lokal (D1 uji) dan pada database SQLite sali
 | Statement batch kategori | 1 baris = 2 (upsert + audit); 15 baris = 30 + 1 kelengkapan + ±4 pembacaan konteks | Anggaran **50 statement/invokasi** D1; karena itu batas 15 |
 | Statement Theme default / override individual | 2 (mutasi + audit) + 2–4 pembacaan | Satu `db.batch()` per mutasi |
 
-Angka backfill produksi **belum** diukur karena `0009` belum diterapkan di remote. Sebelum
-apply, hitung `COUNT(*)` kandidat dengan predikat backfill dan bandingkan dengan batas
-100.000 baris tulis/hari; bila >10.000 baris, pecah per Tema atau minta persetujuan pemilik.
+Angka backfill produksi **sudah diukur setelah apply**: **0 baris** (query `COUNT(*)` kandidat
+dengan predikat backfill sebelum apply → **0**; tabel `activities` di produksi kosong, jadi
+tidak ada baris backfill yang dihasilkan). Batas 100.000 baris tulis/hari tidak terlampaui;
+bila di masa depan Aktivitas aktif mulai dipakai dalam jumlah besar, hitung ulang dan pecah
+per Tema bila kandidat >10.000 baris.
 
 ---
 
@@ -452,7 +459,7 @@ lama, dan itu akan terlihat sebagai `500` pada cetak ulang (bukan kerusakan data
 | Batas batch label 50 | Setelah deploy pertama | Ukur CPU `wrangler tail` saat cetak 50 label; angka lokal (crypto 100 ≈ 12 ms p50) adalah proksi, bukan CPU tertagih |
 | Ukuran dan keterbacaan QR hasil cetak | Uji manual sebelum rilis | Cetak A4 + stiker, ukur dengan penggaris, pindai dengan kamera HP |
 | Rotasi kunci QR | Sebelum rotasi produksi pertama | Uji prosedur §7.5 di database salinan; pastikan QR lama tetap identik |
-| Penerapan `0009` dan jumlah backfill produksi | Sebelum Q3 ditutup | Backup, hitung kandidat backfill, apply remote, verifikasi `schema_version = 9` dan jumlah baris |
+| Penerapan `0009` dan jumlah backfill produksi | Selesai (dokumentasi 8 November 2026) | Backup (`/tmp/opencode/qrcek-backup-2026-11-08-post-0008.sql`), hitung kandidat backfill (0), apply remote, verifikasi `schema_version = 9` dan jumlah baris (0) |
 | CPU produksi route entitlement | Setelah deploy Q3 | `wrangler tail`; matriks/batch 15 baris adalah kandidat terberat |
 
 Repo ini tidak memakai GitHub Actions. Workers Builds hanya menjalankan build dan deploy, bukan
