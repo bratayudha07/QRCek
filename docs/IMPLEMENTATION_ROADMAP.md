@@ -202,6 +202,17 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 
 **Bukan cakupan:** penolakan di endpoint scan (Q5) dan tampilan scanner (`FR-045`, Q6).
 
+**Hasil implementasi (8 November 2026, API-only):**
+
+- Migrasi `0009_entitlement_rules.sql`: tabel `entitlement_rules`, lima partial unique index `uq_ent_*`, dua trigger konteks, backfill `allowed` untuk Aktivitas `active` × kategori (termasuk kategori arsip berpeserta), `schema_version = 9`.
+- Resolver murni di `packages/shared/src/entitlements.ts` (lima tingkat prioritas, `inherit`, default deny, helper kelengkupan); kategori baru pada Aktivitas `active` membuat `entitlementComplete = false` tanpa menonaktifkan Aktivitas.
+- Route: `/api/events/:eventId/entitlements/default`, `/api/events/:eventId/activities/:activityId/entitlements` (matriks + batch kategori), `.../entitlements/categories`, `.../entitlements/participants/:participantId`, `.../entitlements/sessions/:sessionId/...`, dan `.../entitlements/resolve` (preview). Semua otomatis mendapat alias `/api/calendar` dan `/api/themes`.
+- Otorisasi: `entitlement:read` (`officer`) untuk membaca, `entitlement:write` (`event_admin`) untuk menulis; Super Admin lolos lewat aturan global.
+- Audit: action `entitlement_rule.*`, snapshot hanya ID + `status`, dalam `db.batch()` yang sama dengan mutasi; mutasi gagal tidak menulis audit.
+- Gate `draft → active`: `422 BUSINESS_RULE` saat kategori aktif belum punya baris; `POST` tetap membuat `draft` tanpa konfigurasi otomatis (`FR-040`/`FR-041`).
+- Ukuran: resolver **1 statement, ≤5 baris**, query plan 5/5 `SEARCH` (dengan Sesi), 3/3 tanpa Sesi, 0 `SCAN`; batch kategori **15 baris** (≤50 statement/invokasi D1).
+- **Belum:** penerapan `0009` di remote, deploy kode Q3 lewat Workers Builds, penolakan transaksi `NOT_ENTITLED` (Q5), nilai custom field `scope='activity'` (`FR-033`, ditunda ke Q5).
+
 ---
 
 ### Q4 — QR Identity per Tema, rotasi, ekspor PNG/ZIP
@@ -385,3 +396,4 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 | Draft v1.4 | 7 November 2026 | Q2 **Selesai secara kode (API-only)**; migrasi `0008` dibuat dan diuji lokal, penerapan remote + review pemilik masih pending. UI dan nilai field per Aktivitas tetap di tahap lanjut. |
 | Draft v1.5 | 8 November 2026 | Q2 **Selesai (API-only)**: PR #1 merge ke `main`, Workers Builds aktif, `0008` diterapkan ke remote (`schema_version = 8`), verifikasi produksi bersih, gate ditutup. Deploy kode memakai Workers Builds; migrasi D1 tetap manual. Q3 belum dibuka karena AQ-005. |
 | Draft v1.6 | 8 November 2026 | AQ-005 dijawab **ADR-0016 Diterima**: `entitlement_rules`, resolver murni, default deny, gate `draft → active`, baris eksplisit per kategori, kategori baru fail-closed, backfill `allowed`, Theme default sebagai fallback. Q3 **Dibuka (API-only)**. |
+| Draft v1.7 | 8 November 2026 | Q3 **dikembangkan API-only**: migrasi `0009` + resolver + route konfigurasi + gate `draft → active` + tes/ukuran selesai lulus (`typecheck`/`lint`/`test`/`build` hijau; 637 tes lulus). Migrasi `0009` **belum** diterapkan di remote; status tahap (dibuka) belum berubah. |

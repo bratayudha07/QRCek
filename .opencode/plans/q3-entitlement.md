@@ -462,7 +462,13 @@ masih menunggu.
 
 ### 16.1 Perbedaan dari rencana
 
-1. **Upsert tanpa `ON CONFLICT`.** Sesuai §6, setiap sel dibaca dulu lalu memakai `INSERT` atau
+1. **Kelengkapan tidak memakai `COUNT`.** Rencana menyebutkan query hitung (COUNT kategori
+   aktif vs baris `category_activity`). Implementasi memakai query anti-`NOT EXISTS` yang
+   mengembalikan daftar kategori yang **memanggilnya** belum punya baris
+   (`getEntitlementCompleteness` → `missingCategoryIds`). Hasilnya identik untuk gate, lebih
+   informatif untuk respons `missingCategoryIds`, dan tetap satu statement. Catatan: ADR-0016
+   memakai istilah COUNT; implementasi menurunkannya ke anti-join.
+2. **Upsert tanpa `ON CONFLICT`.** Sesuai §6, setiap sel dibaca dulu lalu memakai `INSERT` atau
    `UPDATE ... WHERE updated_at = ?`. Predikat partial unique index tidak perlu diulang di
    `ON CONFLICT`; pelanggaran unik saat balapan ditangkap sebagai `409 CONFLICT`. Pola ini
    dipilih agar audit bisa memakai nilai `before`/`after` yang sudah dibaca dan guard
