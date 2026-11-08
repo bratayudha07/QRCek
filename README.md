@@ -199,33 +199,38 @@ Detail lingkungan dan hasil pengukuran: `docs/OPERASIONAL.md`.
 
 ## Deploy
 
-Deploy produksi dilakukan **manual dari mesin lokal** dengan Wrangler. Repo ini **tidak**
-memakai GitHub Actions atau Cloudflare Workers Builds, jadi tidak ada kuota CI hosted yang
-dipakai dan tidak ada deploy otomatis saat push ke `main`.
+Deploy kode produksi memakai **Cloudflare Workers Builds** (Git integration): push/merge ke
+`main` memicu build lalu `wrangler deploy` dari runner Cloudflare. Repo ini **tidak** memakai
+GitHub Actions. Migrasi D1 dan secret tetap manual karena Workers Builds hanya mengunggah kode.
 
 Worker produksi: [`qrcek.hamdirobbi5.workers.dev`](https://qrcek.hamdirobbi5.workers.dev).
 
-### Setup sekali
+### Setup sekali di Cloudflare
 
-1. Login Wrangler dari `apps/api`:
+Buka **Workers & Pages → `qrcek` → Settings → Build**, lalu isi:
 
-   ```bash
-   cd apps/api
-   npx wrangler login
-   ```
+| Setelan | Nilai |
+|---|---|
+| Repository | `github.com/bratayudha07/QRCek` |
+| Production branch | `main` |
+| Root directory | root repo (kosongkan) |
+| Build command | `npm ci && npm run build` |
+| Deploy command | `npx wrangler deploy --config apps/api/wrangler.jsonc` |
+| Build watch paths | opsional: `apps/api/*`, `apps/web/*`, `packages/shared/*`, `package.json`, `package-lock.json` |
+| Environment variable | opsional: `NODE_VERSION=22` |
 
-   Alternatif untuk shell non-interaktif: set `CLOUDFLARE_API_TOKEN` di environment lokal.
-   Jangan menyimpan token di file repo.
+Build harus menghasilkan `apps/web/dist`; kalau tidak, Worker ter-deploy tanpa aset dan situs
+tampil 404. Jangan mengisi `VITE_*` saat ini karena belum ada yang wajib. Bila nanti menambah
+satu, nilainya harus publik.
 
-2. Pastikan Worker `qrcek` dan database `absensi-db` berada di akun Cloudflare yang sama.
-3. Matikan **Workers Builds** di dashboard Cloudflare (Worker → Settings → Build) agar push
-   ke `main` tidak memicu deploy lain.
-4. Tidak ada `VITE_*` wajib saat ini. `VITE_API_BASE_URL` kosong karena SPA dan Worker
-   berbagi origin. Bila nanti menambah `VITE_*`, nilainya harus publik.
-5. Karena tidak ada CI hosted, jangan aktifkan **Require status checks** pada branch
-   protection `main`. Verifikasi dilakukan lokal sebelum push/merge.
+> Alternatif yang setara: root directory `apps/api`, build command
+> `cd ../.. && npm ci && npm run build`, deploy command `npx wrangler deploy`. Pilih satu
+> susunan dan jangan dicampur.
 
-### Rilis
+Workers Builds memakai kuota **3.000 menit build/bulan** di free tier. Satu build repo ini
+berkisar satu-dua menit.
+
+### Rilis kode (otomatis)
 
 1. Verifikasi lokal (urutan ini mengikat):
 
@@ -236,29 +241,8 @@ Worker produksi: [`qrcek.hamdirobbi5.workers.dev`](https://qrcek.hamdirobbi5.wor
    npm run build
    ```
 
-2. Backup remote sebelum migrasi:
-
-   ```bash
-   cd apps/api
-   npx wrangler d1 export absensi-db --remote \
-     --output /tmp/opencode/qrcek-backup-$(date -u +%Y-%m-%d).sql
-   ```
-
-3. Terapkan migrasi yang belum jalan:
-
-   ```bash
-   cd apps/api
-   npx wrangler d1 migrations apply absensi-db --remote
-   ```
-
-4. Deploy Worker + static assets:
-
-   ```bash
-   cd apps/api
-   npx wrangler deploy
-   ```
-
-5. Verifikasi produksi:
+2. Push/merge ke `main`. Workers Builds otomatis build dan deploy.
+3. Verifikasi produksi:
 
    ```bash
    curl -s  https://qrcek.hamdirobbi5.workers.dev/api/health
@@ -266,16 +250,34 @@ Worker produksi: [`qrcek.hamdirobbi5.workers.dev`](https://qrcek.hamdirobbi5.wor
    curl -sI https://qrcek.hamdirobbi5.workers.dev/ | grep -i "content-security-policy"
    ```
 
-**Peringatan urutan untuk `0008`:** trigger kategori menolak `INSERT` peserta tanpa
-`category_id`, sedangkan Worker lama belum menulis kolom itu. Terapkan migrasi dan deploy
-kode Q2 berdekatan dalam satu jendela. Jangan menerapkan `0008` sendirian ke remote.
+Tidak perlu menjalankan `wrangler deploy` manual untuk rilis kode biasa.
+
+### Rilis yang mengubah skema
+
+Workers Builds **tidak** menjalankan migrasi D1. Backup dan migrasi tetap dari `apps/api`:
+
+```bash
+cd apps/api
+npx wrangler d1 export absensi-db --remote \
+  --output /tmp/opencode/qrcek-backup-$(date -u +%Y-%m-%d).sql
+npx wrangler d1 migrations apply absensi-db --remote
+```
+
+Urutannya menentukan:
+
+- **Rilis Q2/`0008`** mengubah kontrak tulis peserta. Setelah migrasi aktif, Worker lama gagal
+  membuat peserta tanpa `category_id`. Untuk rilis ini, cara paling aman adalah **satu kali
+  rilis manual** (migrasi lalu `wrangler deploy`), atau merge/push dulu dan jalankan migrasi
+  saat build Workers Builds sedang berjalan. Jangan menerapkan `0008` lalu menunda deploy.
+- Setelah skema `0008` aktif dan kode Q2 live, rilis kode berikutnya cukup lewat Workers
+  Builds otomatis.
 
 **Yang tidak ikut ter-deploy:**
 
-- **Migrasi D1** dijalankan terpisah dengan perintah di atas.
+- **Migrasi D1** dijalankan manual seperti di atas.
 - **Secret** (`SESSION_PEPPER`, `QR_PEPPER`, `QR_ENCRYPTION_KEY`, `QR_KEY_VERSION`,
-  `GOOGLE_SA_KEY`) tetap lewat `npx wrangler secret put <NAMA>` dari `apps/api`. Jangan
-  menampilkan atau mencatat nilainya.
+  `GOOGLE_SA_KEY`) lewat `npx wrangler secret put <NAMA>` dari `apps/api`. Jangan menampilkan
+  atau mencatat nilainya.
 - **Data D1** bukan bagian dari deploy; gunakan backup/Time Travel.
 
 Status, batas platform, dan prosedur rollback ada di

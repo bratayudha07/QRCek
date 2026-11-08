@@ -6,10 +6,10 @@ Dokumen ini mencatat hasil pengukuran, instruksi operasi, status deployment, dan
 
 ## Status operasi saat ini (8 November 2026)
 
-- Worker produksi berjalan di `https://qrcek.hamdirobbi5.workers.dev` dan di-deploy **manual
-  dari mesin lokal** dengan `npx wrangler deploy` (dari `apps/api`). Repo ini tidak memakai
-  GitHub Actions maupun Cloudflare Workers Builds, sehingga tidak ada deploy otomatis saat
-  push ke `main`. Detail dan urutan rilis ada di §10.
+- Worker produksi berjalan di `https://qrcek.hamdirobbi5.workers.dev` dan di-deploy lewat
+  **Cloudflare Workers Builds** (Git integration): push/merge ke `main` memicu build lalu
+  `wrangler deploy` dari runner Cloudflare. Repo ini tidak memakai GitHub Actions. Migrasi D1
+  tetap manual — lihat §10.
 - Terverifikasi 2 November 2026 05:49 UTC pada URL produksi: `GET /api/health` → `200`
   (Worker hidup), sedangkan `GET /api/health/ready` dan `GET /api/admin/usage` masih `404`
   dan security headers belum ada di respons aset. Artinya versi yang live lebih lama dari
@@ -83,9 +83,9 @@ Selisih sampai ~2,5× antar-run pada mesin yang sama menunjukkan angka ini didom
 ### Cara memverifikasi gerbang CPU (butuh akun Cloudflare)
 
 ```bash
-# 1. verifikasi lalu deploy manual dari mesin lokal
+# 1. verifikasi lokal lalu push/merge ke main (Workers Builds men-deploy otomatis)
 npm run typecheck && npm run lint && npm run test && npm run build
-cd apps/api && npx wrangler deploy
+git push origin main
 
 # 2. ukur CPU per request (kolom cpuTime)
 npx wrangler tail --format json > /tmp/tail.jsonl
@@ -410,14 +410,15 @@ lama, dan itu akan terlihat sebagai `500` pada cetak ulang (bukan kerusakan data
 | Cookie `Secure` di HTTPS | Deploy pertama | Periksa `Set-Cookie` memuat `Secure` |
 | Token undangan tidak muncul di log | Deploy pertama | `wrangler tail` saat 20 aktivasi; kode tidak pernah me-log token, ini verifikasi silang |
 | Rate limit di balik NAT bersama | Setelah ada pengguna nyata | Amati 429 pada petugas yang berbagi IP; naikkan batas bila perlu |
-| Verifikasi lokal | Setiap rilis | `npm run typecheck` → `lint` → `test` → `build`; tidak ada CI hosted, jadi jangan andalkan status check GitHub |
+| Verifikasi lokal | Setiap rilis | `npm run typecheck` → `lint` → `test` → `build`; Workers Builds hanya build + deploy, tidak menjalankan test |
 | Batas baris import final | Setelah pengukuran CPU | Naikkan `MAX_IMPORT_ROWS` bertahap sambil memantau CPU |
 | Batas batch label 50 | Setelah deploy pertama | Ukur CPU `wrangler tail` saat cetak 50 label; angka lokal (crypto 100 ≈ 12 ms p50) adalah proksi, bukan CPU tertagih |
 | Ukuran dan keterbacaan QR hasil cetak | Uji manual sebelum rilis | Cetak A4 + stiker, ukur dengan penggaris, pindai dengan kamera HP |
 | Rotasi kunci QR | Sebelum rotasi produksi pertama | Uji prosedur §7.5 di database salinan; pastikan QR lama tetap identik |
 
-Repo ini tidak memakai GitHub Actions. Verifikasi wajib dijalankan lokal sebelum merge/deploy;
-jangan menyimpulkan rilis aman hanya dari hasil build.
+Repo ini tidak memakai GitHub Actions. Workers Builds hanya menjalankan build dan deploy, bukan
+test suite, jadi verifikasi wajib dijalankan lokal sebelum merge/deploy; jangan menyimpulkan
+rilis aman hanya dari build hijau.
 
 ---
 
@@ -496,52 +497,93 @@ bukan aturan yang ditegakkan kode — endpoint usage menyediakan datanya.
 
 ---
 
-## 10. Deploy produksi manual (tanpa CI hosted)
+## 10. Deploy produksi lewat Cloudflare Workers Builds
 
 ### 10.1 Alur
 
 ```
-mesin lokal
-  ├─ npm run typecheck → lint → test → build
-  ├─ backup D1 remote
-  ├─ npx wrangler d1 migrations apply absensi-db --remote
-  └─ npx wrangler deploy  ──▶  Cloudflare Worker + Static Assets
+git push/merge ke main
+      │
+      ▼
+Cloudflare Workers Builds
+  ├─ npm ci && npm run build
+  └─ npx wrangler deploy --config apps/api/wrangler.jsonc
+      │
+      ▼
+Worker + Static Assets (apps/web/dist)
 ```
 
-- Repo ini **tidak** memakai GitHub Actions atau Cloudflare Workers Builds. Push ke `main`
-  tidak memicu deploy apa pun.
-- Deploy dijalankan dari `apps/api` memakai Wrangler yang sudah login (`npx wrangler login`).
-  Untuk shell non-interaktif, set `CLOUDFLARE_API_TOKEN` (dan `CLOUDFLARE_ACCOUNT_ID` bila
-  akun Cloudflare lebih dari satu) di environment lokal. Jangan menyimpan token di repo.
-- Build menulis `apps/web/dist`, lalu `wrangler deploy` mengunggahnya sebagai Static Assets.
-  Berkas `apps/web/public/_headers` ikut terunggah dan langsung berlaku untuk aset statis.
-- Riwayat deployment Cloudflare tersedia untuk rollback (§10.5).
+- Production branch: `main`. Pull request boleh memicu preview build, tetapi produksi hanya
+  dari `main`.
+- Repo ini **tidak** memakai GitHub Actions. Build berjalan di runner Cloudflare, bukan
+  runner GitHub.
+- Build menulis `apps/web/dist`, lalu deploy mengunggahnya sebagai Static Assets. Berkas
+  `apps/web/public/_headers` ikut terunggah.
+- Riwayat deployment Cloudflare tersedia untuk rollback (§10.6).
 
-### 10.2 Batas free tier
+### 10.2 Setup Workers Builds
 
-Tidak ada kuota CI hosted yang dipakai. Yang berlaku hanya batas Cloudflare Workers/D1 di
-`COSTS_AND_LIMITS.md` §2–§3. GitHub dipakai untuk menyimpan source dan pull request, bukan
-untuk menjalankan build.
+Buka **Workers & Pages → `qrcek` → Settings → Build**:
 
-Karena tidak ada CI hosted, **jangan aktifkan “Require status checks to pass before merging”**
-pada branch protection `main`. Kalau setting itu masih aktif, PR akan menunggu check yang
-tidak pernah datang. Verifikasi dilakukan lokal sebelum push/merge.
+| Setelan | Nilai | Kenapa |
+|---|---|---|
+| Repository | `github.com/bratayudha07/QRCek` | Sumber kode |
+| Production branch | `main` | Satu-satunya sumber produksi |
+| Root directory | root repo (kosongkan) | Build command dijalankan dari root |
+| Build command | `npm ci && npm run build` | Install workspace dan hasilkan `apps/web/dist` |
+| Deploy command | `npx wrangler deploy --config apps/api/wrangler.jsonc` | Memakai `wrangler.jsonc` di `apps/api` |
+| Build watch paths | opsional | Hindari build untuk perubahan dokumen saja |
+| Environment variable | `NODE_VERSION=22` (opsional) | Menyamakan versi Node dengan lokal |
+
+> Alternatif yang setara: root directory `apps/api`, build command
+> `cd ../.. && npm ci && npm run build`, deploy command `npx wrangler deploy`. Pilih satu
+> susunan, jangan dicampur.
+
+Gejala build hijau tetapi situs 404: build command tidak menghasilkan `apps/web/dist`,
+sehingga `assets.directory` kosong.
+
+Workers Builds membuat check run di GitHub. Kalau branch protection `main` mewajibkan status
+check, check `Workers Builds: qrcek` harus hijau. Kalau build setting sudah benar tetapi check
+lama masih gagal, periksa ulang build log atau matikan requirement status check sementara.
 
 ### 10.3 Yang tidak ikut ter-deploy
 
 | Hal | Kenapa | Cara menangani |
 |---|---|---|
-| **Migrasi D1** | `wrangler deploy` hanya mengunggah kode | `npx wrangler d1 migrations apply absensi-db --remote` dari `apps/api`. Urutan: backup → migrasi → deploy, dalam satu jendela |
+| **Migrasi D1** | Workers Builds hanya mengunggah kode | `npx wrangler d1 migrations apply absensi-db --remote` dari `apps/api`, setelah backup |
 | **Secret runtime** | Secret tidak disimpan di repo | `npx wrangler secret put <NAMA>` dari `apps/api` |
 | **Variabel build frontend** | Dibutuhkan saat Vite membangun bundle | Saat ini tidak ada `VITE_*` wajib; bila ditambah, pastikan nilainya publik |
 | **Data D1** | Bukan bagian dari deploy | Backup/PITR D1, lihat §9.3 untuk audit |
 
-> Peringatan urutan: setelah trigger `0008` aktif, Worker lama yang belum mengenal
-> `category_id` akan gagal membuat peserta. Terapkan migrasi dan deploy kode Q2 berdekatan.
-> Wrangler menangkap backup sebelum apply, tetapi tetap lakukan backup manual untuk perubahan
-> besar.
+Backup dan migrasi manual:
 
-### 10.4 Verifikasi setelah deploy
+```bash
+cd apps/api
+npx wrangler d1 export absensi-db --remote \
+  --output /tmp/opencode/qrcek-backup-$(date -u +%Y-%m-%d).sql
+npx wrangler d1 migrations apply absensi-db --remote
+```
+
+> Peringatan urutan: setelah trigger `0008` aktif, Worker lama yang belum mengenal
+> `category_id` akan gagal membuat peserta. Untuk rilis Q2, lakukan **satu kali rilis manual**
+> (migrasi lalu `wrangler deploy`), atau merge/push dulu dan jalankan migrasi saat build
+> Workers Builds sedang berjalan. Jangan menerapkan `0008` lalu menunda deploy.
+
+### 10.4 Batas free tier Workers Builds
+
+| Metrik | Free |
+|---|---|
+| Build minutes | **3.000/bulan** |
+| Build bersamaan | **1** |
+| Timeout satu build | 20 menit |
+| Retensi log build | 90 hari |
+
+Sumber: <https://developers.cloudflare.com/workers/ci-cd/builds/limits-and-pricing/> (28 Okt 2026).
+
+Satu build repo ini berkisar satu-dua menit, jadi kuota bulanan cukup untuk puluhan rilis.
+Karena build bersamaan hanya satu, push berturut-turut akan mengantre.
+
+### 10.5 Verifikasi setelah deploy
 
 ```bash
 base=https://qrcek.hamdirobbi5.workers.dev
@@ -554,7 +596,7 @@ curl -sI "$base/assets/" 2>/dev/null | head -1   # aset ada
 
 `/api/admin/usage` butuh cookie superadmin, jadi tidak bisa dicek dengan `curl` tanpa sesi.
 
-### 10.5 Rollback
+### 10.6 Rollback
 
 - **Kode:** dashboard Cloudflare → Worker → Deployments → pilih versi sebelumnya → Rollback.
   Ini mengembalikan Worker **dan** aset statis ke versi itu.

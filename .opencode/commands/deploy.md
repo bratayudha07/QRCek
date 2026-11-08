@@ -1,5 +1,5 @@
 ---
-description: Panduan deploy manual Worker QRCek dengan Wrangler dan verifikasi pasca-deploy
+description: Panduan deploy QRCek lewat Cloudflare Workers Builds dan verifikasi pasca-deploy
 ---
 
 Bantu deploy QRCek ke Cloudflare Workers. Jangan menjalankan perintah yang mengubah produksi tanpa konfirmasi eksplisit user.
@@ -8,41 +8,38 @@ Permintaan: $ARGUMENTS
 
 ## Jalur deploy
 
-Repo ini **tidak** memakai GitHub Actions atau Cloudflare Workers Builds. Deploy dilakukan
-manual dari mesin lokal dengan Wrangler:
+Deploy kode produksi memakai **Cloudflare Workers Builds** (Git integration), bukan GitHub
+Actions. Push/merge ke `main` memicu build lalu `wrangler deploy` dari runner Cloudflare.
+
+Migrasi D1 **tidak** ikut build/deploy dan tetap manual dari `apps/api`:
 
 ```bash
-npm run build
-cd apps/api
-npx wrangler deploy
-```
-
-Migrasi D1 juga manual:
-
-```bash
-cd apps/api
 npx wrangler d1 migrations apply absensi-db --remote
 ```
 
-Detail dan rollback: `docs/OPERASIONAL.md` §10.
+Detail, kuota, dan rollback: `docs/OPERASIONAL.md` §10.
 
-## Sebelum deploy
+## Sebelum merge/push ke main
 
 1. Lokal hijau: `npm run typecheck` → `npm run lint` → `npm run test` → `npm run build`.
-2. Login Wrangler sekali (`cd apps/api && npx wrangler login`), atau set
-   `CLOUDFLARE_API_TOKEN` di environment lokal. Jangan menyimpan token di repo.
-3. Bila ada migrasi baru: backup remote dulu, lalu terapkan migrasi **sebelum** deploy kode.
-   Urutan ini penting karena Worker lama tetap melayani request sampai deploy selesai.
+2. Bila ada migrasi baru: backup remote lalu terapkan migrasi manual. Urutannya penting:
+   Worker lama tetap melayani request sampai Workers Builds selesai deploy.
    ```bash
    cd apps/api
    npx wrangler d1 export absensi-db --remote --output /tmp/opencode/qrcek-backup-$(date -u +%Y-%m-%d).sql
    npx wrangler d1 migrations apply absensi-db --remote
    ```
-4. Matikan Workers Builds di dashboard Cloudflare agar push ke `main` tidak memicu deploy lain.
-5. Secret Worker diatur lewat `npx wrangler secret put <NAMA>` dari `apps/api` — jangan pernah menampilkan atau mencatat nilainya: `SESSION_PEPPER`, `QR_PEPPER`, `QR_ENCRYPTION_KEY`, `QR_KEY_VERSION`, `GOOGLE_SA_KEY`.
-6. Tidak ada `VITE_*` wajib saat ini. Bila menambah satu, pastikan nilainya publik.
+3. Untuk rilis Q2/`0008`, lakukan satu kali rilis manual (migrasi lalu `npx wrangler deploy`)
+   atau jalankan migrasi saat build Workers Builds sedang berjalan. Jangan menerapkan `0008`
+   lalu menunda deploy.
+4. Secret Worker diatur lewat `npx wrangler secret put <NAMA>` dari `apps/api` — jangan pernah menampilkan atau mencatat nilainya: `SESSION_PEPPER`, `QR_PEPPER`, `QR_ENCRYPTION_KEY`, `QR_KEY_VERSION`, `GOOGLE_SA_KEY`.
+5. Tidak ada `VITE_*` wajib saat ini. Bila menambah satu, pastikan nilainya publik.
 
-## Verifikasi setelah deploy
+## Setelah push/merge
+
+1. Buka Cloudflare Dashboard → Worker `qrcek` → Builds, atau check run GitHub, dan pastikan
+   build hijau.
+2. Verifikasi produksi:
 
 ```bash
 curl -s  https://qrcek.hamdirobbi5.workers.dev/api/health
@@ -51,4 +48,4 @@ curl -sI https://qrcek.hamdirobbi5.workers.dev/ | grep -i "content-security-poli
 ```
 
 Catat hasil (tanggal, commit, status) di `docs/OPERASIONAL.md`. Jangan menyimpulkan deploy
-berhasil dari hasil build lokal.
+berhasil dari build lokal.

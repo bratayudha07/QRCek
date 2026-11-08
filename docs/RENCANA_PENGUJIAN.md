@@ -342,7 +342,9 @@ Sumber kebenaran tunggal: `domain/permissions.ts`. Tes mengiterasi matriks ini, 
 
 ## 6. Gerbang kualitas (lokal)
 
-Repo ini tidak memakai CI hosted. Sebelum merge/deploy, jalankan dari root dalam urutan ini:
+Workers Builds hanya menjalankan `npm ci && npm run build` untuk deploy, **bukan** test suite.
+Karena repo ini tidak memakai GitHub Actions, verifikasi wajib dijalankan lokal dari root
+dalam urutan ini sebelum merge/deploy:
 
 ```
 npm ci
@@ -422,7 +424,7 @@ Checklist singkat yang dijalankan pada staging sebelum deploy produksi:
     ada kontrol yang tertutup bottom nav.
 18. Secret QR sengaja dikosongkan di lokal → pratinjau menampilkan pesan konfigurasi server,
     bukan halaman kosong atau QR rusak.
-19. Setelah `npx wrangler deploy` manual berhasil, verifikasi produksi:
+19. Setelah Workers Builds hijau dan deploy selesai, verifikasi produksi:
     `/api/health` 200, `/api/health/ready` 200, `curl -I` memuat
     `content-security-policy` dan `permissions-policy: camera=(self)`, dan pemindai kamera
     tetap berjalan di HP (CSP tidak memblokir bundle).

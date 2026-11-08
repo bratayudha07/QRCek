@@ -42,19 +42,28 @@ Semua angka di bawah dikutip dari dokumentasi resmi pada tanggal verifikasi (lih
 
 Sumber: <https://developers.cloudflare.com/workers/platform/limits/> (diperbarui 29 Okt 2026).
 
-### Deploy manual tanpa CI hosted
+### Batas Workers Builds (deploy dari GitHub)
 
-Produksi di-deploy dari mesin lokal dengan `npm run build` + `npx wrangler deploy`. Repo ini
-tidak memakai GitHub Actions atau Cloudflare Workers Builds, jadi **tidak ada kuota build
-hosted** yang dikonsumsi dan tidak ada tagihan Actions. GitHub hanya menyimpan source dan
-pull request.
+Produksi di-deploy lewat Cloudflare Workers Builds (Git integration), bukan GitHub Actions.
+Kuota build yang relevan:
 
-Yang tetap membatasi adalah batas platform Cloudflare di §2–§3: CPU Worker per request, baris
-tulis D1, ukuran database, dan kuota request harian. Verifikasi lokal (`typecheck` → `lint` →
-`test` → `build`) tidak memakai kuota Cloudflare.
+| Fitur | Free | Paid |
+|---|---|---|
+| Build minutes | **3.000/bulan** | 6.000/bulan, lalu $0,005/menit |
+| Build bersamaan | **1** | 6 |
+| Timeout satu build | 20 menit | 20 menit |
+| CPU / memori build | 2 vCPU / 8 GB | 4 vCPU / 8 GB |
+| Environment variable | 64 (5 KB masing-masing) | 64 (5 KB masing-masing) |
+| Retensi log build | 90 hari | 90 hari |
 
-> Konsekuensi: tidak ada status check otomatis di GitHub. Jangan aktifkan “Require status
-> checks” pada branch protection `main`; jalankan verifikasi lokal sebelum merge.
+Sumber: <https://developers.cloudflare.com/workers/ci-cd/builds/limits-and-pricing/> (28 Okt 2026).
+
+Satu build repo ini (install workspace + Vite + dry-run bundle) memakan satu-dua menit, jadi
+3.000 menit/bulan cukup untuk puluhan rilis. Karena build bersamaan **satu**, push beruntun
+akan mengantre. Build tidak memakai kuota request Worker, karena berjalan di runner Cloudflare,
+bukan di edge.
+
+> Migrasi D1 tidak ikut build/deploy. Backup dan migrasi tetap manual dari mesin lokal.
 
 ### Arti praktisnya
 
@@ -260,6 +269,8 @@ Tidak ada langkah berbayar, tetapi ada langkah **manual** yang harus dilakukan s
 | D1 pricing | https://developers.cloudflare.com/d1/platform/pricing/ | 21 Apr 2026 |
 | Pages limits | https://developers.cloudflare.com/pages/platform/limits/ | 5 Sep 2026 |
 | Workers Static Assets | https://developers.cloudflare.com/workers/static-assets/ | 12 Okt 2026 |
+| Workers Builds limits | https://developers.cloudflare.com/workers/ci-cd/builds/limits-and-pricing/ | 28 Okt 2026 |
+| Workers Builds configuration | https://developers.cloudflare.com/workers/ci-cd/builds/configuration/ | 22 Sep 2026 |
 | Sheets API limits | https://developers.google.com/sheets/api/limits | — |
 | Drive file limits | https://support.google.com/drive/answer/37603 | — |
 | Vitest integration | https://developers.cloudflare.com/workers/testing/vitest-integration/ | Okt 2026 |
