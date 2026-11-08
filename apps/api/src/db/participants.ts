@@ -9,7 +9,10 @@ export interface ParticipantRow {
   full_name: string;
   phone: string | null;
   email: string | null;
+  /** Display mirror maintained by the DB trigger from `category_id`. */
   category: string | null;
+  category_id: string;
+  attributes_json: string;
   note: string | null;
   status: ParticipantStatus;
   created_at: number;
@@ -268,6 +271,23 @@ export async function findParticipantByRef(
     .first<{ id: string }>();
 }
 
+export interface ParticipantAttributesRow {
+  id: string;
+  attributes_json: string;
+}
+
+/** All stored attribute maps for a Tema, used by custom-field type/option changes. */
+export async function listParticipantAttributes(
+  db: D1Database,
+  eventId: string,
+): Promise<ParticipantAttributesRow[]> {
+  const { results } = await db
+    .prepare("SELECT id, attributes_json FROM participants WHERE event_id = ?")
+    .bind(eventId)
+    .all<ParticipantAttributesRow>();
+  return results;
+}
+
 /** Returns `external_ref → participant id` for the refs that already exist. */
 export async function findExistingRefs(
   db: D1Database,
@@ -301,8 +321,9 @@ export interface ParticipantInput {
   fullName: string;
   phone: string | null;
   email: string | null;
-  category: string | null;
+  categoryId: string;
   note: string | null;
+  attributesJson?: string;
 }
 
 export function insertParticipantStatement(
@@ -312,9 +333,9 @@ export function insertParticipantStatement(
   return db
     .prepare(
       `INSERT INTO participants
-         (id, event_id, external_ref, full_name, phone, email, category, note,
-          status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
+         (id, event_id, external_ref, full_name, phone, email, category_id,
+          attributes_json, note, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
     )
     .bind(
       input.id,
@@ -323,7 +344,8 @@ export function insertParticipantStatement(
       input.fullName,
       input.phone,
       input.email,
-      input.category,
+      input.categoryId,
+      input.attributesJson ?? "{}",
       input.note,
       input.createdAt,
       input.createdAt,
@@ -342,17 +364,18 @@ export function upsertParticipantStatement(
   return db
     .prepare(
       `INSERT INTO participants
-         (id, event_id, external_ref, full_name, phone, email, category, note,
-          status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
+         (id, event_id, external_ref, full_name, phone, email, category_id,
+          attributes_json, note, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
        ON CONFLICT (event_id, external_ref) WHERE external_ref IS NOT NULL
        DO UPDATE SET
-         full_name  = excluded.full_name,
-         phone      = excluded.phone,
-         email      = excluded.email,
-         category   = excluded.category,
-         note       = excluded.note,
-         updated_at = excluded.updated_at`,
+         full_name     = excluded.full_name,
+         -- BR-077: an empty CSV cell never erases an existing value.
+         phone         = COALESCE(excluded.phone, participants.phone),
+         email         = COALESCE(excluded.email, participants.email),
+         category_id   = excluded.category_id,
+         note          = COALESCE(excluded.note, participants.note),
+         updated_at    = excluded.updated_at`,
     )
     .bind(
       input.id,
@@ -361,7 +384,8 @@ export function upsertParticipantStatement(
       input.fullName,
       input.phone,
       input.email,
-      input.category,
+      input.categoryId,
+      input.attributesJson ?? "{}",
       input.note,
       input.now,
       input.now,
@@ -373,29 +397,38 @@ export interface ParticipantUpdate {
   fullName?: string;
   phone?: string | null;
   email?: string | null;
-  category?: string | null;
+  categoryId?: string;
+  attributesJson?: string;
   note?: string | null;
   status?: ParticipantStatus;
 }
 
-export async function updateParticipant(
+/**
+ * Optimistic update used by PATCH and delete. The audit statement in the same
+ * batch re-checks `updated_at`, so a lost race writes no audit row.
+ */
+export function updateParticipantStatement(
   db: D1Database,
-  eventId: string,
-  participantId: string,
-  update: ParticipantUpdate,
-  now: number,
-): Promise<number> {
+  input: {
+    eventId: string;
+    participantId: string;
+    update: ParticipantUpdate;
+    now: number;
+    expectedUpdatedAt: number;
+  },
+): D1PreparedStatement {
   const sets: string[] = [];
   const values: Array<string | number | null> = [];
 
   const map = [
-    ["external_ref", update.externalRef],
-    ["full_name", update.fullName],
-    ["phone", update.phone],
-    ["email", update.email],
-    ["category", update.category],
-    ["note", update.note],
-    ["status", update.status],
+    ["external_ref", input.update.externalRef],
+    ["full_name", input.update.fullName],
+    ["phone", input.update.phone],
+    ["email", input.update.email],
+    ["category_id", input.update.categoryId],
+    ["attributes_json", input.update.attributesJson],
+    ["note", input.update.note],
+    ["status", input.update.status],
   ] as const;
 
   for (const [column, value] of map) {
@@ -405,36 +438,39 @@ export async function updateParticipant(
     }
   }
 
-  if (sets.length === 0) return 0;
+  if (sets.length === 0) {
+    // A caller with nothing to change still gets a statement, so the batch
+    // shape stays predictable; this touches no row.
+    return db
+      .prepare("UPDATE participants SET updated_at = updated_at WHERE 0")
+      .bind();
+  }
 
   sets.push("updated_at = ?");
-  values.push(now, eventId, participantId);
+  values.push(input.now, input.eventId, input.participantId, input.expectedUpdatedAt);
 
-  const result = await db
+  return db
     .prepare(
       `UPDATE participants SET ${sets.join(", ")}
-        WHERE event_id = ? AND id = ?`,
+        WHERE event_id = ? AND id = ? AND updated_at = ?`,
     )
-    .bind(...values)
-    .run();
-
-  return result.meta.changes;
+    .bind(...values);
 }
 
-export async function deactivateParticipant(
+export function deactivateParticipantStatement(
   db: D1Database,
-  eventId: string,
-  participantId: string,
-  now: number,
-): Promise<number> {
-  const result = await db
+  input: {
+    eventId: string;
+    participantId: string;
+    now: number;
+    expectedUpdatedAt: number;
+  },
+): D1PreparedStatement {
+  return db
     .prepare(
       `UPDATE participants
           SET status = 'inactive', updated_at = ?
-        WHERE event_id = ? AND id = ?`,
+        WHERE event_id = ? AND id = ? AND updated_at = ?`,
     )
-    .bind(now, eventId, participantId)
-    .run();
-
-  return result.meta.changes;
+    .bind(input.now, input.eventId, input.participantId, input.expectedUpdatedAt);
 }

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { ATTENDANCE_STATUSES } from "../attendance";
 
-/** Runtime schemas for scan, attendance, and corrections (DESAIN_API.md §6). */
+/** Runtime schemas for scan, attendance, and corrections (DESAIN_API.md §7). */
 
 export const AttendanceStatusSchema = z.enum(ATTENDANCE_STATUSES);
 

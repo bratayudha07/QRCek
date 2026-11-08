@@ -16,6 +16,8 @@ import { testEnv } from "./env";
  * mysteriously green authorization test.
  */
 const TABLES_CHILDREN_FIRST = [
+  "activity_sessions",
+  "activities",
   "attendance",
   "outbox",
   "sheet_rows",
@@ -25,6 +27,8 @@ const TABLES_CHILDREN_FIRST = [
   "recovery_codes",
   "invites",
   "participants",
+  "custom_fields",
+  "categories",
   "event_label_config",
   "event_memberships",
   "events",

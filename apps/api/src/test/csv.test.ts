@@ -92,7 +92,7 @@ describe("participant CSV validation", () => {
 
   it("reports duplicate external_ref within the file", () => {
     const result = parseParticipantCsv(
-      "external_ref,full_name\nA-1,Budi\nA-1,Siti",
+      "external_ref,full_name,category\nA-1,Budi,Kelas A\nA-1,Siti,Kelas A",
     );
 
     expect(result.rows).toHaveLength(1);
@@ -103,7 +103,7 @@ describe("participant CSV validation", () => {
 
   it("reports the same name + phone twice as a likely duplicate", () => {
     const result = parseParticipantCsv(
-      "full_name,phone\nBudi,081234567890\nBudi,0812 3456 7890",
+      "full_name,phone,category\nBudi,081234567890,Kelas A\nBudi,0812 3456 7890,Kelas A",
     );
 
     expect(result.rows).toHaveLength(1);
@@ -111,35 +111,43 @@ describe("participant CSV validation", () => {
   });
 
   it("reports an invalid phone with the physical line", () => {
-    const result = parseParticipantCsv("full_name,phone\nBudi,abc");
+    const result = parseParticipantCsv("full_name,phone,category\nBudi,abc,Kelas A");
     expect(result.invalid).toEqual([
       { line: 2, reason: "nomor telepon hanya boleh berisi angka dan +" },
     ]);
   });
 
   it("reports an invalid email", () => {
-    const result = parseParticipantCsv("full_name,email\nBudi,bukan-email");
+    const result = parseParticipantCsv(
+      "full_name,email,category\nBudi,bukan-email,Kelas A",
+    );
     expect(result.invalid[0]?.reason).toMatch(/email/i);
   });
 
   it("reports a name longer than 120 characters", () => {
-    const result = parseParticipantCsv(`full_name\n${"a".repeat(121)}`);
+    const result = parseParticipantCsv(`full_name,category\n${"a".repeat(121)},Kelas A`);
     expect(result.invalid[0]?.reason).toMatch(/120/);
   });
 
+  it("requires a category value on every row", () => {
+    const result = parseParticipantCsv("full_name,category\nBudi,");
+    expect(result.rows).toHaveLength(0);
+    expect(result.invalid[0]?.reason).toMatch(/category wajib/i);
+  });
+
   it("rejects a row with more cells than the header", () => {
-    const result = parseParticipantCsv("full_name\nBudi,extra");
+    const result = parseParticipantCsv("full_name,category\nBudi,Kelas A,extra");
     expect(result.invalid[0]?.reason).toMatch(/jumlah kolom/i);
   });
 
   it("allows missing trailing optional cells", () => {
-    const result = parseParticipantCsv("full_name,phone,email\nBudi");
+    const result = parseParticipantCsv("full_name,phone,email,category\nBudi,,,Kelas A");
     expect(result.rows[0]).toMatchObject({ fullName: "Budi", phone: null, email: null });
   });
 
   it("enforces the 1,000-row import limit", () => {
-    const lines = ["full_name"];
-    for (let i = 0; i < 1_001; i += 1) lines.push(`Peserta ${i}`);
+    const lines = ["full_name,category"];
+    for (let i = 0; i < 1_001; i += 1) lines.push(`Peserta ${i},Kelas A`);
     expect(() => parseParticipantCsv(lines.join("\n"))).toThrow(/batas per import/i);
   });
 });

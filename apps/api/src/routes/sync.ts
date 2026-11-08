@@ -48,7 +48,7 @@ import { parseJsonBody, parsePathParams, parseQuery } from "../http/validate";
 import { processOutbox } from "../services/outbox";
 
 /**
- * Google Sheets sync administration (DESAIN_API.md §8).
+ * Google Sheets sync administration (DESAIN_API.md §9).
  *
  * D1 is authoritative. These endpoints only configure and observe the
  * projection; attendance succeeds without them. Credentials stay in Worker
@@ -64,7 +64,7 @@ const OutboxParamsSchema = z.object({
 /**
  * A manual run performs Google API calls and ~2 D1 queries per item, so it is
  * the most expensive endpoint in the app. One run per event per minute matches
- * DESAIN_API.md §10; cron handles the backlog in between.
+ * DESAIN_API.md §11; cron handles the backlog in between.
  */
 const SYNC_RUN_LIMIT = { windowMs: 60_000, limit: 1 };
 

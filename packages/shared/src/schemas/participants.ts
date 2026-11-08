@@ -18,10 +18,17 @@ export const ParticipantCreateRequestSchema = z
     fullName: z.string().trim().min(1).max(120),
     phone: OptionalText(32).optional(),
     email: OptionalText(254).optional(),
+    categoryId: z.string().trim().min(1).max(64).optional(),
+    /** Deprecated compatibility field for the Q1 UI; resolved to/creates a category. */
     category: OptionalText(60).optional(),
+    attributes: z.record(z.string(), z.unknown()).optional(),
     note: OptionalText(500).optional(),
   })
-  .strict();
+  .strict()
+  .refine((value) => value.categoryId !== undefined || (value.category ?? "").trim() !== "", {
+    message: "categoryId wajib diisi",
+    path: ["categoryId"],
+  });
 
 export type ParticipantCreateRequest = z.infer<typeof ParticipantCreateRequestSchema>;
 
@@ -31,7 +38,10 @@ export const ParticipantUpdateRequestSchema = z
     fullName: z.string().trim().min(1).max(120).optional(),
     phone: OptionalText(32).nullable().optional(),
     email: OptionalText(254).nullable().optional(),
+    categoryId: z.string().trim().min(1).max(64).optional(),
+    /** Deprecated compatibility field for the Q1 UI; never clears a category. */
     category: OptionalText(60).nullable().optional(),
+    attributes: z.record(z.string(), z.unknown()).optional(),
     note: OptionalText(500).nullable().optional(),
     status: ParticipantStatusSchema.optional(),
   })

@@ -9,7 +9,7 @@ export interface RateLimitResult {
  *
  * Verified in Fase 0: D1 supports `INSERT ... ON CONFLICT ... RETURNING`, so
  * this is a single statement instead of the two-statement fallback described in
- * DESAIN_API.md §10.
+ * DESAIN_API.md §11.
  */
 export async function consumeRateLimit(
   db: D1Database,

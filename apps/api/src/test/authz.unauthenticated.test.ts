@@ -29,9 +29,17 @@ describe("unauthenticated access", () => {
         "GET /api/dashboard",
         "GET /api/events",
         "GET /api/events/:eventId",
+        "GET /api/events/:eventId/activities",
+        "GET /api/events/:eventId/activities/:activityId",
+        "GET /api/events/:eventId/activities/:activityId/sessions",
+        "GET /api/events/:eventId/activities/:activityId/sessions/:sessionId",
         "GET /api/events/:eventId/attendance",
         "GET /api/events/:eventId/attendance/export",
         "GET /api/events/:eventId/audit",
+        "GET /api/events/:eventId/categories",
+        "GET /api/events/:eventId/categories/:categoryId",
+        "GET /api/events/:eventId/custom-fields",
+        "GET /api/events/:eventId/custom-fields/:fieldId",
         "GET /api/events/:eventId/dashboard",
         "GET /api/events/:eventId/invites",
         "GET /api/events/:eventId/label-config",
@@ -48,8 +56,19 @@ describe("unauthenticated access", () => {
         "POST /api/auth/recovery-code",
         "POST /api/auth/sessions/:sessionId/revoke",
         "POST /api/events",
+        "POST /api/events/:eventId/activities",
+        "POST /api/events/:eventId/activities/:activityId/sessions",
+        "POST /api/events/:eventId/activities/:activityId/sessions/:sessionId/archive",
+        "POST /api/events/:eventId/activities/:activityId/sessions/:sessionId/duplicate",
+        "POST /api/events/:eventId/activities/:activityId/sessions/:sessionId/status",
+        "POST /api/events/:eventId/activities/:activityId/status",
         "POST /api/events/:eventId/attendance/:attendanceId/correction",
         "POST /api/events/:eventId/attendance/manual",
+        "POST /api/events/:eventId/categories",
+        "POST /api/events/:eventId/categories/:categoryId/status",
+        "POST /api/events/:eventId/custom-fields",
+        "POST /api/events/:eventId/custom-fields/:fieldId/status",
+        "POST /api/events/:eventId/custom-fields/:fieldId/type",
         "POST /api/events/:eventId/invites",
         "POST /api/events/:eventId/members/:userId/revoke",
         "POST /api/events/:eventId/participants",
@@ -62,6 +81,10 @@ describe("unauthenticated access", () => {
         "POST /api/events/:eventId/sync/run",
         "POST /api/events/:eventId/sync/test",
         "PATCH /api/events/:eventId",
+        "PATCH /api/events/:eventId/activities/:activityId",
+        "PATCH /api/events/:eventId/activities/:activityId/sessions/:sessionId",
+        "PATCH /api/events/:eventId/categories/:categoryId",
+        "PATCH /api/events/:eventId/custom-fields/:fieldId",
         "PATCH /api/events/:eventId/participants/:participantId",
         "PUT /api/events/:eventId/label-config",
         "PUT /api/events/:eventId/sync",
@@ -90,13 +113,12 @@ describe("unauthenticated access", () => {
     expect(failures).toEqual([]);
   });
 
-  it("publishes exactly the five intended endpoints", () => {
+  it("publishes exactly the four intended endpoints", () => {
     expect(PUBLIC.map((route) => `${route.method} ${route.pattern}`).sort()).toEqual([
       "GET /api/health",
       "GET /api/health/ready",
       "POST /api/auth/activate",
       "POST /api/auth/recover",
-      "POST /api/auth/register",
     ]);
   });
 });

@@ -44,7 +44,8 @@ Sumber: <https://developers.cloudflare.com/workers/platform/limits/> (diperbarui
 
 ### Batas Workers Builds (deploy dari GitHub)
 
-Produksi di-deploy lewat Git integration, jadi kuota build ikut relevan:
+Produksi di-deploy lewat Cloudflare Workers Builds (Git integration), bukan GitHub Actions.
+Kuota build yang relevan:
 
 | Fitur | Free | Paid |
 |---|---|---|
@@ -57,10 +58,12 @@ Produksi di-deploy lewat Git integration, jadi kuota build ikut relevan:
 
 Sumber: <https://developers.cloudflare.com/workers/ci-cd/builds/limits-and-pricing/> (28 Okt 2026).
 
-Satu build repo ini (install workspace + Vite + dry-run bundle) memakan puluhan detik, jadi
-3.000 menit/bulan setara ratusan deploy. Yang perlu diingat hanya: build bersamaan **satu**,
-jadi push beruntun mengantre. Build tidak memakai kuota request Worker, karena build berjalan
-di runner Cloudflare, bukan di edge.
+Satu build repo ini (install workspace + Vite + dry-run bundle) memakan satu-dua menit, jadi
+3.000 menit/bulan cukup untuk puluhan rilis. Karena build bersamaan **satu**, push beruntun
+akan mengantre. Build tidak memakai kuota request Worker, karena berjalan di runner Cloudflare,
+bukan di edge.
+
+> Migrasi D1 tidak ikut build/deploy. Backup dan migrasi tetap manual dari mesin lokal.
 
 ### Arti praktisnya
 

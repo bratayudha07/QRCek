@@ -7,7 +7,7 @@ import { testEnv } from "./env";
 import { TEST_NOW } from "./http";
 
 /**
- * Bounded cleanup driven by cron (DESAIN_API.md §11). Both tables only grow
+ * Bounded cleanup driven by cron (DESAIN_API.md §12). Both tables only grow
  * through normal requests, so this is the only place that deletes from them.
  */
 

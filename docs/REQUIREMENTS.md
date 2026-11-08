@@ -18,17 +18,18 @@
 |---|---|
 | Nama dokumen | Product Requirements |
 | Produk | QRCek |
-| Versi | 0.3.2 |
+| Versi | 0.3.3 |
 | Status | Draft — Pending Product Owner Review |
 | Pemilik keputusan produk | Product owner QRCek |
 | Tanggal dibuat | 3 November 2026 |
 | Tanggal revisi v0.3.1 | 3 November 2026 |
 | Tanggal revisi v0.3.2 | 3 November 2026 |
-| Commit repository yang diverifikasi | `157c330` |
+| Tanggal revisi v0.3.3 | 6 November 2026 |
+| Commit repository yang diverifikasi | `5951361` (Q1); baseline `157c330` (§7.1) |
 | Metode verifikasi | Pembacaan source code, migrations, schema, route, dan test; eksekusi `npm run test` |
-| Hasil verifikasi | 48 file test, 458 test lulus |
+| Hasil verifikasi | 53 file test, 525 test lulus (baseline `157c330`: 48 file, 458 test) |
 | Batas verifikasi | Tidak ada pengujian perangkat fisik, akun Google Sheets nyata, atau CPU produksi |
-| Jumlah baris | 1418 |
+| Jumlah baris | 1259 |
 
 ### 0.2 Cara membaca dokumen
 
@@ -70,11 +71,11 @@ Kode kebutuhan:
 | Dokumen | Peran |
 |---|---|
 | `docs/REQUIREMENTS.md` | Sumber utama kebutuhan produk. Dokumen ini. |
-| `docs/ARCHITECTURE.md` | Rancangan arsitektur dan model sistem. Draft v1, diselaraskan dengan dokumen ini pada 3 November 2026; menggantikan `docs/ARSITEKTUR.md`. |
-| `docs/DECISIONS.md` | Indeks keputusan produk, ADR, dan pertanyaan arsitektur (AQ). Dibuat 3 November 2026. |
-| `docs/adr/` | Catatan keputusan arsitektur individual. ADR-0001–0008 diekstrak dari `docs/ARSITEKTUR.md` pada 3 November 2026 tanpa perubahan keputusan. |
-| `docs/IMPLEMENTATION_ROADMAP.md` | Urutan implementasi tahap Q0–Q11 dan gate. Draft v1, dibuat 3 November 2026. |
-| `.opencode/plans/` | Rencana eksekusi teknis per tahap. Rencana Q0 diperbarui 3 November 2026; tahap lain ditulis setelah dibuka. |
+| `docs/ARCHITECTURE.md` | Rancangan arsitektur dan model sistem. Draft v1, diselaraskan dengan dokumen ini pada 3 November 2026; menggantikan `docs/ARSITEKTUR.md`. Diperbarui 6 November 2026: AQ-001/AQ-006/AQ-010/AQ-014 dijawab. |
+| `docs/DECISIONS.md` | Indeks keputusan produk, ADR, dan pertanyaan arsitektur (AQ). Dibuat 3 November 2026; memuat ADR-0001–0015 per 6 November 2026. |
+| `docs/adr/` | Catatan keputusan arsitektur individual. ADR-0001–0008 diekstrak dari `docs/ARSITEKTUR.md` pada 3 November 2026 tanpa perubahan keputusan; ADR-0009–0015 ditulis 4–6 November 2026. |
+| `docs/IMPLEMENTATION_ROADMAP.md` | Urutan implementasi tahap Q0–Q11 dan gate. Draft v1, dibuat 3 November 2026; Q1 dibuka dan hasil implementasinya dicatat 4–6 November 2026. |
+| `.opencode/plans/` | Rencana eksekusi teknis per tahap. Rencana Q0 diperbarui 3 November 2026; rencana Q1 tersedia; rencana Q2 ditulis setelah AQ-006 diterima. |
 | `docs/DESAIN_API.md` | Kontrak API aktual. |
 | `docs/DESAIN_DATABASE.md` | Desain database aktual. |
 | `docs/RENCANA_PENGUJIAN.md` | Strategi pengujian aktual. |
@@ -772,6 +773,21 @@ Business rule di bawah adalah invariant yang harus tetap benar terlepas dari pil
 | Pola efektif | 87 | 50 definisi route + 37 alias. |
 | “Sekitar 60” | Tidak terverifikasi | Angka estimasi dari audit sebelumnya; tidak didukung hitungan source code. Angka yang dipakai adalah 50 definisi dan 87 pola efektif. |
 
+### 7.1.2 Verifikasi setelah Q1 (6 November 2026)
+
+> Angka di sini **bukan** baseline §7.1 dan tidak menggantikannya. Baseline pada `157c330` tetap fakta historis (§14 #15).
+
+| Item | Hasil |
+|---|---|
+| Perintah | `npm run test` (didahului `typecheck` dan `lint`, ditutup `build`) |
+| File test | 53 |
+| Test | 525 lulus |
+| Route API | 61 definisi route; 159 pola efektif setelah alias `/api/calendar` dan `/api/themes` |
+| Metode hitung | 61 entri `pattern:`; 49 di antaranya berawalan `/api/events`, masing-masing menghasilkan dua alias |
+| Migrasi | 7 file (`0001`–`0007`) |
+| Cakupan Q1 | Aktivitas/Sesi API-only; registrasi publik ditutup (ADR-0013) |
+| Catatan | Migrasi `0007` diterapkan di remote **6 November 2026** setelah backup penuh; verifikasi `schema_version = 7`. |
+
 ### 7.2 Baseline per area
 
 | Area | Kondisi aktual | Bukti |
@@ -1206,7 +1222,7 @@ Semua keputusan produk D-001 s.d D-024 sudah disepakati product owner dan dicata
 | `docs/ARCHITECTURE.md` | Model domain, boundary, alur data, desain Tema → Aktivitas → Sesi | `D-003`–`D-007` [A] sudah tersedia; `D-009`–`D-017` [A] tersedia sebagai landasan desain; `OQ-027` [A] ditutup. |
 | `docs/DECISIONS.md` + `docs/adr/` | Keputusan final atas semua pertanyaan produk | `D-001`–`D-024` [A] dapat dicatat; semua OQ produk ditutup. |
 | `docs/IMPLEMENTATION_ROADMAP.md` | Urutan tahap dan gate, termasuk phasing CSV/XLSX | `D-015` [A] tersedia; fase lain mengikuti keputusan yang disetujui. |
-| `.opencode/plans/` | Rencana eksekusi per tahap | Menunggu roadmap yang disetujui. |
+| `.opencode/plans/` | Rencana eksekusi per tahap | Q1 tersedia dan sudah dieksekusi; Q2 menunggu pembukaan tahap di roadmap. |
 
 ---
 
@@ -1239,4 +1255,5 @@ Semua keputusan produk D-001 s.d D-024 sudah disepakati product owner dan dicata
 | 0.3 | 3 November 2026 | Revisi besar: menetapkan `D-003`–`D-007` (hierarki, QR scope, entitlement, Reversal/Adjustment, tanpa kewajiban migrasi data produksi); menambahkan `D-008`–`D-024` sebagai rekomendasi proposed yang belum disetujui; memisahkan Transaction Type, Transaction Source, dan Correction Operation; memperluas lifecycle, scanner, kuota konsumsi, audit, impor, laporan, QR PNG/ZIP, Google Sheets, registrasi Admin, identifier teknis, batas CSV, dan desain UI; memperbarui FR/BR/NFR/AC; menambah status `[A]`/`[P]`/`[O]`; mempertahankan `OQ-027` sebagai satu-satunya pertanyaan terbuka tanpa rekomendasi. |
 | 0.3.1 | 3 November 2026 | Koreksi konsistensi: (1) pisahkan status operasional Sesi dari state arsip (FR-091, FR-093, FR-186, FR-206, BR-007, BR-071, BR-078, OQ-033); arsip Sesi menolak transaksi baru tetapi histori transaksi tetap utuh, dan kapan arsip boleh dilakukan belum ditetapkan; (2) audit field allowlist agar before/after tidak menyimpan PII dan kredensial (FR-136, FR-195, FR-207, BR-074, BR-079, NFR-006, AC-031, AC-047); (3) pisahkan prinsip Reversal/Adjustment yang disepakati (D-006 [A]) dari perilaku kuota Consumption yang proposed (D-014 [P], BR-073, AC-046); pemulihan kuota setelah Reversal Consumption tetap proposed; (4) selesaikan perilaku impor CSV tanpa External Reference (FR-052, D-008, BR-063, AC-009, AC-054): baris tanpa External Reference dianggap peserta baru dengan warning duplikat untuk review manual, tanpa merge otomatis; (5) izin Manual Check-in Super Admin tidak ditetapkan (FR-073, BR-034, AC-021, AC-049, AC-055, OQ-034); legacy permission `attendance:correct` tidak diinferensikan sebagai otorisasi target. |
 | 0.3.2 | 4 November 2026 | Disetujui oleh product owner: semua keputusan proposed `D-008`–`D-024` diubah menjadi `[A]`; semua open question produk `OQ-008`–`OQ-034` ditutup; `D-024` dikoreksi dari `[P]` menjadi `[A]` (konsisten dengan `FR-077`, `FR-097`, dan §2.2); `OQ-027` ditutup (lokasi `COSTS_AND_LIMITS.md` tetap di root); `OQ-033` ditutup (arsip Sesi hanya dari Selesai/Dinonaktifkan, hanya Admin Acara); `OQ-034` ditutup (Super Admin tidak boleh Manual Check-in); NFR marker `NFR-021`/`NFR-022`/`NFR-023` diubah `[P]` → `[A]`. |
+| 0.3.3 | 6 November 2026 | Penyelarasan fakta implementasi, tanpa perubahan kebutuhan maupun status keputusan: hitungan verifikasi menjadi 53 file test/525 tes, 61 definisi route/159 pola efektif (alias `/api/calendar` dan `/api/themes`), dan 7 migrasi (`0001`–`0007`); status dokumen turunan di §0.3 dan §13.3 diperbarui (Q1 selesai, rencana Q1 tersedia, ADR-0001–0015 tercatat). Kebutuhan produk, keputusan `D-xxx`, `OQ-xxx`, `FR`, `BR`, `NFR`, dan `AC` tidak diubah. |
 

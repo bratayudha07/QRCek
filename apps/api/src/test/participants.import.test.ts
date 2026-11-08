@@ -1,6 +1,7 @@
 import type {
   ImportPreviewPayload,
   ImportResultPayload,
+  ParticipantDetailPayload,
   ParticipantListPayload,
 } from "@absensi/shared";
 import { describe, expect, it } from "vitest";
@@ -8,7 +9,9 @@ import { describe, expect, it } from "vitest";
 import {
   addMembership,
   countRows,
+  createCategory,
   createEvent,
+  createParticipant,
   createSession,
   createUser,
 } from "./fixtures";
@@ -37,6 +40,11 @@ async function world(): Promise<World> {
 
   const adminBId = await createUser({ role: "event_admin", displayName: "Admin B" });
   await addMembership(eventB, adminBId, "event_admin");
+
+  // Import never invents a category (ADR-0014); tests seed the ones they use.
+  await createCategory(eventA, { name: "Kelas 5A" });
+  await createCategory(eventA, { name: "Kelas 6A" });
+  await createCategory(eventB, { name: "Kelas 5A" });
 
   return {
     superadmin: { id: superadminId, cookie: (await createSession(superadminId)).cookie },
@@ -68,7 +76,7 @@ async function importCsv(
 describe("POST /api/events/:id/participants/import", () => {
   it("defaults to preview and writes nothing", async () => {
     const w = await world();
-    const csv = `${HEADER}\nNIS-1,Budi,081234567890,,Kelas 5A,\nNIS-2,Siti,,siti@example.com,,`;
+    const csv = `${HEADER}\nNIS-1,Budi,081234567890,,Kelas 5A,\nNIS-2,Siti,,siti@example.com,Kelas 5A,`;
 
     const response = await importCsv(w.eventA, w.adminA.cookie, csv);
 
@@ -126,7 +134,7 @@ describe("POST /api/events/:id/participants/import", () => {
 
   it("previews existing refs as updates", async () => {
     const w = await world();
-    const csv = `${HEADER}\nNIS-1,Budi,,,,`;
+    const csv = `${HEADER}\nNIS-1,Budi,,,Kelas 5A,`;
 
     await importCsv(w.eventA, w.adminA.cookie, csv, { confirm: true });
     const preview = await importCsv(w.eventA, w.adminA.cookie, csv);
@@ -137,15 +145,45 @@ describe("POST /api/events/:id/participants/import", () => {
     expect(body.data.sample[0]?.action).toBe("update");
   });
 
+  it("never erases an existing value with an empty cell (BR-077)", async () => {
+    const w = await world();
+    const seeded = await createParticipant(w.eventA, {
+      fullName: "Budi",
+      externalRef: "NIS-1",
+      phone: "081234567890",
+      email: "budi@example.com",
+      note: "catatan lama",
+      category: "Kelas 5A",
+    });
+
+    const csv = `${HEADER}\nNIS-1,Budi Baru,,,Kelas 5A,`;
+    const response = await importCsv(w.eventA, w.adminA.cookie, csv, { confirm: true });
+    expect(response.status).toBe(200);
+
+    const detail = await callApi(
+      `/api/events/${w.eventA}/participants/${seeded.id}`,
+      { cookie: w.adminA.cookie },
+    );
+    const body = detail.json<ParticipantDetailPayload>();
+    if (!body.ok) throw new Error("expected success");
+
+    expect(body.data.participant).toMatchObject({
+      fullName: "Budi Baru",
+      phone: "081234567890",
+      email: "budi@example.com",
+      note: "catatan lama",
+    });
+  });
+
   it("saves valid rows and reports invalid rows with physical line numbers", async () => {
     const w = await world();
     const csv = [
       HEADER,
-      "NIS-1,Budi,081234567890,,,",
-      "NIS-2,,081234567890,,,", // line 3: missing full_name
-      "NIS-3,Siti,abc,,,", // line 4: invalid phone
-      "NIS-4,Agus,,,,", // line 5: valid
-      "NIS-1,Duplikat,,,,", // line 6: duplicate ref
+      "NIS-1,Budi,081234567890,,Kelas 5A,",
+      "NIS-2,,081234567890,,Kelas 5A,", // line 3: missing full_name
+      "NIS-3,Siti,abc,,Kelas 5A,", // line 4: invalid phone
+      "NIS-4,Agus,,,Kelas 5A,", // line 5: valid
+      "NIS-1,Duplikat,,,Kelas 5A,", // line 6: duplicate ref
     ].join("\n");
 
     const preview = await importCsv(w.eventA, w.adminA.cookie, csv);
@@ -171,6 +209,31 @@ describe("POST /api/events/:id/participants/import", () => {
     expect(errorCode(response)).toBe("VALIDATION_ERROR");
   });
 
+  it("rejects a file without the category header", async () => {
+    const w = await world();
+
+    const response = await importCsv(w.eventA, w.adminA.cookie, "full_name\nBudi");
+
+    expect(response.status).toBe(400);
+    expect(errorCode(response)).toBe("VALIDATION_ERROR");
+  });
+
+  it("rejects rows with an unknown category instead of inventing one", async () => {
+    const w = await world();
+    const csv = `${HEADER}\nNIS-1,Budi,,,Kelas Tidak Ada,`;
+
+    const preview = await importCsv(w.eventA, w.adminA.cookie, csv);
+    const body = preview.json<ImportPreviewPayload>();
+    if (!body.ok) throw new Error("expected success");
+
+    expect(body.data).toMatchObject({ valid: 0, created: 0, updated: 0 });
+    expect(body.data.invalid[0]?.line).toBe(2);
+
+    await importCsv(w.eventA, w.adminA.cookie, csv, { confirm: true });
+    expect(await countRows("categories")).toBe(3);
+    expect(await countRows("participants")).toBe(0);
+  });
+
   it("rejects duplicate and unknown headers", async () => {
     const w = await world();
 
@@ -188,8 +251,8 @@ describe("POST /api/events/:id/participants/import", () => {
   it("accepts a semicolon delimiter, quotes, and embedded newlines", async () => {
     const w = await world();
     const csv = [
-      "external_ref;full_name;note",
-      'NIS-1;"Budi, S.Pd";"baris satu',
+      "external_ref;full_name;category;note",
+      'NIS-1;"Budi, S.Pd";Kelas 5A;"baris satu',
       'baris dua"',
     ].join("\n");
 
@@ -210,7 +273,7 @@ describe("POST /api/events/:id/participants/import", () => {
   it("accepts a JSON envelope with a csv field", async () => {
     const w = await world();
 
-    const response = await importCsv(w.eventA, w.adminA.cookie, `${HEADER}\nNIS-1,Budi,,,,`, {
+    const response = await importCsv(w.eventA, w.adminA.cookie, `${HEADER}\nNIS-1,Budi,,,Kelas 5A,`, {
       confirm: true,
       json: true,
     });
@@ -221,7 +284,7 @@ describe("POST /api/events/:id/participants/import", () => {
   it("rejects more than 1,000 data rows with 413", async () => {
     const w = await world();
     const lines = [HEADER];
-    for (let i = 0; i < 1_001; i += 1) lines.push(`NIS-${i},Peserta ${i},,,,`);
+    for (let i = 0; i < 1_001; i += 1) lines.push(`NIS-${i},Peserta ${i},,,Kelas 5A,`);
 
     const response = await importCsv(w.eventA, w.adminA.cookie, lines.join("\n"));
 
@@ -232,7 +295,7 @@ describe("POST /api/events/:id/participants/import", () => {
 
   it("rejects a body larger than 2 MB", async () => {
     const w = await world();
-    const csv = `${HEADER}\nNIS-1,${"a".repeat(2 * 1024 * 1024)},,,,`;
+    const csv = `${HEADER}\nNIS-1,${"a".repeat(2 * 1024 * 1024)},,,Kelas 5A,`;
 
     const response = await importCsv(w.eventA, w.adminA.cookie, csv);
 
@@ -242,7 +305,7 @@ describe("POST /api/events/:id/participants/import", () => {
   it("returns 403 for an officer", async () => {
     const w = await world();
 
-    const response = await importCsv(w.eventA, w.officerA.cookie, `${HEADER}\nNIS-1,Budi,,,,`);
+    const response = await importCsv(w.eventA, w.officerA.cookie, `${HEADER}\nNIS-1,Budi,,,Kelas 5A,`);
 
     expect(response.status).toBe(403);
   });
@@ -250,7 +313,7 @@ describe("POST /api/events/:id/participants/import", () => {
   it("returns 404 for an admin of another event", async () => {
     const w = await world();
 
-    const response = await importCsv(w.eventA, w.adminB.cookie, `${HEADER}\nNIS-1,Budi,,,,`);
+    const response = await importCsv(w.eventA, w.adminB.cookie, `${HEADER}\nNIS-1,Budi,,,Kelas 5A,`);
 
     expect(response.status).toBe(404);
   });
@@ -265,7 +328,7 @@ describe("POST /api/events/:id/participants/import", () => {
       });
     }
 
-    const response = await importCsv(w.eventA, w.adminA.cookie, `${HEADER}\nNIS-1,Budi,,,,`, {
+    const response = await importCsv(w.eventA, w.adminA.cookie, `${HEADER}\nNIS-1,Budi,,,Kelas 5A,`, {
       confirm: true,
     });
 
@@ -276,7 +339,7 @@ describe("POST /api/events/:id/participants/import", () => {
   it("does not leak rows across events", async () => {
     const w = await world();
 
-    await importCsv(w.eventA, w.adminA.cookie, `${HEADER}\nNIS-1,Budi,,,,`, { confirm: true });
+    await importCsv(w.eventA, w.adminA.cookie, `${HEADER}\nNIS-1,Budi,,,Kelas 5A,`, { confirm: true });
 
     const listB = await callApi(`/api/events/${w.eventB}/participants?status=all`, {
       cookie: w.adminB.cookie,
@@ -289,7 +352,7 @@ describe("POST /api/events/:id/participants/import", () => {
 
   it("rate-limits repeated confirms per event", async () => {
     const w = await world();
-    const csv = `${HEADER}\nNIS-1,Budi,,,,`;
+    const csv = `${HEADER}\nNIS-1,Budi,,,Kelas 5A,`;
 
     for (let i = 0; i < 10; i += 1) {
       const response = await importCsv(w.eventA, w.adminA.cookie, csv, { confirm: true });
@@ -306,7 +369,7 @@ describe("POST /api/events/:id/participants/import", () => {
   it("uses the injected clock for created_at/updated_at", async () => {
     const w = await world();
 
-    await importCsv(w.eventA, w.adminA.cookie, `${HEADER}\nNIS-1,Budi,,,,`, { confirm: true });
+    await importCsv(w.eventA, w.adminA.cookie, `${HEADER}\nNIS-1,Budi,,,Kelas 5A,`, { confirm: true });
     const list = await callApi(`/api/events/${w.eventA}/participants`, {
       cookie: w.adminA.cookie,
     });

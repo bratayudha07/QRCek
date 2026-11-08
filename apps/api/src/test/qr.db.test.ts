@@ -142,7 +142,7 @@ describe("participant QR columns", () => {
       fullName: "Nama Baru",
       phone: null,
       email: null,
-      category: null,
+      categoryId: participant.categoryId,
       note: null,
       now: TEST_NOW + 1000,
     }).run();

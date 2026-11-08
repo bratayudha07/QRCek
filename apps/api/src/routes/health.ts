@@ -5,7 +5,7 @@ import { dbUnavailable } from "../http/errors";
 import type { RouteContext, RouteDefinition, RouteResult } from "../http/router";
 
 /**
- * Liveness and readiness (DESAIN_API.md §9).
+ * Liveness and readiness (DESAIN_API.md §10).
  *
  * `/api/health` stays DB-free on purpose: it answers "is the Worker deployed?",
  * so it must not fail when D1 is having a bad minute. `/api/health/ready` does

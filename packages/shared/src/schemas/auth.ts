@@ -32,17 +32,9 @@ export const RecoverRequestSchema = z
   .strict();
 
 /**
- * ADR-007: self-service registration. Only a display name is required — there
- * is no email verification in this system, so no email is collected at all.
- * `turnstileToken` is present only when the deployment enabled Turnstile.
+ * Authentication payloads. There is no self-service registration: accounts are
+ * created by claiming an invite (ADR-0013).
  */
-export const RegisterRequestSchema = z
-  .object({
-    displayName: z.string().trim().min(2).max(120),
-    label: LabelSchema.optional(),
-    turnstileToken: z.string().trim().max(2048).optional(),
-  })
-  .strict();
 
 export const InviteCreateRequestSchema = z
   .object({

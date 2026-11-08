@@ -1,5 +1,5 @@
 /**
- * Operational payloads (DESAIN_API.md §9): readiness probe and usage snapshot.
+ * Operational payloads (DESAIN_API.md §10): readiness probe and usage snapshot.
  *
  * These are for monitoring and capacity planning, not for the SPA. They carry
  * no PII: only row counts and the age of the audit trail.

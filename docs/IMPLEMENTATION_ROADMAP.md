@@ -34,8 +34,8 @@
 | Tahap | Fokus | Status | Prasyarat keputusan utama |
 |---|---|---|---|
 | Q0 | Penyelarasan dokumen & keputusan | **Berjalan** | `D-001`, `D-002` [A] |
-| Q1 | Fondasi Tema → Aktivitas → Sesi, lifecycle, mekanisme audit | Belum dibuka | AQ-001, AQ-010, AQ-014; `D-009`, `D-023` [A]; `OQ-033` [A] untuk aksi arsip Sesi |
-| Q2 | Peserta, kategori, custom field, impor CSV | Belum dibuka | AQ-006; `D-008`, `D-020` [A] |
+| Q1 | Fondasi Tema → Aktivitas → Sesi, lifecycle, mekanisme audit | **Selesai (API-only)** | AQ-001, AQ-010, AQ-014 (ADR-0009–0011, Diterima); ADR-0012 (lifecycle), ADR-0013 (registrasi), keduanya Diterima; `D-009`, `D-010`, `D-023` [A]; `OQ-033` [A] untuk aksi arsip Sesi |
+| Q2 | Peserta, kategori, custom field, impor CSV | **Selesai secara kode (API-only), menunggu review + migrasi `0008` remote** | AQ-006 dijawab ADR-0014 (Diterima 6 November 2026); `D-008`, `D-020` [A] |
 | Q3 | Entitlement | Belum dibuka | AQ-005 |
 | Q4 | QR Identity per Tema, rotasi, ekspor PNG/ZIP | Belum dibuka | AQ-009; `D-016` [A] |
 | Q5 | Transaksi Attendance, Manual Entry, Reversal/Adjustment | Belum dibuka | AQ-002–AQ-004, AQ-007, AQ-008; `D-010`, `D-011`, `D-022`, `D-024` [A]; `OQ-034` [A] |
@@ -104,10 +104,11 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 
 **Gate untuk membuka Q1:**
 
-- [ ] Product owner mereview `REQUIREMENTS.md` v0.3.1 dan dokumen turunan ini.
-- [ ] Keputusan Q1 disetujui: `D-009`, `D-018`, `D-023` (semua `[A]`).
-- [ ] ADR untuk AQ-001, AQ-010, AQ-014 berstatus Diterima.
-- [ ] `REQUIREMENTS.md` §0.3 dan §13.3 diperbarui product owner agar status dokumen turunan tidak lagi "belum dibuat".
+- [x] Product owner mereview `REQUIREMENTS.md` v0.3.1 dan dokumen turunan ini.
+- [x] Keputusan Q1 disetujui: `D-009`, `D-018`, `D-023` (semua `[A]`).
+- [x] ADR untuk AQ-001, AQ-010, AQ-014 berstatus Diterima.
+- [x] ADR-0012 (tabel transisi lifecycle) dan ADR-0013 (pendaftaran mandiri nonaktif) berstatus Diterima.
+- [x] `REQUIREMENTS.md` §0.3 dan §13.3 diperbarui product owner agar status dokumen turunan tidak lagi "belum dibuat".
 
 ---
 
@@ -133,6 +134,16 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 
 **Bukan cakupan:** transaksi, entitlement, scanner.
 
+**Hasil implementasi (4 November 2026 — menunggu review manusia):**
+
+- `migrations/0007_q1_activities_sessions.sql` menambah `activities` dan `activity_sessions`; `0001`–`0006` tidak diedit.
+- Route API: `/api/events/:eventId/activities` dan `/api/events/:eventId/activities/:activityId/sessions` beserta status/arsip/duplikasi; alias `/api/themes` dan `/api/calendar` memakai handler yang sama.
+- Lifecycle di `packages/shared/src/lifecycle.ts` (ADR-0012); audit allowlist di `packages/shared/src/audit-allowlist.ts` (ADR-0011).
+- Tes: `packages/shared/src/lifecycle.test.ts`, `audit-allowlist.test.ts`, `apps/api/src/test/activities.api.test.ts`, `activity-sessions.api.test.ts`, `themes-alias.test.ts`, `register.closed.test.ts`.
+- **Penguatan 5 November 2026:** uji mutasi pada tiga guard inti menemukan satu celah (audit bisa tertulis walau mutasi gagal); ditutup oleh `apps/api/src/test/audit.guarded-write.test.ts`. Daftar Aktivitas/Sesi diputuskan tanpa paginasi pada Q1 (additive nanti) — lihat `DESAIN_API.md` §6. Rincian penyimpangan rencana ada di `.opencode/plans/q1-tema-aktivitas-sesi.md` §16.
+- **Ditunda:** UI Aktivitas/Sesi (Q6/Q8/Q9), shim "satu Aktivitas default" untuk Tema lama (Q5), dan seluruh perilaku transaksi (`AC-004` bagian transaksi, `AC-005` bagian riwayat transaksi).
+- Gate di atas **ditutup 6 November 2026**: pemilik proyek menyetujui hasil Q1, `REQUIREMENTS.md` §0.3/§13.3 diperbarui (v0.3.3), dan migrasi `0007` diterapkan di remote sebelum kode masuk `main`. Sisa cakupan (UI, transaksi, shim Aktivitas default) tetap menjadi pekerjaan tahap lanjut seperti tercantum di atas.
+
 ---
 
 ### Q2 — Peserta, kategori, custom field, impor CSV
@@ -155,6 +166,19 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 - Batas 2 MB / 1.000 baris menghasilkan pesan actionable (`FR-197`).
 
 **Bukan cakupan:** entitlement per kategori (Q3).
+
+**Prasyarat keputusan:** AQ-006 dijawab ADR-0014 (Diterima 6 November 2026). Tahap **dibuka 6 November 2026** oleh pemilik proyek setelah gate Q1 direview; rencana eksekusi ada di `.opencode/plans/q2-peserta-kategori-impor.md`.
+
+**Hasil implementasi (7 November 2026, API-only):**
+
+- Migrasi `0008_q2_categories_custom_fields.sql`: tabel `categories` dan `custom_fields`, kolom `participants.category_id` + `participants.attributes_json`, backfill kategori dari teks lama, dan trigger yang menegakkan `category_id` wajib + satu Tema + mirror `participants.category`. `0001`–`0007` tidak disentuh.
+- Route: `/api/events/:eventId/categories` (list/create/detail/patch/status), `/api/events/:eventId/custom-fields` (list/create/detail/patch/status/type), dan kontrak peserta baru (`categoryId` wajib, `attributes` tervalidasi tipe) beserta impor CSV yang mewajibkan header + nilai `category`. Semua route otomatis mendapat alias `/api/calendar` dan `/api/themes`.
+- Aturan murni di `packages/shared/src/participant-attributes.ts` (validasi tipe, merge parsial, ubah tipe, koersi CSV) dan skema di `packages/shared/src/schemas/{categories,custom-fields,participants}.ts`.
+- Audit `category.*`, `custom_field.*`, dan `participant.*` ditulis dalam `db.batch()` yang sama; snapshot hanya memuat field allowlist, daftar key atribut yang berubah, dan tidak pernah nilai atribut/PII/`options_json`.
+- Batas 50 field aktif dan 100 opsi ditegakkan di Worker sebagai `422 BUSINESS_RULE`; arsip membebaskan slot.
+- Tes baru: `packages/shared/src/participant-attributes.test.ts`, `apps/api/src/test/categories.api.test.ts`, `custom-fields.api.test.ts`, `participant-attributes.api.test.ts`, perluasan `audit.guarded-write.test.ts` dan tes impor/peserta. Uji mutasi enam guard inti tertangkap (`RENCANA_PENGUJIAN.md` §9.2).
+- **Penyimpangan kompatibilitas:** `participants.category` (teks) tetap ada sebagai mirror yang dijaga trigger; create/update satu peserta masih menerima nama `category` sebagai input deprecated, sedangkan impor CSV **tidak** membuat kategori otomatis (ADR-0014). `PATCH` peserta tidak dapat menghapus kategori (`category: null` diabaikan), sehingga kategori wajib selalu terpenuhi.
+- **Belum:** UI kategori/custom field/atribut (Q9), nilai custom field per Aktivitas/Sesi (Q3), dan migrasi `0008` di remote. **Urutan rilis wajib:** terapkan `0008` dan deploy kode Q2 berdekatan (idealnya satu jendela), karena Worker lama masih menulis peserta tanpa `category_id` dan trigger `0008` akan menolaknya. Jangan menerapkan `0008` sendirian ke remote. Kode Q2 belum masuk `main`; Worker remote masih menjalankan skema `0007`.
 
 ---
 
@@ -351,3 +375,7 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 | Versi | Tanggal | Perubahan |
 |---|---|---|
 | Draft v1 | 3 November 2026 | Dibuat dari `REQUIREMENTS.md` v0.3.1; menggantikan roadmap Fase 0–6 sebagai rencana aktif; mengintegrasikan evaluasi `PLAN_TAB_PESERTA.md`. |
+| Draft v1.1 | 4 November 2026 | Q1: tambah prasyarat ADR-0012 (lifecycle) dan ADR-0013 (registrasi publik nonaktif); perjelas `D-010` [A]. Status tahap belum berubah. |
+| Draft v1.2 | 4 November 2026 | ADR-0009–0013 berstatus Diterima; Q1 **Dibuka** (API-only). |
+| Draft v1.3 | 6 November 2026 | Q1 **Selesai (API-only)** setelah review pemilik proyek dan migrasi `0007` diterapkan di remote; ADR-0014 (AQ-006) dan ADR-0015 Diterima; Q2 **Dibuka**. |
+| Draft v1.4 | 7 November 2026 | Q2 **Selesai secara kode (API-only)**; migrasi `0008` dibuat dan diuji lokal, penerapan remote + review pemilik masih pending. UI dan nilai field per Aktivitas tetap di tahap lanjut. |

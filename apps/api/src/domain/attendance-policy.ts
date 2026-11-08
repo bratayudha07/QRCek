@@ -1,7 +1,7 @@
 import type { EventStatus } from "@absensi/shared";
 
 /**
- * Attendance windows (DESAIN_API.md §6).
+ * Attendance windows (DESAIN_API.md §7).
  *
  * An event accepts attendance only while it is `active` AND `now` is inside the
  * configured window. A missing bound means "unbounded on that side"; a `draft`,

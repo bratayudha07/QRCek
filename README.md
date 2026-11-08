@@ -84,9 +84,9 @@ Dua lapis, dipisah tegas: **secret Worker tidak pernah masuk bundle frontend**.
 
 | Lapis | File | Isi | Git |
 |---|---|---|---|
-| Worker (secret) | `apps/api/.dev.vars` | `SESSION_PEPPER`, `QR_PEPPER`, `QR_ENCRYPTION_KEY`, `QR_KEY_VERSION`, `GOOGLE_SA_KEY`, `TURNSTILE_SECRET_KEY` | **tidak** di-commit |
+| Worker (secret) | `apps/api/.dev.vars` | `SESSION_PEPPER`, `QR_PEPPER`, `QR_ENCRYPTION_KEY`, `QR_KEY_VERSION`, `GOOGLE_SA_KEY` | **tidak** di-commit |
 | Worker (contoh) | `.dev.vars.example` | daftar kunci dengan nilai kosong | di-commit |
-| Web (publik) | `apps/web/.env.local` | `VITE_API_BASE_URL`, `VITE_TURNSTILE_SITE_KEY` | **tidak** di-commit |
+| Web (publik) | `apps/web/.env.local` | `VITE_API_BASE_URL` (opsional) | **tidak** di-commit |
 | Web (contoh) | `apps/web/.env.example` | dokumentasi variabel | di-commit |
 
 `VITE_API_BASE_URL` **kosong secara default** dan itu memang yang diinginkan: SPA dan Worker berbagi origin (ADR-001), jadi tidak ada URL production yang di-hardcode. Isi hanya kalau frontend benar-benar disajikan dari origin lain (mis. preview ke Worker staging).
@@ -199,58 +199,88 @@ Detail lingkungan dan hasil pengukuran: `docs/OPERASIONAL.md`.
 
 ## Deploy
 
-Repo ini terhubung ke Cloudflare lewat **Git integration (Workers Builds)**:
-setiap push ke `main` di [`github.com/bratayudha07/QRCek`](https://github.com/bratayudha07/QRCek)
-memicu build + deploy otomatis. Worker produksi:
-[`qrcek.hamdirobbi5.workers.dev`](https://qrcek.hamdirobbi5.workers.dev).
+Deploy kode produksi memakai **Cloudflare Workers Builds** (Git integration): push/merge ke
+`main` memicu build lalu `wrangler deploy` dari runner Cloudflare. Repo ini **tidak** memakai
+GitHub Actions. Migrasi D1 dan secret tetap manual karena Workers Builds hanya mengunggah kode.
 
-Pengaturan build yang harus cocok dengan struktur monorepo (Settings → Build di dashboard):
+Worker produksi: [`qrcek.hamdirobbi5.workers.dev`](https://qrcek.hamdirobbi5.workers.dev).
+
+### Setup sekali di Cloudflare
+
+Buka **Workers & Pages → `qrcek` → Settings → Build**, lalu isi:
 
 | Setelan | Nilai |
 |---|---|
-| Branch produksi | `main` |
-| Root directory | `apps/api` (lokasi `wrangler.jsonc`) |
-| Build command | `cd ../.. && npm ci && npm run build` — memasang workspace **dan** menghasilkan `apps/web/dist` sebelum deploy |
-| Deploy command | `npx wrangler deploy` (default) |
+| Repository | `github.com/bratayudha07/QRCek` |
+| Production branch | `main` |
+| Root directory | root repo (kosongkan) |
+| Build command | `npm ci && npm run build` |
+| Deploy command | `npx wrangler deploy --config apps/api/wrangler.jsonc` |
+| Build watch paths | opsional: `apps/api/*`, `apps/web/*`, `packages/shared/*`, `package.json`, `package-lock.json` |
+| Environment variable | opsional: `NODE_VERSION=22` |
 
-Tanpa langkah build web, `assets.directory` (`../web/dist`) kosong dan situs tampil 404
-walau build hijau.
+Build harus menghasilkan `apps/web/dist`; kalau tidak, Worker ter-deploy tanpa aset dan situs
+tampil 404. Jangan mengisi `VITE_*` saat ini karena belum ada yang wajib. Bila nanti menambah
+satu, nilainya harus publik.
 
-> Kalau dashboard memakai **root directory = root repo** (bukan `apps/api`), ganti deploy
-> command menjadi `npx wrangler deploy --config apps/api/wrangler.jsonc`; build command cukup
-> `npm ci && npm run build`. Dua susunan ini setara — yang penting build menghasilkan
-> `apps/web/dist` sebelum deploy.
+> Alternatif yang setara: root directory `apps/api`, build command
+> `cd ../.. && npm ci && npm run build`, deploy command `npx wrangler deploy`. Pilih satu
+> susunan dan jangan dicampur.
 
-**Yang tidak dilakukan otomatis oleh deploy Git:**
+Workers Builds memakai kuota **3.000 menit build/bulan** di free tier. Satu build repo ini
+berkisar satu-dua menit.
 
-- **Migrasi D1 tidak dijalankan.** Deploy hanya mengunggah kode. Setelah perubahan skema,
-  jalankan `npm run db:migrate:remote` secara sadar (butuh konfirmasi pemilik proyek).
-  Urutannya: migrasi dulu, baru kode yang bergantung padanya.
-- **Secret tidak ikut ter-deploy.** `SESSION_PEPPER`, `QR_PEPPER`, `QR_ENCRYPTION_KEY`,
-  `QR_KEY_VERSION`, `GOOGLE_SA_KEY`, `TURNSTILE_SECRET_KEY` tetap lewat
-  `npx wrangler secret put <NAMA>` dari `apps/api`. Jangan menampilkan atau mencatat nilainya.
-- **`VITE_TURNSTILE_SITE_KEY` harus ada di build environment** Cloudflare (Settings → Build →
-  Variables and Secrets) kalau Turnstile dipakai; kalau tidak, bundle frontend ter-build tanpa
-  site key.
+### Rilis kode (otomatis)
 
-Deploy manual tetap mungkin sebagai fallback:
+1. Verifikasi lokal (urutan ini mengikat):
+
+   ```bash
+   npm run typecheck
+   npm run lint
+   npm run test
+   npm run build
+   ```
+
+2. Push/merge ke `main`. Workers Builds otomatis build dan deploy.
+3. Verifikasi produksi:
+
+   ```bash
+   curl -s  https://qrcek.hamdirobbi5.workers.dev/api/health
+   curl -s  https://qrcek.hamdirobbi5.workers.dev/api/health/ready
+   curl -sI https://qrcek.hamdirobbi5.workers.dev/ | grep -i "content-security-policy"
+   ```
+
+Tidak perlu menjalankan `wrangler deploy` manual untuk rilis kode biasa.
+
+### Rilis yang mengubah skema
+
+Workers Builds **tidak** menjalankan migrasi D1. Backup dan migrasi tetap dari `apps/api`:
 
 ```bash
-npm run build
 cd apps/api
-npx wrangler deploy
+npx wrangler d1 export absensi-db --remote \
+  --output /tmp/opencode/qrcek-backup-$(date -u +%Y-%m-%d).sql
+npx wrangler d1 migrations apply absensi-db --remote
 ```
 
-Verifikasi setelah deploy:
+Urutannya menentukan:
 
-```bash
-curl -s  https://qrcek.hamdirobbi5.workers.dev/api/health
-curl -s  https://qrcek.hamdirobbi5.workers.dev/api/health/ready
-curl -sI https://qrcek.hamdirobbi5.workers.dev/ | grep -i "content-security-policy"
-```
+- **Rilis Q2/`0008`** mengubah kontrak tulis peserta. Setelah migrasi aktif, Worker lama gagal
+  membuat peserta tanpa `category_id`. Untuk rilis ini, cara paling aman adalah **satu kali
+  rilis manual** (migrasi lalu `wrangler deploy`), atau merge/push dulu dan jalankan migrasi
+  saat build Workers Builds sedang berjalan. Jangan menerapkan `0008` lalu menunda deploy.
+- Setelah skema `0008` aktif dan kode Q2 live, rilis kode berikutnya cukup lewat Workers
+  Builds otomatis.
 
-`/api/health/ready`, `/api/admin/usage`, dan security headers baru ada setelah commit yang
-memuatnya ter-deploy. Status, kuota build, dan prosedur rollback ada di
+**Yang tidak ikut ter-deploy:**
+
+- **Migrasi D1** dijalankan manual seperti di atas.
+- **Secret** (`SESSION_PEPPER`, `QR_PEPPER`, `QR_ENCRYPTION_KEY`, `QR_KEY_VERSION`,
+  `GOOGLE_SA_KEY`) lewat `npx wrangler secret put <NAMA>` dari `apps/api`. Jangan menampilkan
+  atau mencatat nilainya.
+- **Data D1** bukan bagian dari deploy; gunakan backup/Time Travel.
+
+Status, batas platform, dan prosedur rollback ada di
 [`docs/OPERASIONAL.md`](docs/OPERASIONAL.md) §10.
 
 ## Dokumen

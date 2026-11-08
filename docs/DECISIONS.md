@@ -76,19 +76,24 @@ Pertanyaan arsitektur terbuka (`AQ`): `REQUIREMENTS.md` §13.2 / `ARCHITECTURE.m
 | [0004](./adr/0004-sheets-upsert-projection.md) | Sheets proyeksi/upsert per peserta | Ditinjau ulang | `D-017` [A] → AQ-011 |
 | [0005](./adr/0005-d1-outbox-cron.md) | Outbox D1 + Cron | Diterima | `D-017` [A] |
 | [0006](./adr/0006-qr-credential-hash-ciphertext.md) | Kredensial QR hash + ciphertext | Diterima | `D-004` [A], `D-016` [A] |
-| [0007](./adr/0007-event-admin-self-signup.md) | Pendaftaran mandiri admin acara | Ditinjau ulang | `D-018` [A] |
+| [0007](./adr/0007-event-admin-self-signup.md) | Pendaftaran mandiri admin acara | Digantikan oleh ADR-0013 | `D-018` [A] |
 | [0008](./adr/0008-audit-log-retention.md) | Retensi audit append-only | Diterima | `D-023` [A] (kebijakan retensi) |
-| [0009](./adr/0009-events-baseline-hierarchy-mapping.md) | Peta `events` baseline ke Tema → Aktivitas → Sesi | Diusulkan (AQ-001) | `D-003` [A], `D-007` [A] |
-| [0010](./adr/0010-schema-migration-strategy.md) | Strategi skema (additive) menuju model baru | Diusulkan (AQ-010) | `D-007` [A] |
-| [0011](./adr/0011-audit-allowlist-mechanism.md) | Mekanisme allowlist audit | Diusulkan (AQ-014) | `FR-207`, `D-023` [A] |
+| [0009](./adr/0009-events-baseline-hierarchy-mapping.md) | Peta `events` baseline ke Tema → Aktivitas → Sesi | Diterima (AQ-001) | `D-003` [A], `D-007` [A] |
+| [0010](./adr/0010-schema-migration-strategy.md) | Strategi skema (additive) menuju model baru | Diterima (AQ-010) | `D-007` [A] |
+| [0011](./adr/0011-audit-allowlist-mechanism.md) | Mekanisme allowlist audit | Diterima (AQ-014) | `FR-207`, `D-023` [A] |
+| [0012](./adr/0012-activity-session-lifecycle.md) | Tabel transisi lifecycle Aktivitas dan Sesi | Diterima (detail `D-010`) | `D-010` [A], `OQ-033` [A] |
+| [0013](./adr/0013-disable-public-self-signup.md) | Menonaktifkan pendaftaran Admin Acara mandiri | Diterima; menggantikan ADR-0007 | `D-018` [A], `FR-194`, `AC-050` |
+| [0014](./adr/0014-categories-and-custom-fields.md) | Kategori dan custom field peserta | Diterima (AQ-006) | `FR-026`–`FR-036`, `D-008` [A] |
+| [0015](./adr/0015-archived-theme-is-read-only.md) | Tema terarsip membuat resource anak read-only | Diterima (detail Q1) | `D-003` [A], `D-010` [A] |
+| [0016](./adr/0016-entitlement-resolution.md) | Representasi dan resolusi entitlement | **Diusulkan** (calon jawaban AQ-005) | `D-005` [A], `FR-037`–`FR-045`, `FR-199` |
 
-Nomor ADR berikutnya: **0009**.
+Nomor ADR berikutnya: **0017**.
 
 ---
 
 ## 4. Pertanyaan arsitektur terbuka (AQ)
 
-Detail opsi: [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6. Semua berstatus **Terbuka**.
+Detail opsi: [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6. Status: **AQ-001, AQ-006, AQ-010, dan AQ-014 dijawab** oleh ADR-0009/0014/0010/0011 (Diterima); AQ lainnya masih **Terbuka**. ADR-0012 tidak menjawab AQ; isinya menetapkan detail tabel transisi untuk `D-010` [A]. ADR-0015 juga tidak menjawab AQ; isinya menutup celah aturan arsip Tema. **AQ-005 belum dijawab:** ADR-0016 masih berstatus Diusulkan, dan sub-keputusan `FR-040`/`FR-041` menunggu pemilik proyek.
 
 | ID | Pertanyaan | Bergantung pada | Memblokir |
 |---|---|---|---|
@@ -106,6 +111,8 @@ Detail opsi: [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6. Semua berstatus **Terbu
 | AQ-012 | Template pesan scanner per Tema | `D-012` [A], `D-013` [A] | Q7 |
 | AQ-013 | Pembuatan laporan CSV/XLSX | `D-015` [A] | Q8 |
 | AQ-014 | Mekanisme allowlist audit | `D-023` [A], `FR-207` | Q1 |
+
+Dijawab: AQ-001 → ADR-0009; AQ-006 → ADR-0014; AQ-010 → ADR-0010; AQ-014 → ADR-0011.
 
 Nomor AQ berikutnya: **AQ-015**.
 

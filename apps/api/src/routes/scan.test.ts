@@ -18,7 +18,7 @@ import { testEnv } from "../test/env";
 import { TEST_NOW, callApi } from "../test/http";
 
 /**
- * Scan + attendance API (DESAIN_API.md §6).
+ * Scan + attendance API (DESAIN_API.md §7).
  *
  * Every test goes through the real router, CSRF, session lookup, D1 batch, and
  * unique constraint. The clock is fixed, so "duplicate" and "window" results

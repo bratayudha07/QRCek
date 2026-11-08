@@ -2,7 +2,7 @@
 
 | Atribut | Nilai |
 |---|---|
-| Status | **Diterima (baseline berjalan). Ditinjau ulang** oleh `D-018` [A], yang merekomendasikan menonaktifkan pendaftaran mandiri publik dan memakai undangan Super Admin. |
+| Status | **Diterima (baseline berjalan). Digantikan oleh [ADR-0013](./0013-disable-public-self-signup.md)** sesuai `D-018` [A]. |
 | Asal | `docs/ARSITEKTUR.md` ADR-007 (diekstrak 3 November 2026 tanpa perubahan keputusan) |
 | Terkait kebutuhan | `FR-194`, `AC-050`, `OQ-022` di [`../REQUIREMENTS.md`](../REQUIREMENTS.md) |
 

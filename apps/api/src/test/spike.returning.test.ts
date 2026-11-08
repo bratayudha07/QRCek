@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
  * `INSERT ... ON CONFLICT ... DO UPDATE ... RETURNING`?
  *
  * This decides whether the rate limiter needs a second `SELECT`
- * (DESAIN_API.md §10) and whether the outbox can read back its own row.
+ * (DESAIN_API.md §11) and whether the outbox can read back its own row.
  */
 describe("spike: RETURNING on upsert", () => {
   beforeEach(async () => {

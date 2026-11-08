@@ -2,22 +2,31 @@
 
 Dokumen ini mencatat hasil pengukuran, instruksi operasi, status deployment, dan quirk lingkungan yang tidak terlihat dari kode.
 
-> **Konteks (3 November 2026).** Semua pengukuran dan prosedur di sini berlaku untuk **baseline** (model `events` datar, commit acuan `157c330`). Model target QRCek ([`REQUIREMENTS.md`](./REQUIREMENTS.md)) akan menambah tabel, indeks, dan jalur transaksi baru; angka CPU/statement/baris di bawah **tidak** otomatis berlaku untuk model itu dan harus diukur ulang di tahap roadmap terkait ([`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md) Q5 dan Q11). Uji perangkat fisik scanner, akun Google Sheets nyata, dan CPU produksi belum pernah dilakukan (`REQUIREMENTS.md` §7.3). Rujukan "ADR-00N" di dokumen ini = `docs/adr/000N-*.md`.
+> **Konteks (4 November 2026).** Semua pengukuran dan prosedur di sini berlaku untuk baseline (model `events` datar, commit acuan `157c330`) ditambah fondasi Q1 (Aktivitas/Sesi, API-only). Model target QRCek ([`REQUIREMENTS.md`](./REQUIREMENTS.md)) akan menambah tabel, indeks, dan jalur transaksi baru; angka CPU/statement/baris di bawah **tidak** otomatis berlaku untuk model itu dan harus diukur ulang di tahap roadmap terkait ([`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md) Q5 dan Q11). Uji perangkat fisik scanner, akun Google Sheets nyata, dan CPU produksi belum pernah dilakukan (`REQUIREMENTS.md` §7.3). Rujukan "ADR-00N" di dokumen ini = `docs/adr/000N-*.md`.
 
-## Status operasi saat ini (2 November 2026)
+## Status operasi saat ini (8 November 2026)
 
 - Worker produksi berjalan di `https://qrcek.hamdirobbi5.workers.dev` dan di-deploy lewat
-  **Git integration Cloudflare (Workers Builds)**: push ke `main` di
-  `github.com/bratayudha07/QRCek` memicu build + deploy. Deploy manual `wrangler deploy`
-  hanya fallback.
+  **Cloudflare Workers Builds** (Git integration): push/merge ke `main` memicu build lalu
+  `wrangler deploy` dari runner Cloudflare. Repo ini tidak memakai GitHub Actions. Migrasi D1
+  tetap manual — lihat §10.
 - Terverifikasi 2 November 2026 05:49 UTC pada URL produksi: `GET /api/health` → `200`
   (Worker hidup), sedangkan `GET /api/health/ready` dan `GET /api/admin/usage` masih `404`
   dan security headers belum ada di respons aset. Artinya versi yang live lebih lama dari
   commit yang menambahkan permukaan Fase 6; endpoint itu muncul setelah push berikutnya.
-- Migrasi remote sampai `0006_self_signup.sql` telah digunakan oleh aplikasi produksi.
-  Migrasi **tidak** dijalankan oleh Workers Builds — lihat §10.3.
-- Secret Turnstile harus cocok dengan **Secret Key** widget yang sama dengan site key publik frontend. `invalid-input-secret` berarti secret tidak cocok atau tidak aktif. Unggah Secret Key yang benar memakai `npx wrangler secret put TURNSTILE_SECRET_KEY` dari `apps/api`. Jangan mencetak nilainya.
-- Browser terbaru mengarahkan request daftar acara ke `/api/calendar` untuk menghindari pemblokiran content blocker yang terlihat pada `/api/events` (Network menampilkan “Blocked By uBlock Origin”). Alias itu ikut ter-deploy bersama kode Worker, jadi statusnya mengikuti commit yang live.
+- Migrasi remote `0001`–`0007` sudah diterapkan. `0007_q1_activities_sessions.sql`
+  diterapkan **6 November 2026** (sebelum kode Q1 masuk `main`), setelah backup penuh:
+  `npx wrangler d1 export absensi-db --remote --output /tmp/opencode/qrcek-backup-2026-11-06.sql`
+  (122 KB; 17 `CREATE TABLE`, termasuk `d1_migrations`). Verifikasi pasca-migrasi:
+  tabel `activities` dan `activity_sessions` ada, `app_meta.schema_version = 7`.
+  Migrasi **tidak** dijalankan otomatis oleh deploy; terapkan manual dari `apps/api` dengan
+  `npx wrangler d1 migrations apply absensi-db --remote` — lihat §10.3.
+- Pendaftaran mandiri publik sudah dihapus (ADR-0013). `POST /api/auth/register` → 404, dan
+  tidak ada lagi `TURNSTILE_SECRET_KEY` maupun `VITE_TURNSTILE_SITE_KEY` yang perlu diatur.
+  Akun Admin Acara hanya dibuat lewat undangan Super Admin. Saat deploy pertama setelah
+  perubahan ini, hapus secret lama dengan `npx wrangler secret delete TURNSTILE_SECRET_KEY`
+  dari `apps/api` (tidak wajib untuk runtime, tetapi menghindari secret menganggur).
+- Browser terbaru mengarahkan request daftar acara ke `/api/calendar` untuk menghindari pemblokiran content blocker yang terlihat pada `/api/events` (Network menampilkan “Blocked By uBlock Origin”). Sejak Q1 tersedia pula alias eksplisit `/api/themes`. Keduanya ikut ter-deploy bersama kode Worker, jadi statusnya mengikuti commit yang live.
 
 Lingkungan pengukuran:
 
@@ -43,7 +52,7 @@ Tanggal pengukuran: 30 Oktober 2026.
 | 2 | `RETURNING` pada `INSERT ... ON CONFLICT` | ✅ **terverifikasi** | Didukung, termasuk di dalam `db.batch()` |
 | 3 | Partial unique index | ✅ **terverifikasi** | Didukung dan ditegakkan |
 | 4 | `EXPLAIN QUERY PLAN` query panas | ✅ **terverifikasi** | 10/10 query memakai `SEARCH ... USING INDEX` |
-| 5 | Migrasi D1 pada database kosong | ✅ **terverifikasi** | Migrasi `0001`–`0006`; auth, peserta, QR, attendance, sync, self-signup |
+| 5 | Migrasi D1 pada database kosong | ✅ **terverifikasi** | Migrasi `0001`–`0007`; auth, peserta, QR, attendance, sync, self-signup, activities/activity_sessions |
 | 6 | `Set-Cookie` lewat Static Assets | ✅ **terverifikasi pada penggunaan** | Auth/session produksi bekerja dengan cookie |
 | 7 | CPU p95 ≤ 5 ms | ⚠️ **hanya proksi** | Wall-clock lokal terukur; CPU platform butuh `wrangler tail` pada Worker ter-deploy |
 
@@ -74,12 +83,9 @@ Selisih sampai ~2,5× antar-run pada mesin yang sama menunjukkan angka ini didom
 ### Cara memverifikasi gerbang CPU (butuh akun Cloudflare)
 
 ```bash
-# 1. deploy (Git: push ke main, tunggu Workers Builds hijau; fallback manual di bawah)
+# 1. verifikasi lokal lalu push/merge ke main (Workers Builds men-deploy otomatis)
+npm run typecheck && npm run lint && npm run test && npm run build
 git push origin main
-
-# fallback manual
-npm run build
-cd apps/api && npx wrangler deploy
 
 # 2. ukur CPU per request (kolom cpuTime)
 npx wrangler tail --format json > /tmp/tail.jsonl
@@ -197,7 +203,7 @@ Yang berubah:
 | 15 tabel + 2 trigger | 1 tabel: `app_meta` |
 | 4 tes bergantung pada tabel bisnis | tes memakai tabel sekali-pakai berindeks sama |
 
-> **Status sekarang:** migrasi `0002`–`0006` telah menambahkan skema auth, peserta, QR,
+> **Status sekarang:** migrasi `0002`–`0007` telah menambahkan skema auth, peserta, QR,
 > kehadiran, audit, dan sinkronisasi. Tabel `attendance`, `audit_log`, dan `outbox` bukan lagi
 > cakupan tertunda; referensi di atas merekam keputusan historis pada awal proyek.
 
@@ -218,12 +224,12 @@ Konsekuensi yang disengaja:
 
 ```bash
 npm run db:reset:local    # hapus apps/api/.wrangler/state
-npm run db:migrate:local  # terapkan semua migrasi yang belum diterapkan (0001–0006)
+npm run db:migrate:local  # terapkan semua migrasi yang belum diterapkan (0001–0007)
 npm run db:migrate:local  # "✅ No migrations to apply!" (idempoten)
 ```
 
 Riwayat awal per Tahap 3: 3 migrasi, 10 tabel aplikasi. Skema saat ini sudah berkembang
-melalui migrasi `0004`–`0006`.
+melalui migrasi `0004`–`0007`.
 
 | Migrasi | Tabel |
 |---|---|
@@ -233,6 +239,7 @@ melalui migrasi `0004`–`0006`.
 | `0004_qr.sql` | kolom QR peserta, `event_label_config`, `audit_log` |
 | `0005_attendance_sync.sql` | `attendance`, `sync_state`, `sheet_rows`, `outbox` |
 | `0006_self_signup.sql` | metadata jalur pembuatan akun |
+| `0007_q1_activities_sessions.sql` | `activities`, `activity_sessions`, indeks Q1 |
 
 > `participants` kini memiliki kolom kredensial QR dari `0004_qr.sql`. Migrasi yang sudah
 > diterapkan tidak boleh diedit.
@@ -403,13 +410,15 @@ lama, dan itu akan terlihat sebagai `500` pada cetak ulang (bukan kerusakan data
 | Cookie `Secure` di HTTPS | Deploy pertama | Periksa `Set-Cookie` memuat `Secure` |
 | Token undangan tidak muncul di log | Deploy pertama | `wrangler tail` saat 20 aktivasi; kode tidak pernah me-log token, ini verifikasi silang |
 | Rate limit di balik NAT bersama | Setelah ada pengguna nyata | Amati 429 pada petugas yang berbagi IP; naikkan batas bila perlu |
-| CI hijau | Periksa workflow GitHub | Workflow `.github/workflows/ci.yml` ada; hasil remote belum dicatat di sesi ini |
+| Verifikasi lokal | Setiap rilis | `npm run typecheck` → `lint` → `test` → `build`; Workers Builds hanya build + deploy, tidak menjalankan test |
 | Batas baris import final | Setelah pengukuran CPU | Naikkan `MAX_IMPORT_ROWS` bertahap sambil memantau CPU |
 | Batas batch label 50 | Setelah deploy pertama | Ukur CPU `wrangler tail` saat cetak 50 label; angka lokal (crypto 100 ≈ 12 ms p50) adalah proksi, bukan CPU tertagih |
 | Ukuran dan keterbacaan QR hasil cetak | Uji manual sebelum rilis | Cetak A4 + stiker, ukur dengan penggaris, pindai dengan kamera HP |
 | Rotasi kunci QR | Sebelum rotasi produksi pertama | Uji prosedur §7.5 di database salinan; pastikan QR lama tetap identik |
 
-CI workflow tersedia di `.github/workflows/ci.yml`; status eksekusi GitHub perlu diperiksa ketika akses repo tersedia. Jangan menyimpulkan CI hijau hanya dari hasil lokal.
+Repo ini tidak memakai GitHub Actions. Workers Builds hanya menjalankan build dan deploy, bukan
+test suite, jadi verifikasi wajib dijalankan lokal sebelum merge/deploy; jangan menyimpulkan
+rilis aman hanya dari build hijau.
 
 ---
 
@@ -449,11 +458,9 @@ menambah header di satu sisi tanpa sisi lain akan merah.
 
 Nilai yang perlu diingat saat mengubah UI:
 
-- `script-src 'self' https://challenges.cloudflare.com` dan `frame-src
-  https://challenges.cloudflare.com` diperlukan Turnstile. Jangan menambah domain
-  lain atau inline script tanpa mengubah CSP lebih dulu.
-- `connect-src 'self' https://challenges.cloudflare.com` mengizinkan komunikasi
-  widget dengan layanan Turnstile.
+- `script-src 'self'`; jangan menambah domain luar atau inline script tanpa mengubah CSP
+  lebih dulu. Sejak Turnstile dihapus (ADR-0013), `challenges.cloudflare.com` tidak lagi
+  diizinkan di `script-src`, `connect-src`, maupun `frame-src`.
 - `style-src 'unsafe-inline'` ada karena React menulis atribut `style` dinamis.
 - `Permissions-Policy: camera=(self)` wajib dipertahankan; tanpa itu pemindai QR gagal
   di sebagian browser. Mikrofon dan geolokasi ditutup.
@@ -490,69 +497,93 @@ bukan aturan yang ditegakkan kode — endpoint usage menyediakan datanya.
 
 ---
 
-## 10. Deploy produksi lewat GitHub (Workers Builds)
+## 10. Deploy produksi lewat Cloudflare Workers Builds
 
 ### 10.1 Alur
 
 ```
-git push origin main
+git push/merge ke main
       │
       ▼
-GitHub  ──webhook──▶  Cloudflare Workers Builds
-                        ├─ build command  (install + build web)
-                        ├─ deploy command (npx wrangler deploy)
-                        └─ unggah Worker + assets (apps/web/dist, termasuk _headers)
+Cloudflare Workers Builds
+  ├─ npm ci && npm run build
+  └─ npx wrangler deploy --config apps/api/wrangler.jsonc
+      │
+      ▼
+Worker + Static Assets (apps/web/dist)
 ```
 
-- Branch produksi: `main`. Pull request boleh memicu preview build, tetapi produksi hanya
+- Production branch: `main`. Pull request boleh memicu preview build, tetapi produksi hanya
   dari `main`.
-- Build menulis `apps/web/dist`, lalu `wrangler deploy` mengunggahnya sebagai Static Assets.
-  Berkas `apps/web/public/_headers` ikut terunggah dan langsung berlaku untuk aset statis.
-- Status build terlihat di dua tempat: check run GitHub pada commit, dan Settings → Builds di
-  dashboard Cloudflare (riwayat build disimpan 90 hari).
+- Repo ini **tidak** memakai GitHub Actions. Build berjalan di runner Cloudflare, bukan
+  runner GitHub.
+- Build menulis `apps/web/dist`, lalu deploy mengunggahnya sebagai Static Assets. Berkas
+  `apps/web/public/_headers` ikut terunggah.
+- Riwayat deployment Cloudflare tersedia untuk rollback (§10.6).
 
-Setelan yang harus cocok dengan monorepo ini (Settings → Build):
+### 10.2 Setup Workers Builds
+
+Buka **Workers & Pages → `qrcek` → Settings → Build**:
 
 | Setelan | Nilai | Kenapa |
 |---|---|---|
-| Root directory | `apps/api` | Di situ `wrangler.jsonc` berada |
-| Build command | `cd ../.. && npm ci && npm run build` | Workspace root harus di-install **dan** `apps/web/dist` harus ada sebelum deploy |
-| Deploy command | `npx wrangler deploy` | Default; memakai Wrangler dari `package.json` |
-| Branch | `main` | Satu-satunya sumber produksi |
+| Repository | `github.com/bratayudha07/QRCek` | Sumber kode |
+| Production branch | `main` | Satu-satunya sumber produksi |
+| Root directory | root repo (kosongkan) | Build command dijalankan dari root |
+| Build command | `npm ci && npm run build` | Install workspace dan hasilkan `apps/web/dist` |
+| Deploy command | `npx wrangler deploy --config apps/api/wrangler.jsonc` | Memakai `wrangler.jsonc` di `apps/api` |
+| Build watch paths | opsional | Hindari build untuk perubahan dokumen saja |
+| Environment variable | `NODE_VERSION=22` (opsional) | Menyamakan versi Node dengan lokal |
 
-Gejala build hijau tapi situs 404: build command tidak menghasilkan `apps/web/dist`, sehingga
-`assets.directory` kosong.
+> Alternatif yang setara: root directory `apps/api`, build command
+> `cd ../.. && npm ci && npm run build`, deploy command `npx wrangler deploy`. Pilih satu
+> susunan, jangan dicampur.
 
-> Alternatif yang setara: root directory = root repo, build command `npm ci && npm run build`,
-> deploy command `npx wrangler deploy --config apps/api/wrangler.jsonc`. Pilih satu susunan,
-> jangan campur setengah-setengah.
+Gejala build hijau tetapi situs 404: build command tidak menghasilkan `apps/web/dist`,
+sehingga `assets.directory` kosong.
 
-### 10.2 Batas free tier untuk build
-
-| Metrik | Free |
-|---|---|
-| Build minutes | 3.000/bulan |
-| Build bersamaan | 1 |
-| Timeout satu build | 20 menit |
-| Retensi log build | 90 hari |
-| Environment variable | 64 (5 KB masing-masing) |
-
-Satu build repo ini (install + Vite + dry-run bundle) berada di kisaran puluhan detik, jadi
-3.000 menit/bulan jauh lebih dari cukup. Karena build bersamaan hanya satu, push berturut-turut
-akan mengantre; tidak ada biaya, hanya menunggu.
-
-Sumber: <https://developers.cloudflare.com/workers/ci-cd/builds/limits-and-pricing/> (28 Okt 2026).
+Workers Builds membuat check run di GitHub. Kalau branch protection `main` mewajibkan status
+check, check `Workers Builds: qrcek` harus hijau. Kalau build setting sudah benar tetapi check
+lama masih gagal, periksa ulang build log atau matikan requirement status check sementara.
 
 ### 10.3 Yang tidak ikut ter-deploy
 
 | Hal | Kenapa | Cara menangani |
 |---|---|---|
-| **Migrasi D1** | Workers Builds hanya mengunggah kode | Jalankan `npm run db:migrate:remote` lebih dulu, dengan konfirmasi pemilik. Urutan: migrasi → kode |
+| **Migrasi D1** | Workers Builds hanya mengunggah kode | `npx wrangler d1 migrations apply absensi-db --remote` dari `apps/api`, setelah backup |
 | **Secret runtime** | Secret tidak disimpan di repo | `npx wrangler secret put <NAMA>` dari `apps/api` |
-| **Variabel build frontend** | Dibutuhkan saat Vite membangun bundle | Settings → Build → Variables and Secrets: `VITE_TURNSTILE_SITE_KEY` |
+| **Variabel build frontend** | Dibutuhkan saat Vite membangun bundle | Saat ini tidak ada `VITE_*` wajib; bila ditambah, pastikan nilainya publik |
 | **Data D1** | Bukan bagian dari deploy | Backup/PITR D1, lihat §9.3 untuk audit |
 
-### 10.4 Verifikasi setelah deploy
+Backup dan migrasi manual:
+
+```bash
+cd apps/api
+npx wrangler d1 export absensi-db --remote \
+  --output /tmp/opencode/qrcek-backup-$(date -u +%Y-%m-%d).sql
+npx wrangler d1 migrations apply absensi-db --remote
+```
+
+> Peringatan urutan: setelah trigger `0008` aktif, Worker lama yang belum mengenal
+> `category_id` akan gagal membuat peserta. Untuk rilis Q2, lakukan **satu kali rilis manual**
+> (migrasi lalu `wrangler deploy`), atau merge/push dulu dan jalankan migrasi saat build
+> Workers Builds sedang berjalan. Jangan menerapkan `0008` lalu menunda deploy.
+
+### 10.4 Batas free tier Workers Builds
+
+| Metrik | Free |
+|---|---|
+| Build minutes | **3.000/bulan** |
+| Build bersamaan | **1** |
+| Timeout satu build | 20 menit |
+| Retensi log build | 90 hari |
+
+Sumber: <https://developers.cloudflare.com/workers/ci-cd/builds/limits-and-pricing/> (28 Okt 2026).
+
+Satu build repo ini berkisar satu-dua menit, jadi kuota bulanan cukup untuk puluhan rilis.
+Karena build bersamaan hanya satu, push berturut-turut akan mengantre.
+
+### 10.5 Verifikasi setelah deploy
 
 ```bash
 base=https://qrcek.hamdirobbi5.workers.dev
@@ -565,7 +596,7 @@ curl -sI "$base/assets/" 2>/dev/null | head -1   # aset ada
 
 `/api/admin/usage` butuh cookie superadmin, jadi tidak bisa dicek dengan `curl` tanpa sesi.
 
-### 10.5 Rollback
+### 10.6 Rollback
 
 - **Kode:** dashboard Cloudflare → Worker → Deployments → pilih versi sebelumnya → Rollback.
   Ini mengembalikan Worker **dan** aset statis ke versi itu.

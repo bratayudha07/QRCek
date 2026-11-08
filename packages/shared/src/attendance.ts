@@ -1,6 +1,6 @@
 import type { EventStatus } from "./schemas/events";
 
-/** Response contracts for scan, attendance, and recap (DESAIN_API.md §6). */
+/** Response contracts for scan, attendance, and recap (DESAIN_API.md §7). */
 
 export const ATTENDANCE_STATUSES = ["present", "late", "absent", "excused"] as const;
 export type AttendanceStatus = (typeof ATTENDANCE_STATUSES)[number];

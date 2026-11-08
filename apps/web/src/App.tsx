@@ -15,7 +15,6 @@ import { ImportPage } from "@/pages/import";
 import { LoginPage } from "@/pages/login";
 import { NotFoundPage } from "@/pages/not-found";
 import { ParticipantDetailPage } from "@/pages/participant-detail";
-import { RegisterPage } from "@/pages/register";
 import { StaffHistoryPage, StaffHomePage, StaffScanPage } from "@/pages/staff";
 
 /**
@@ -33,8 +32,6 @@ export default function App() {
       return <HomeRedirectPage />;
     case "login":
       return <LoginPage />;
-    case "register":
-      return <RegisterPage />;
     case "activation":
       return <ActivationPage />;
     default:
