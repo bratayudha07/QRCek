@@ -2,12 +2,11 @@
 
 | Atribut | Nilai |
 |---|---|
-| Status | **Diusulkan** — calon jawaban AQ-005; belum disetujui pemilik proyek |
-| Tanggal | 2026-11-07 |
-| Menjawab | AQ-005 (`docs/ARCHITECTURE.md` §6) — **usulan, bukan jawaban final** |
+| Status | **Diterima** 8 November 2026 — menjawab AQ-005 |
+| Tanggal | 2026-11-07 (draf); 2026-11-08 (diterima) |
+| Menjawab | AQ-005 (`docs/ARCHITECTURE.md` §6) — **dijawab** |
 | Terkait kebutuhan | `FR-037`–`FR-045`, `FR-199`; `BR-018`–`BR-023`, `BR-075`; `AC-011`–`AC-014`, `AC-043`; `D-005` [A] |
-| Memblokir | Q3 (konfigurasi entitlement + resolver); Q5 memakai resolver di jalur transaksi |
-| Dampak | Skema `migrations/0009_*`, tabel `entitlement_rules`, resolver murni di `packages/shared`/`apps/api/src/domain`, route konfigurasi, audit, dan gate `FR-040`/`FR-041` |
+| Dampak | Skema `migrations/0009_*`, tabel `entitlement_rules`, resolver murni di `packages/shared`/`apps/api/src/domain`, route konfigurasi, audit, dan gate `FR-040`/`FR-041`. Q3 dibuka 8 November 2026. |
 
 ## Konteks
 
@@ -59,9 +58,9 @@ Ditolak.
 
 Satu kolom JSON berisi matriks kategori → status. Sederhana untuk dibaca sekaligus, tetapi tidak punya constraint unik per sel, sulit mengaudit perubahan satu sel, rawan lost update saat dua admin menyimpan bersamaan, dan tidak bisa diindeks per peserta. Ditolak.
 
-## Keputusan yang diusulkan
+## Keputusan
 
-**Opsi A.** Satu tabel `entitlement_rules`, resolver murni, dan default **deny** bila tidak ada aturan yang menentukan.
+**Opsi A.** Satu tabel `entitlement_rules`, resolver murni, dan default **deny** bila tidak ada aturan yang menentukan. Disetujui pemilik proyek 8 November 2026.
 
 ### Skema usulan (`migrations/0009_entitlement_rules.sql`)
 
@@ -206,21 +205,24 @@ Branch Sesi hanya dijalankan bila `sessionId` ada. Setiap branch cocok dengan pa
 - Menghapus aturan individual adalah operasi eksplisit dan diaudit. Menghapus aturan kategori/Aktivitas tidak boleh menghapus baris individual (`FR-042`).
 - Perubahan aturan tidak menulis ulang transaksi lama dan tidak membuat reversal. Tidak ada snapshot entitlement pada transaksi; resolusi hanya terjadi saat transaksi baru dibuat (`FR-199`, `AC-043`).
 
-## Sub-keputusan produk yang masih terbuka (`FR-040`/`FR-041`)
+## Keputusan `FR-040`/`FR-041` (diputuskan 8 November 2026)
 
-`FR-040` mewajibkan Admin mengonfigurasi entitlement setiap kategori saat Aktivitas baru dibuat; `FR-041` melarang Aktivitas baru otomatis memakai Theme-wide entitlement sebagai konfigurasi final. Keduanya belum menentukan **titik penegakan**. ADR ini tidak memilih sendiri; opsi berikut perlu diputuskan pemilik proyek:
+`FR-040` mewajibkan Admin mengonfigurasi entitlement setiap kategori saat Aktivitas baru dibuat; `FR-041` melarang Aktivitas baru otomatis memakai Theme-wide entitlement sebagai konfigurasi final. Titik penegakan sudah diputuskan pemilik proyek:
 
-| # | Pertanyaan | Opsi yang diusulkan |
+| # | Pertanyaan | Keputusan |
 |---|---|---|
-| 1 | Kapan kewajiban konfigurasi ditegakkan? | (a) saat `POST` Aktivitas; (b) Aktivitas boleh dibuat `draft`, tetapi tidak boleh menjadi `active` sebelum matriks lengkap (**rekomendasi**); (c) hanya peringatan |
-| 2 | Apa arti "eksplisit"? | (a) baris wajib ada untuk setiap kategori aktif, status boleh `inherit`/`allowed`/`denied` (**rekomendasi**); (b) hanya `allowed`/`denied`, `inherit` tidak boleh di tingkat Aktivitas |
-| 3 | Kategori baru setelah Aktivitas aktif | (a) Aktivitas ditandai belum lengkap, scan kategori baru **denied** sampai dikonfigurasi, kategori lama tetap berjalan (**rekomendasi**); (b) Aktivitas langsung dinonaktifkan; (c) kategori baru mewarisi Theme default diam-diam |
-| 4 | Aktivitas lama saat migrasi `0009` | (a) backfill eksplisit `allowed` per kategori aktif agar perilaku lama tidak berubah, dicatat sebagai pengecualian migrasi (**rekomendasi**); (b) biarkan tanpa aturan dan fail-closed; (c) backfill `inherit` setelah Theme default diisi |
-| 5 | Peran Theme default | (a) fallback yang hanya tercapai lewat `inherit` eksplisit (**rekomendasi**); (b) disalin menjadi baris Aktivitas saat Aktivitas dibuat; (c) tidak dipakai resolver, hanya dokumentasi |
+| 1 | Kapan kewajiban konfigurasi ditegakkan? | Aktivitas dibuat sebagai `draft`; transisi `draft → active` ditolak (`422 BUSINESS_RULE`) sampai matriks lengkap. `POST` Aktivitas tidak diblokir. |
+| 2 | Apa arti "eksplisit"? | Satu baris `category_id + activity_id` wajib ada untuk setiap kategori aktif. Status boleh `inherit`, `allowed`, atau `denied`; `inherit` adalah pilihan sadar admin, bukan pewarisan otomatis. |
+| 3 | Kategori baru setelah Aktivitas aktif | Aktivitas dianggap **belum lengkap secara terhitung** (`entitlementComplete = false`). Kategori lama tetap berjalan; kategori baru `denied` oleh default sampai barisnya dibuat. Aktivitas tidak dinonaktifkan. |
+| 4 | Aktivitas lama saat migrasi `0009` | Backfill eksplisit `allowed` untuk setiap Aktivitas × kategori yang sudah ada di Tema yang sama, termasuk kategori arsip yang masih punya peserta, agar check-in lama tidak berubah. Dicatat sebagai pengecualian migrasi. |
+| 5 | Peran Theme default | Fallback yang hanya tercapai lewat `inherit` eksplisit. Tidak disalin menjadi baris Aktivitas saat Aktivitas dibuat. |
 
-Rekomendasi 2(a) menjaga lima tingkat tetap bermakna: `FR-041` melarang pewarisan **otomatis**, bukan pewarisan yang dipilih admin secara sadar. Bila pemilik memilih 2(b), Theme default hanya berlaku untuk Aktivitas yang belum dikonfigurasi dan tidak lagi menjadi fallback normal.
+Catatan implementasi:
 
-Rekomendasi 3(a) menghindari memblokir seluruh Aktivitas hanya karena satu kategori baru ditambahkan, tetapi tetap fail-closed untuk kategori itu. Kategori baru belum punya peserta sampai admin menetapkannya, sehingga tidak ada transaksi lama yang berubah.
+- Kelengkapan matriks **dihitung**, bukan disimpan sebagai flag: jumlah kategori aktif di Tema dibandingkan dengan jumlah baris `category_activity` untuk Aktivitas itu. Flag tersimpan akan basi saat kategori ditambah/diarsipkan.
+- Kategori yang diarsipkan tidak lagi dihitung untuk kelengkapan Aktivitas, tetapi barisnya tetap ada dan tetap berlaku untuk peserta yang sudah memakainya (`FR-020`, `FR-024`).
+- Backfill `0009` sengaja memasukkan kategori arsip yang punya peserta. Tanpa itu, peserta lama di kategori arsip akan jatuh ke default deny saat Q5 mulai menegakkan resolver.
+- Respons API kelengkapan memuat `entitlementComplete` dan `missingCategoryIds`; UI Q9 yang menampilkannya.
 
 ## Konsekuensi
 
@@ -230,17 +232,21 @@ Rekomendasi 3(a) menghindari memblokir seluruh Aktivitas hanya karena satu kateg
 - Kategori yang diarsipkan tetap dapat di-resolve untuk peserta yang sudah memakainya; Q2 sudah menolak penugasan baru ke kategori arsip. Menolak transaksi karena kategori diarsipkan akan melanggar `FR-020`/`FR-024`.
 - Perubahan kategori peserta mengubah aturan kategori yang berlaku pada transaksi berikutnya, tetapi tidak menyentuh aturan individual (`FR-042`). Riwayat transaksi tidak berubah (`AC-043`).
 - Biaya konfigurasi sebanding dengan jumlah sel yang benar-benar diisi, bukan kategori × Aktivitas × peserta. Membuat satu Aktivitas dengan 20 kategori = sekitar 20 baris aturan + indeks + audit, masih jauh di bawah anggaran harian.
-- Tes wajib: tabel lima tingkat × tiga status; `denied` di tingkat tinggi tidak bisa ditimpa; `inherit` berlanjut; override Sesi hanya untuk Sesi itu; tanpa aturan → deny; perubahan kategori mempertahankan override individual; aturan lintas Tema/Sesi salah ditolak; duplikat sel menjadi konflik; audit hanya memuat allowlist; resolver tidak melakukan I/O.
-- Uji mutasi wajib: menghapus satu langkah prioritas, mengubah default deny menjadi allow, menghapus filter `session_id`, atau menghapus pengecualian individual saat kategori berubah harus membuat tes gagal.
+- Backfill `0009` menulis satu baris `allowed` per Aktivitas × kategori yang sudah ada. Jumlah baris diukur sebelum migrasi dan dicatat; untuk data saat ini (80 peserta, 32 kategori) nilainya kecil, tetapi rilis pada Tema besar harus diperiksa.
+- Gate `draft → active` memakai satu query hitung (`COUNT` kategori aktif vs baris `category_activity`). Hasilnya bukan flag tersimpan, sehingga kategori baru otomatis membuat Aktivitas terlihat belum lengkap tanpa job pemeliharaan.
+- Tes wajib: tabel lima tingkat × tiga status; `denied` di tingkat tinggi tidak bisa ditimpa; `inherit` berlanjut; override Sesi hanya untuk Sesi itu; tanpa aturan → deny; perubahan kategori mempertahankan override individual; aturan lintas Tema/Sesi salah ditolak; duplikat sel menjadi konflik; audit hanya memuat allowlist; resolver tidak melakukan I/O; `draft → active` ditolak saat matriks belum lengkap dan lolos setelah lengkap.
+- Uji mutasi wajib: menghapus satu langkah prioritas, mengubah default deny menjadi allow, menghapus filter `session_id`, menghapus pengecualian individual saat kategori berubah, atau menghapus gate kelengkapan harus membuat tes gagal.
 
-## Pertanyaan untuk pemilik proyek
+## Keputusan pemilik proyek
 
-1. Setujui Opsi A (satu tabel `entitlement_rules` + resolver murni + default deny)?
-2. Pilih jawaban untuk lima sub-keputusan `FR-040`/`FR-041` di atas.
-3. Setujui bahwa Theme default hanya menjadi fallback, bukan salinan otomatis ke Aktivitas?
-4. Setujui backfill Aktivitas lama pada migrasi `0009` (opsi 4a) agar rilis Q3 tidak memblokir check-in yang sudah berjalan?
+Disetujui **8 November 2026**:
 
-Setelah dijawab, status ADR ini berubah menjadi **Diterima**, AQ-005 ditutup di `docs/DECISIONS.md` dan `docs/ARCHITECTURE.md`, dan Q3 boleh dibuka.
+1. Opsi A: satu tabel `entitlement_rules`, resolver murni, default deny.
+2. Lima sub-keputusan `FR-040`/`FR-041` mengikuti tabel di atas (1b, 2a, 3a, 4a, 5a).
+3. Theme default hanya fallback lewat `inherit` eksplisit, bukan salinan otomatis.
+4. Backfill Aktivitas lama pada `0009` disetujui sebagai pengecualian migrasi.
+
+Status ADR menjadi **Diterima**; AQ-005 ditutup di `docs/DECISIONS.md` dan `docs/ARCHITECTURE.md`; Q3 dibuka di `docs/IMPLEMENTATION_ROADMAP.md`.
 
 ## Referensi
 

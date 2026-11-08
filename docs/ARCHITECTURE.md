@@ -267,11 +267,11 @@ Setiap AQ harus dijawab dengan ADR baru (`adr/NNNN-*.md`) **sebelum** fase roadm
 ### AQ-005 — Representasi dan resolusi entitlement
 
 - **Pertanyaan:** bentuk penyimpanan aturan lima tingkat (Individual/Category × Session/Activity + Theme default) dengan status Inherit/Allowed/Denied, dan cara me-resolve-nya per scan dalam anggaran query/CPU.
-- **Sub-pertanyaan produk:** bagaimana `FR-040`/`FR-041` ditegakkan — apakah Aktivitas tidak boleh diaktifkan sebelum semua kategori dikonfigurasi eksplisit? Ini perlu konfirmasi product owner sebelum dijadikan aturan.
+- **Sub-pertanyaan produk:** bagaimana `FR-040`/`FR-041` ditegakkan — apakah Aktivitas tidak boleh diaktifkan sebelum semua kategori dikonfigurasi eksplisit? **Sudah diputuskan** (8 November 2026): Aktivitas `draft` boleh ada, tetapi `draft → active` ditolak sampai setiap kategori aktif punya baris eksplisit; kategori baru fail-closed sampai dikonfigurasi; Theme default hanya fallback lewat `inherit`.
 - **Arah wajib:** resolver adalah fungsi murni di `domain/` dengan tes tabel lengkap (`AC-011`); data yang dibutuhkan diambil dengan sedikit query terindeks.
-- **Status:** **belum dijawab.** Draf usulan tersedia di [ADR-0016](./adr/0016-entitlement-resolution.md) (Diusulkan 7 November 2026): satu tabel `entitlement_rules` + resolver murni + default deny. Sub-keputusan `FR-040`/`FR-041` (titik penegakan konfigurasi eksplisit) masih menunggu pemilik proyek, jadi ADR belum boleh dijadikan dasar implementasi final.
+- **Status:** **dijawab** — [ADR-0016](./adr/0016-entitlement-resolution.md) (Diterima 8 November 2026): satu tabel `entitlement_rules`, lima partial unique index, resolver murni, default deny, dan gate kelengkapan `draft → active`. Migrasi `0009` additive dengan backfill `allowed` untuk Aktivitas lama.
 - **Masukan:** `D-005` [A].
-- **Memblokir:** Q3.
+- **Membuka:** Q3 (dibuka 8 November 2026).
 
 ### AQ-006 — Kategori dan custom field
 

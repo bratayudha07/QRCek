@@ -85,7 +85,7 @@ Pertanyaan arsitektur terbuka (`AQ`): `REQUIREMENTS.md` §13.2 / `ARCHITECTURE.m
 | [0013](./adr/0013-disable-public-self-signup.md) | Menonaktifkan pendaftaran Admin Acara mandiri | Diterima; menggantikan ADR-0007 | `D-018` [A], `FR-194`, `AC-050` |
 | [0014](./adr/0014-categories-and-custom-fields.md) | Kategori dan custom field peserta | Diterima (AQ-006) | `FR-026`–`FR-036`, `D-008` [A] |
 | [0015](./adr/0015-archived-theme-is-read-only.md) | Tema terarsip membuat resource anak read-only | Diterima (detail Q1) | `D-003` [A], `D-010` [A] |
-| [0016](./adr/0016-entitlement-resolution.md) | Representasi dan resolusi entitlement | **Diusulkan** (calon jawaban AQ-005) | `D-005` [A], `FR-037`–`FR-045`, `FR-199` |
+| [0016](./adr/0016-entitlement-resolution.md) | Representasi dan resolusi entitlement | Diterima (AQ-005) | `D-005` [A], `FR-037`–`FR-045`, `FR-199` |
 
 Nomor ADR berikutnya: **0017**.
 
@@ -93,7 +93,7 @@ Nomor ADR berikutnya: **0017**.
 
 ## 4. Pertanyaan arsitektur terbuka (AQ)
 
-Detail opsi: [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6. Status: **AQ-001, AQ-006, AQ-010, dan AQ-014 dijawab** oleh ADR-0009/0014/0010/0011 (Diterima); AQ lainnya masih **Terbuka**. ADR-0012 tidak menjawab AQ; isinya menetapkan detail tabel transisi untuk `D-010` [A]. ADR-0015 juga tidak menjawab AQ; isinya menutup celah aturan arsip Tema. **AQ-005 belum dijawab:** ADR-0016 masih berstatus Diusulkan, dan sub-keputusan `FR-040`/`FR-041` menunggu pemilik proyek.
+Detail opsi: [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6. Status: **AQ-001, AQ-005, AQ-006, AQ-010, dan AQ-014 dijawab** oleh ADR-0009/0016/0014/0010/0011 (Diterima); AQ lainnya masih **Terbuka**. ADR-0012 tidak menjawab AQ; isinya menetapkan detail tabel transisi untuk `D-010` [A]. ADR-0015 juga tidak menjawab AQ; isinya menutup celah aturan arsip Tema. **AQ-005 dijawab ADR-0016 (Diterima 8 November 2026):** satu tabel `entitlement_rules`, resolver murni, default deny, dan lima sub-keputusan `FR-040`/`FR-041` (draft→active gate, baris eksplisit per kategori, kategori baru fail-closed, backfill `allowed`, Theme default sebagai fallback).
 
 | ID | Pertanyaan | Bergantung pada | Memblokir |
 |---|---|---|---|
@@ -101,7 +101,7 @@ Detail opsi: [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6. Status: **AQ-001, AQ-00
 | AQ-002 | Satu tabel transaksi vs per tipe | `D-009` [A], `D-011` [A] | Q5, Q6 |
 | AQ-003 | Constraint DB untuk transaksi efektif & kuota | `D-006` [A], `D-014` [A] | Q5, Q6 |
 | AQ-004 | Struktur Reversal/Adjustment; field yang boleh di-Adjust | `D-006` [A], `D-011` [A] | Q5 |
-| AQ-005 | Representasi & resolver entitlement | `D-005` [A] | Q3 |
+| AQ-005 | Representasi & resolver entitlement | `D-005` [A] | **Dijawab** ADR-0016 (8 November 2026) |
 | AQ-006 | Kategori & custom field | `FR-026`–`FR-036` | Q2 |
 | AQ-007 | Penugasan Petugas & matriks izin | `D-022` [A], `D-024` [A], `OQ-034` [A] | Q5, Q7 |
 | AQ-008 | Pemetaan penolakan ke result code & HTTP | `D-011` [A] | Q5, Q7 |
