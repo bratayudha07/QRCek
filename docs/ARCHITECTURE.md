@@ -297,6 +297,7 @@ Setiap AQ harus dijawab dengan ADR baru (`adr/NNNN-*.md`) **sebelum** fase roadm
 
 - **Pertanyaan:** di entitas mana kredensial QR melekat agar scope Tema + Peserta (`D-004` [A]) terpenuhi, dan bagaimana rotasi token per peserta (`FR-059`, `FR-062`) dirancang. Bergantung AQ-001.
 - **Tetap berlaku:** ADR-0003, ADR-0006, prefix `absensi:v1:` (`D-019` [A]).
+- **Status:** **belum dijawab.** Draf usulan tersedia di [ADR-0017](./adr/0017-qr-identity-per-theme.md) (Diusulkan 9 November 2026): tabel `qr_identities` satu baris aktif per `(theme_id, participant_id)`, rotasi in-place, riwayat di audit, backfill kredensial lama. Tujuh sub-keputusan masih menunggu pemilik proyek; ADR belum boleh dijadikan dasar implementasi final.
 - **Memblokir:** Q4.
 
 ### AQ-010 — Strategi skema menuju model baru

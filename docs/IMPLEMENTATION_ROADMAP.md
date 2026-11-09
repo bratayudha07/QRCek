@@ -225,6 +225,8 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 
 **Reuse yang dievaluasi:** `domain/qr-token.ts` (ADR-0003, ADR-0006), `routes/labels.ts`, `components/qr-code.tsx`, `lib/qr-labels.ts`. Cetak label A4/stiker via `window.print()` tidak diminta `REQUIREMENTS.md` dan bukan generator PDF; mempertahankan atau memensiunkannya diputuskan pemilik proyek saat tahap dibuka.
 
+**Prasyarat keputusan:** AQ-009 dijawab lewat ADR-0017 (draf **Diusulkan** 9 November 2026; satu tabel `qr_identities` per Tema + Peserta, rotasi in-place, riwayat di audit). Tahap **belum dibuka** sampai ADR diterima dan pemilik proyek membukanya.
+
 **Gate:**
 
 - `AC-015`–`AC-018`.

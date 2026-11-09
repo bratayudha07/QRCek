@@ -299,7 +299,7 @@ Status, batas platform, dan prosedur rollback ada di
 | `AGENTS.md` | Aturan mengikat untuk agent AI dan kontributor |
 | `docs/REQUIREMENTS.md` | Kebutuhan produk, keputusan produk, baseline, delta |
 | `docs/DECISIONS.md` | Indeks keputusan produk, ADR, dan pertanyaan arsitektur |
-| `docs/adr/` | Keputusan arsitektur individual (ADR-0001–0016; ADR-0016 diterima 8 November 2026) |
+| `docs/adr/` | Keputusan arsitektur individual (ADR-0001–0017; ADR-0016 diterima, ADR-0017 masih Diusulkan untuk AQ-009) |
 | `docs/ARCHITECTURE.md` | Boundary, model domain target, alur baseline |
 | `docs/IMPLEMENTATION_ROADMAP.md` | Tahap Q0–Q11, prasyarat, gate |
 | `docs/DESAIN_API.md` | Tabel endpoint aktual |
