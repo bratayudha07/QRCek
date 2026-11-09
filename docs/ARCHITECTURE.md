@@ -383,7 +383,7 @@ Detail: [`DESAIN_DATABASE.md`](./DESAIN_DATABASE.md).
 `POST /api/events/:eventId/participants/qr-labels` dengan `{ format, participantIds?, limit?, cursor? }`.
 
 1. Otorisasi `qr:print` (admin acara/superadmin) dan scope `event_id`.
-2. Hanya peserta aktif; maksimal **40** per request (diturunkan dari 50 setelah terukur 49 statement D1; `OPERASIONAL.md` §6.2).
+2. Hanya peserta aktif; maksimal **38** per request (diturunkan dari 50 setelah terukur 47 statement D1, 48 pada jalur lost-race; `OPERASIONAL.md` §6.2).
 3. Sejak Q4 sumber kredensial adalah `qr_identities`: baris ada → dekripsi; belum ada → `INSERT ... ON CONFLICT DO NOTHING` (kalah balapan membaca ulang); kredensial lama `participants.qr_*` dipromosikan tanpa mengganti token. Token sama → QR sama.
 4. Respons hanya `participantId`, `qr`, dan field label terpilih — tanpa hash/ciphertext/kunci.
 5. Audit `qr.labels_exported` mencatat jumlah, terbit/reprint/promosi, dan format, tanpa token; penerbitan lazy dicatat sekali per request sebagai `qr.identity_issued` dengan `count`.
@@ -483,7 +483,7 @@ Ditulis dalam batch yang sama dengan mutasi kehadiran (ADR-0005). Siklus cron: a
 
 | # | Risiko | Dampak | Mitigasi |
 |---|---|---|---|
-| R1 | CPU 10 ms terlampaui (import besar, batch label/QR, resolusi entitlement) | Error 1102 | Batas 1.000 baris/import, 50 kredensial/request; resolver entitlement murni dan terukur; CPU produksi belum terukur |
+| R1 | CPU 10 ms terlampaui (import besar, batch label/QR, resolusi entitlement) | Error 1102 | Batas 1.000 baris/import, 38 kredensial/request; resolver entitlement murni dan terukur; CPU produksi belum terukur |
 | R2 | 50 query/invokasi terlampaui (N+1) | Request gagal | Agregasi `GROUP BY`; validasi transaksi target dengan query gabungan |
 | R3 | D1 500 MB penuh oleh audit + riwayat transaksi/koreksi | Tulis ditolak | ADR-0008; pantau `/api/admin/usage`; anggaran ulang di Q5/Q8 |
 | R4 | 100k baris tulis/hari habis (indeks ikut dihitung) | Import/scan gagal | Hitung biaya indeks setiap tabel baru; `COSTS_AND_LIMITS.md` §3.3 |

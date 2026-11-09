@@ -32,6 +32,12 @@ export const RotateQrRequestSchema = z
         QR_ROTATION_REASON_MAX,
         `Alasan rotasi maksimal ${QR_ROTATION_REASON_MAX} karakter`,
       ),
+    /**
+     * Optional optimistic guard for retries. The caller echoes the
+     * `rotationCount` it last read; a different value returns 409 instead of
+     * revoking a token the previous attempt may already have delivered.
+     */
+    expectedRotationCount: z.number().int().min(0).optional(),
   })
   .strict();
 

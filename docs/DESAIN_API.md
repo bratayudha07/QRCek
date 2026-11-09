@@ -382,7 +382,10 @@ POST /api/events/:eventId/participants/qr-labels
 
 Memakai **POST**, bukan GET, karena panggilan pertama menerbitkan kredensial (efek samping).
 Otorisasi `qr:print` (event_admin/superadmin) + scope `event_id`; acara `archived` tetap boleh
-dicetak karena penerbitan kredensial bukan perubahan data bisnis.
+dicetak karena penerbitan kredensial bukan perubahan data bisnis dan acara `archived` tidak
+menerima absensi (`isEventOpenForAttendance` hanya untuk `active`), sehingga kredensial baru
+tidak dapat menghasilkan transaksi. Ini carve-out sadar dari ADR-0015; rotasi pada acara
+`archived` tetap ditolak.
 
 Sumber kebenaran kredensial adalah `qr_identities` (`0010`, ADR-0017): satu baris aktif per
 Tema + Peserta. Kredensial yang ditulis deployment lama pada `participants.qr_*`
@@ -393,10 +396,10 @@ tercetak tetap sah selama jendela deploy.
 // request
 {
   "format": "a4" | "sticker",        // default "a4"
-  "participantIds": ["01J…"],        // opsional, maks 40, tanpa duplikat
+  "participantIds": ["01J…"],        // opsional, maks 38, tanpa duplikat
   "fields": ["fullName", "category"], // opsional; default = konfigurasi acara
   "showEventName": true,              // opsional; default = konfigurasi acara
-  "limit": 40,                        // 1–40, default 40 (hanya mode kursor)
+  "limit": 38,                        // 1–38, default 38 (hanya mode kursor)
   "cursor": "<opaque>"                // hanya mode "semua peserta aktif"
 }
 ```
@@ -408,8 +411,8 @@ Dua mode:
 | Pilihan eksplisit | `participantIds` diisi | `created_at DESC, id DESC` | selalu `null` |
 | Semua peserta aktif | `participantIds` tidak diisi | `created_at DESC, id DESC` | kursor halaman berikutnya |
 
-`participantIds` dan `cursor` tidak boleh dikirim bersamaan (`400`). `limit` > 40, lebih dari
-40 id, id duplikat, atau cursor rusak → `400 VALIDATION_ERROR`.
+`participantIds` dan `cursor` tidak boleh dikirim bersamaan (`400`). `limit` > 38, lebih dari
+38 id, id duplikat, atau cursor rusak → `400 VALIDATION_ERROR`.
 
 ```jsonc
 // 200
@@ -445,8 +448,10 @@ Dua mode:
 - Penerbitan lazy menulis **satu** baris `qr.identity_issued` per request berisi `count`,
   bukan satu baris per peserta. Ini penyimpangan sadar dari rencana Q4 demi anggaran 50
   statement/invokasi (lihat `.opencode/plans/q4-qr-identity.md` §16).
-- Anggaran terukur: satu halaman 40 label = **49 statement** saat terbit, **8** saat cetak
-  ulang (`qr-labels.statements.test.ts`). Karena itu batas batch diturunkan dari 50 ke 40.
+- Anggaran terukur: satu halaman 38 label = **47 statement** saat terbit, **8** saat cetak
+  ulang, dan **48** pada jalur lost-race (`qr-labels.statements.test.ts`). Karena itu batas
+  batch diturunkan dari 50 ke 38: jalur lost-race menambah satu query baca ulang, jadi 38
+  menyisakan dua statement headroom di bawah batas 50.
 
 Konfigurasi label:
 
@@ -475,8 +480,8 @@ untuk referensi transaksi Q5 dan token lama langsung tidak ditemukan oleh lookup
 
 | Method | Izin | Perilaku |
 |---|---|---|
-| `GET` | `qr:print` (event_admin/superadmin) | Metadata identitas; `identity: null` bila belum pernah diterbitkan |
-| `PUT` | `qr:rotate` (event_admin/superadmin) | Rotasi; body `{ "reason": "…" }` wajib 3–500 karakter setelah trim |
+| `GET` | `qr:print` (event_admin/superadmin) | Metadata identitas; `identity: null` bila belum pernah diterbitkan; kredensial legacy dilaporkan tanpa dipromosikan |
+| `PUT` | `qr:rotate` (event_admin/superadmin) | Rotasi; body `{ "reason": "…", "expectedRotationCount"?: number }`; alasan wajib 3–500 karakter setelah trim |
 
 ```jsonc
 // 200 GET sebelum terbit
@@ -516,12 +521,21 @@ untuk referensi transaksi Q5 dan token lama langsung tidak ditemukan oleh lookup
 - Belum pernah diterbitkan → `404 NOT_FOUND` dengan pesan "Cetak QR terlebih dahulu"; rotasi
   **tidak** menerbitkan identitas baru.
 - Kredensial lama pada `participants.qr_*` dipromosikan dulu lalu langsung dirotasi.
+- Rotasi juga menyalin kredensial baru ke kolom legacy `participants.qr_*` dalam batch yang
+  sama, dengan guard `token_hash`. Tanpa mirror ini, rollback Worker ke versi pra-`0010` akan
+  menghidupkan kembali token yang baru dicabut (`FR-059`, `AC-016`).
+- `expectedRotationCount` opsional: bila dikirim dan tidak sama dengan `rotationCount` saat
+  dibaca, route mengembalikan `409 CONFLICT` sebelum membuat token baru. Ini mencegah retry
+  setelah sukses mencabut token yang mungkin sudah diterima klien. Tanpa field ini, perilaku
+  lama (rotasi berikutnya) tetap berlaku.
 - Dua rotasi paralel: satu `200`, satu `409 CONFLICT`; hanya pemenang menulis audit.
 - Setiap rotasi menulis `audit_log` `qr.identity_rotated` (`entity_type = qr_identity`) dengan
   `rotationCount`, `keyVersion`, dan `reason`; snapshot memakai allowlist tanpa materi kredensial.
 - Acara `archived` → `422 BUSINESS_RULE`; petugas (`officer`) → `403`; Tema lain → `404`.
-- Jumlah statement rotasi (auth + baca + promosi opsional + 1 update + 1 audit) tetap di bawah
-  batas 50/invokasi; tidak ada batch per peserta.
+- `GET` untuk kredensial legacy mengembalikan metadata turunan (`issuedAt`, `keyVersion`,
+  `rotationCount: 0`) tanpa menulis apa pun; GET tidak boleh mempromosikan.
+- Jumlah statement rotasi (auth + baca + promosi opsional + 1 update identitas + 1 mirror
+  legacy + 1 audit) tetap di bawah batas 50/invokasi; tidak ada batch per peserta.
 
 ---
 
@@ -938,7 +952,10 @@ Sejak Q4 lookup token memakai satu `SEARCH` pada `qr_identities.token_hash`
 `qr_identities.theme_id`, bukan dari `participants.event_id`. Rotasi membuat hash lama tidak
 ditemukan (`not_found`) tanpa mengubah baris `attendance`. Token dari Tema lain tetap
 `wrong_event`, dan status peserta diperiksa setelah scope Tema agar token lintas Tema tidak
-membocorkan status peserta lain.
+membocorkan status peserta lain. Audit `attendance.wrong_event` memakai
+`entity_type = scan_attempt`, `entity_id = null`, dan snapshot `{ outcome: "wrong_theme" }`;
+ID peserta dan ID Tema asal tidak disimpan karena Admin Acara yang melakukan scan dapat
+membaca audit tersebut.
 
 `deviceTs` hanya **dicatat** untuk analisis selisih jam, **tidak dipakai** sebagai waktu absensi. Waktu resmi selalu dari server (UTC).
 

@@ -1,5 +1,9 @@
 import type { QrIdentityMetadataPayload, QrRotatePayload } from "@absensi/shared";
-import { QrIdentityParamsSchema, RotateQrRequestSchema } from "@absensi/shared";
+import {
+  QrIdentityParamsSchema,
+  RotateQrRequestSchema,
+  filterAuditFields,
+} from "@absensi/shared";
 
 import { insertAuditAfterQrIdentityRotationStatement } from "../db/audit";
 import { findParticipant } from "../db/participants";
@@ -7,6 +11,7 @@ import {
   findIdentityForParticipant,
   insertQrIdentityStatement,
   legacyQrCredential,
+  mirrorRotatedCredentialToLegacyStatement,
   rotateQrIdentityStatement,
 } from "../db/qr-identities";
 import { newId } from "../domain/ids";
@@ -27,8 +32,10 @@ import { parseJsonBody, parsePathParams } from "../http/validate";
  *
  * Rotation keeps the row id and replaces the credential in place, so a token
  * that has been rotated is immediately unknown to the scan lookup (FR-059)
- * while future transaction references stay stable (FR-060). The previous token
- * is never stored, logged, or audited; only a counter and reason are.
+ * while future transaction references stay stable (FR-060). The legacy
+ * `participants.qr_*` mirror is updated in the same batch so a Worker rollback
+ * cannot revive the revoked token. The previous token is never stored, logged,
+ * or audited; only a counter and reason are.
  */
 
 function qrFailure(error: unknown): never {
@@ -81,6 +88,16 @@ async function rotateQr(ctx: RouteContext): Promise<RouteResult> {
     }
   }
 
+  // A retry after a successful rotation must not revoke the token the client
+  // may already have received. The caller echoes the count it saw; a stale
+  // count returns 409 before a second credential is generated.
+  if (
+    body.expectedRotationCount !== undefined &&
+    body.expectedRotationCount !== identity.rotation_count
+  ) {
+    throw conflict("QR peserta sudah dirotasi sejak data dimuat. Muat ulang lalu coba lagi.");
+  }
+
   const config = await qrKeyConfig(ctx.env).catch((error: unknown) => qrFailure(error));
 
   const { token, credential } = await issueQrCredential(config).catch((error: unknown) =>
@@ -98,6 +115,14 @@ async function rotateQr(ctx: RouteContext): Promise<RouteResult> {
       rotatedAt: ctx.now,
       expectedRotationCount: identity.rotation_count,
     }),
+    // Keep the pre-0010 columns consistent for a possible Worker rollback.
+    mirrorRotatedCredentialToLegacyStatement(ctx.env.DB, {
+      identityId: identity.id,
+      themeId: eventId,
+      participantId,
+      credential,
+      issuedAt: identity.issued_at,
+    }),
     insertAuditAfterQrIdentityRotationStatement(
       ctx.env.DB,
       {
@@ -107,12 +132,14 @@ async function rotateQr(ctx: RouteContext): Promise<RouteResult> {
         action: "qr.identity_rotated",
         entityType: "qr_identity",
         entityId: identity.id,
-        after: {
+        // Filtering here keeps the FR-207 invariant inside the route instead of
+        // relying on every future caller to remember the allowlist.
+        after: filterAuditFields("qr_identity", {
           themeId: eventId,
           participantId,
           keyVersion: credential.keyVersion,
           rotationCount: nextRotationCount,
-        },
+        }),
         reason: body.reason,
         ipHash,
         createdAt: ctx.now,
@@ -126,6 +153,18 @@ async function rotateQr(ctx: RouteContext): Promise<RouteResult> {
     // Another admin rotated between our read and write. No audit row was written
     // (the guard failed too), so the caller can retry with fresh state.
     throw conflict("QR peserta baru saja dirotasi oleh pengguna lain. Muat ulang lalu coba lagi.");
+  }
+
+  if ((results[1]?.meta.changes ?? 0) === 0) {
+    // The identity rotated but the legacy mirror did not. The batch already
+    // committed, so throwing would tell the caller the rotation failed when it
+    // did not. Log the invariant (ids only, never credential material) so ops
+    // can repair the mirror before a rollback can revive the old token.
+    console.error("qr_identity_mirror_missing", {
+      eventId,
+      participantId,
+      identityId: identity.id,
+    });
   }
 
   const payload: QrRotatePayload = {
@@ -151,6 +190,10 @@ async function getQrMetadata(ctx: RouteContext): Promise<RouteResult> {
 
   const identity = await findIdentityForParticipant(ctx.env.DB, eventId, participantId);
 
+  // Deploy window: a credential printed by the previous Worker is still valid
+  // but has not been promoted yet. Report it read-only; GET never writes.
+  const legacy = identity ? null : legacyQrCredential(participant);
+
   const payload: QrIdentityMetadataPayload = {
     participantId,
     identity: identity
@@ -161,7 +204,15 @@ async function getQrMetadata(ctx: RouteContext): Promise<RouteResult> {
           rotationCount: identity.rotation_count,
           keyVersion: identity.key_version,
         }
-      : null,
+      : legacy
+        ? {
+            participantId,
+            issuedAt: legacy.issuedAt,
+            rotatedAt: null,
+            rotationCount: 0,
+            keyVersion: legacy.credential.keyVersion,
+          }
+        : null,
   };
 
   return { data: payload };

@@ -128,6 +128,7 @@ Nomor AQ berikutnya: **AQ-015**.
 | `AGENTS.md` "Keputusan terbuka" #3 — audit jangka panjang | — | Ditutup oleh ADR-0008; kebijakan retensi final menunggu `D-023` [A] |
 | `IMPLEMENTATION_PLAN.md` "Hal yang menunggu keputusan" #7 | Superadmin boleh mengoreksi absensi | **Digantikan** oleh `D-006` [A] (hanya Admin Acara). Kewenangan Super Admin menunggu `D-024` [A]. Kode baseline masih mengizinkan superadmin — delta Q5 |
 | `PLAN_TAB_PESERTA.md` §3 "ADR-008" (D1–D8) | Desain tab Peserta | **Tidak pernah diadopsi**; nomor bentrok dengan ADR-0008. Dipakai hanya sebagai masukan AQ-006 dan Q2/Q4 |
+| ADR-0006 & ADR-0017 §Konsekuensi — batch label 50 | Batas `QR_LABEL_BATCH_MAX = 50` dari pengukuran baseline | **Angka operasional digantikan** setelah `qr_identities` menambah satu insert per peserta: terukur **47 statement** untuk 38 label, reprint 8, jalur lost-race 48, jadi batas final **38** (`docs/OPERASIONAL.md` §6.2, `docs/DESAIN_API.md` §5). ADR yang sudah diterima **tidak diedit**; baris ini mencatat angka pengganti |
 | Roadmap Fase 0–6 di `AGENTS.md` lama | Urutan fase | **Digantikan** oleh [`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md); riwayatnya di `IMPLEMENTATION_PLAN.md` |
 
 ### Pemetaan rujukan lama

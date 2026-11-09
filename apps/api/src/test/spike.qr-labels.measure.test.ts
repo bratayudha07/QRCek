@@ -15,7 +15,7 @@ import { testEnv } from "./env";
  * Spike: cost proxy for a full label page and for the crypto behind it.
  *
  * Like `spike.measure.test.ts`, this measures wall clock inside local workerd,
- * not the platform's billed CPU time. The page batch is the shared limit (40);
+ * not the platform's billed CPU time. The page batch is the shared limit (38);
  * the crypto block still issues 100 credentials so the measurement that
  * justified lowering the limit stays reproducible.
  */

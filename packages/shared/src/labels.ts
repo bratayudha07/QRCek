@@ -85,14 +85,15 @@ export const STICKER_WIDTH_MM = 50;
 export const STICKER_HEIGHT_MM = 30;
 
 /**
- * Free-tier limits. The batch is 40, not 50: one label page costs roughly
- * `40 insert + 10 auth/read/audit` statements, and D1 free tier allows 50
- * statements per Worker invocation (see `QrLabelRequestSchema` and
- * `spike.qr-labels.measure.test.ts`). CPU was measured separately: 100
- * credentials cost ~12 ms p50, so 40 stays well inside the ~10 ms CPU budget.
+ * Free-tier limits. The batch is 38, not 50: one label page costs roughly
+ * `38 insert + 9 auth/read/audit` statements, and D1 free tier allows 50
+ * statements per Worker invocation. The lost-race recovery path adds one
+ * re-read, so 38 keeps two statements of headroom (see `QrLabelRequestSchema`
+ * and `qr-labels.statements.test.ts`). CPU was measured separately: 100
+ * credentials cost ~12 ms p50, so 38 stays well inside the ~10 ms CPU budget.
  */
-export const QR_LABEL_BATCH_MAX = 40;
-export const QR_LABEL_BATCH_DEFAULT = 40;
+export const QR_LABEL_BATCH_MAX = 38;
+export const QR_LABEL_BATCH_DEFAULT = 38;
 
 const LabelFieldListSchema = z
   .array(z.enum(LABEL_FIELD_KEYS))

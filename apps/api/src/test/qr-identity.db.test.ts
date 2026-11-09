@@ -4,6 +4,7 @@ import {
   findIdentityForParticipant,
   findIdentityParticipantByHash,
   insertQrIdentityStatement,
+  mirrorRotatedCredentialToLegacyStatement,
   rotateQrIdentityStatement,
 } from "../db/qr-identities";
 import { newId } from "../domain/ids";
@@ -217,15 +218,51 @@ describe("qr_identities rotation", () => {
         rotatedAt: TEST_NOW + 1000,
         expectedRotationCount: 0,
       }),
+      mirrorRotatedCredentialToLegacyStatement(env.DB, {
+        identityId: before?.id as string,
+        themeId: eventA,
+        participantId: participantA,
+        credential: {
+          tokenHash: OTHER_HASH,
+          ciphertext: CIPHERTEXT,
+          nonce: NONCE,
+          keyVersion: 1,
+        },
+        issuedAt: before?.issued_at as number,
+      }),
     ]);
 
     expect(results[0]?.meta.changes).toBe(1);
+    expect(results[1]?.meta.changes).toBe(1);
 
     const after = await findIdentityForParticipant(env.DB, eventA, participantA);
     expect(after?.id).toBe(before?.id);
     expect(after?.token_hash).toBe(OTHER_HASH);
     expect(after?.rotation_count).toBe(1);
     expect(after?.rotated_at).toBe(TEST_NOW + 1000);
+
+    // The legacy mirror follows the rotation, so a Worker rollback cannot
+    // revive the revoked token (FR-059, AC-016).
+    const legacy = await env.DB.prepare(
+      `SELECT qr_token_hash, qr_token_ciphertext, qr_token_nonce, qr_key_version, qr_issued_at
+         FROM participants WHERE event_id = ? AND id = ?`,
+    )
+      .bind(eventA, participantA)
+      .first<{
+        qr_token_hash: string;
+        qr_token_ciphertext: string;
+        qr_token_nonce: string;
+        qr_key_version: number;
+        qr_issued_at: number;
+      }>();
+
+    expect(legacy).toMatchObject({
+      qr_token_hash: OTHER_HASH,
+      qr_token_ciphertext: CIPHERTEXT,
+      qr_token_nonce: NONCE,
+      qr_key_version: 1,
+      qr_issued_at: TEST_NOW,
+    });
 
     // The old hash is gone: the scan lookup cannot find it any more.
     expect(await findIdentityParticipantByHash(env.DB, HASH)).toBeNull();
@@ -236,6 +273,7 @@ describe("qr_identities rotation", () => {
     const { eventA, participantA } = await world();
     await seedIdentity({ themeId: eventA, participantId: participantA }).run();
 
+    const identity = await findIdentityForParticipant(env.DB, eventA, participantA);
     const results = await env.DB.batch([
       rotateQrIdentityStatement(env.DB, {
         themeId: eventA,
@@ -249,13 +287,33 @@ describe("qr_identities rotation", () => {
         rotatedAt: TEST_NOW + 1000,
         expectedRotationCount: 7,
       }),
+      mirrorRotatedCredentialToLegacyStatement(env.DB, {
+        identityId: identity?.id as string,
+        themeId: eventA,
+        participantId: participantA,
+        credential: {
+          tokenHash: OTHER_HASH,
+          ciphertext: CIPHERTEXT,
+          nonce: NONCE,
+          keyVersion: 1,
+        },
+        issuedAt: identity?.issued_at as number,
+      }),
     ]);
 
     expect(results[0]?.meta.changes).toBe(0);
+    expect(results[1]?.meta.changes).toBe(0);
 
     const row = await findIdentityForParticipant(env.DB, eventA, participantA);
     expect(row?.token_hash).toBe(HASH);
     expect(row?.rotation_count).toBe(0);
+
+    const legacy = await env.DB.prepare(
+      "SELECT qr_token_hash FROM participants WHERE id = ?",
+    )
+      .bind(participantA)
+      .first<{ qr_token_hash: string | null }>();
+    expect(legacy?.qr_token_hash).toBeNull();
   });
 
   it("looks up a scan hash with one index search and the participant row", async () => {

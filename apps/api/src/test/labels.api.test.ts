@@ -1,8 +1,10 @@
 import type { LabelConfigPayload, QrLabelPayload } from "@absensi/shared";
 import { describe, expect, it } from "vitest";
 
+import { handleRequest } from "../app";
+import type { Env } from "../env";
 import { parseQrPayload } from "../domain/qr-token";
-import { hashQrToken } from "../domain/qr-token";
+import { hashQrToken, qrKeyConfig, reencryptQrCredential } from "../domain/qr-token";
 import { testEnv } from "./env";
 import {
   addMembership,
@@ -12,7 +14,7 @@ import {
   createUser,
   seedLegacyParticipantQr,
 } from "./fixtures";
-import { callApi, errorCode } from "./http";
+import { TEST_NOW, TEST_ORIGIN, callApi, errorCode } from "./http";
 
 /**
  * API tests for `POST /participants/qr-labels` and the per-event label config.
@@ -519,5 +521,101 @@ describe("label configuration", () => {
     });
     expect(archivedWrite.status).toBe(422);
     expect(errorCode(archivedWrite)).toBe("BUSINESS_RULE");
+  });
+});
+
+describe("QR key rotation reprint", () => {
+  // A different 32-byte key; the token, hash, and printed QR must not change.
+  const ROTATED_KEY = "YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXphYmNkZWY=";
+
+  async function reprintWith(env: Env, eventId: string, cookie: string, participantId: string) {
+    const request = new Request(`${TEST_ORIGIN}${labelsPath(eventId)}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-absensi-csrf": "1",
+        origin: TEST_ORIGIN,
+        cookie,
+      },
+      body: JSON.stringify({ participantIds: [participantId] }),
+    });
+
+    return handleRequest(request, env, { now: () => TEST_NOW });
+  }
+
+  it("keeps the printed QR after re-encrypting both qr_identities and the legacy mirror", async () => {
+    const { eventA, adminA } = await world();
+    const participant = await createParticipant(eventA, { fullName: "Siti" });
+    // Legacy credential: both the identity row and the participants mirror
+    // exist, which is the shape the release has after the 0010 backfill.
+    const printedQr = await seedLegacyParticipantQr(eventA, participant.id);
+
+    const first = await callApi(labelsPath(eventA), {
+      method: "POST",
+      cookie: adminA.cookie,
+      body: { participantIds: [participant.id] },
+    });
+    const firstBody = first.json<QrLabelPayload>();
+    if (!firstBody.ok) throw new Error("expected a label");
+    expect(firstBody.data.labels[0]?.qr).toBe(printedQr);
+
+    const identity = await testEnv.DB.prepare(
+      `SELECT id, ciphertext, nonce, key_version
+         FROM qr_identities WHERE theme_id = ? AND participant_id = ?`,
+    )
+      .bind(eventA, participant.id)
+      .first<{ id: string; ciphertext: string; nonce: string; key_version: number }>();
+    if (!identity) throw new Error("expected an identity");
+
+    const oldConfig = await qrKeyConfig(testEnv);
+    const newEnv = {
+      ...testEnv,
+      QR_ENCRYPTION_KEY: ROTATED_KEY,
+      QR_KEY_VERSION: "2",
+    } as Env;
+    const newConfig = await qrKeyConfig(newEnv);
+
+    const rotated = await reencryptQrCredential(oldConfig, newConfig, {
+      ciphertext: identity.ciphertext,
+      nonce: identity.nonce,
+      keyVersion: identity.key_version,
+    });
+
+    // The procedure in OPERASIONAL.md §7.5 must update both tables: runtime
+    // reads qr_identities, while the legacy mirror is what a rollback reads.
+    const results = await testEnv.DB.batch([
+      testEnv.DB.prepare(
+        `UPDATE qr_identities
+            SET ciphertext = ?, nonce = ?, key_version = ?
+          WHERE id = ? AND key_version = ?`,
+      ).bind(
+        rotated.ciphertext,
+        rotated.nonce,
+        rotated.keyVersion,
+        identity.id,
+        identity.key_version,
+      ),
+      testEnv.DB.prepare(
+        `UPDATE participants
+            SET qr_token_ciphertext = ?, qr_token_nonce = ?, qr_key_version = ?
+          WHERE event_id = ? AND id = ? AND qr_key_version = ?`,
+      ).bind(
+        rotated.ciphertext,
+        rotated.nonce,
+        rotated.keyVersion,
+        eventA,
+        participant.id,
+        identity.key_version,
+      ),
+    ]);
+    expect(results[0]?.meta.changes).toBe(1);
+    expect(results[1]?.meta.changes).toBe(1);
+
+    const response = await reprintWith(newEnv, eventA, adminA.cookie, participant.id);
+    expect(response.status).toBe(200);
+
+    const body = (await response.json()) as { ok: boolean; data?: QrLabelPayload };
+    if (!body.ok || !body.data) throw new Error("expected a reprint");
+    expect(body.data.labels[0]?.qr).toBe(printedQr);
   });
 });

@@ -2,7 +2,7 @@
 
 Database: Cloudflare D1, binding `DB`. Dialek **SQLite**, bukan Postgres.
 
-> **Status dokumen (9 November 2026).** Dokumen ini mencatat **skema aktual**: migrasi `0001`–`0010`. `0001`–`0006` sudah diterapkan di remote dan **tidak boleh diedit**; `0007_q1_activities_sessions.sql` diterapkan di remote pada 6 November 2026 (backup: `/tmp/opencode/qrcek-backup-2026-11-06.sql`). `0008_q2_categories_custom_fields.sql` diterapkan di remote pada **8 November 2026 02:28 UTC** (`app_meta.schema_version = 8`) berdekatan dengan deploy kode Q2; verifikasi data: 80 peserta, 32 kategori, 0 peserta tanpa `category_id`, 0 kategori lintas Tema (`docs/OPERASIONAL.md`). `0009_entitlement_rules.sql` (Q3) sudah diuji di database lokal dan **sudah diterapkan di remote** pada 8 November 2026 (`app_meta.schema_version = 9`, deploy `dc8b8546`); backfill menghasilkan 0 baris. `0010_qr_identities.sql` (Q4) **sudah lulus seluruh tes lokal tetapi belum diterapkan di remote**; `schema_version` lokal/CI menjadi `10`. Model target QRCek yang tersisa (transaksi efektif, Reversal/Adjustment, kuota konsumsi) **belum punya skema**; bentuknya diputuskan lewat AQ-002–AQ-004, AQ-009 di [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6 — AQ-005 sudah dijawab ADR-0016 dan menjadi `0009`, AQ-006 menjadi `0008`. `D-007` [A] menghapus kewajiban migrasi data produksi, **bukan** kewajiban regression test, dan bukan izin mengedit migrasi lama.
+> **Status dokumen (9 November 2026).** Dokumen ini mencatat **skema aktual**: migrasi `0001`–`0010`. `0001`–`0006` sudah diterapkan di remote dan **tidak boleh diedit**; `0007_q1_activities_sessions.sql` diterapkan di remote pada 6 November 2026 (backup: `/tmp/opencode/qrcek-backup-2026-11-06.sql`). `0008_q2_categories_custom_fields.sql` diterapkan di remote pada **8 November 2026 02:28 UTC** (`app_meta.schema_version = 8`) berdekatan dengan deploy kode Q2; verifikasi data: 80 peserta, 32 kategori, 0 peserta tanpa `category_id`, 0 kategori lintas Tema (`docs/OPERASIONAL.md`). `0009_entitlement_rules.sql` (Q3) sudah diuji di database lokal dan **sudah diterapkan di remote** pada 8 November 2026 (`app_meta.schema_version = 9`, deploy `dc8b8546`); backfill menghasilkan 0 baris. `0010_qr_identities.sql` (Q4) **sudah diterapkan di remote** pada **9 November 2026 02:34 UTC** (`app_meta.schema_version = 10`, backup pra-migrasi `/tmp/opencode/qrcek-backup-2026-11-09-pre-0010.sql`, 149 KB); backfill menyalin **60 baris** kredensial legacy dari 80 peserta, 0 nilai tidak cocok. Model target QRCek yang tersisa (transaksi efektif, Reversal/Adjustment, kuota konsumsi) **belum punya skema**; bentuknya diputuskan lewat AQ-002–AQ-004 di [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6 — AQ-005 sudah dijawab ADR-0016 dan menjadi `0009`, AQ-006 menjadi `0008`, AQ-009 menjadi `0010`. `D-007` [A] menghapus kewajiban migrasi data produksi, **bukan** kewajiban regression test, dan bukan izin mengedit migrasi lama.
 >
 > Bagian yang bertentangan dengan keputusan produk `[A]` ditandai **Delta**: `attendance` satu baris per `(event_id, participant_id)` (target: per ruang lingkup Aktivitas/Sesi, `D-003`), koreksi via `UPDATE attendance` (target: Reversal/Adjustment, `D-006`), dan kredensial QR per baris peserta per acara (target: per Tema + Peserta, `D-004`).
 
@@ -733,7 +733,15 @@ WHERE p.qr_token_hash IS NOT NULL
 > 5. **`ON DELETE RESTRICT`** menjaga kredensial yang menjadi jangkar riwayat tidak hilang saat
 >    peserta/Tema dihapus. Produk mengarsipkan, bukan menghapus.
 > 6. **Lookup scan** memakai `uq_qr_identity_hash`: satu `SEARCH ... USING INDEX` lalu join
->    primary-key ke `participants`. Scope Tema dibaca dari `qr_identities.theme_id`.
+>    primary-key ke `participants` dengan syarat tambahan `p.event_id = q.theme_id`. Scope Tema
+>    dibaca dari `qr_identities.theme_id`; syarat join adalah pertahanan berlapis bila data
+>    pernah tidak konsisten.
+> 7. **Rotasi menyinkronkan kolom legacy.** Batch rotasi menulis `qr_identities` lalu
+>    `participants.qr_*` dengan guard `token_hash` yang sama dengan audit. Tanpa mirror ini,
+>    rollback Worker ke versi pra-`0010` akan menghidupkan token yang baru dicabut. Penerbitan
+>    baru tetap hanya menulis `qr_identities` (anggaran statement label); rollback tidak
+>    menghidupkan token apa pun untuk baris itu, tetapi kode lama akan melihat peserta sebagai
+>    "belum punya QR".
 
 ---
 

@@ -167,8 +167,9 @@ export async function listParticipantsForLabels(
 
 /**
  * Explicit selection mode. Chunked defensively because D1 caps bound parameters
- * per query at 100; the API currently allows at most 50 ids. Ordering is applied
- * here so the caller gets the same stable order as the cursor path.
+ * per query at 100; the API currently allows at most `QR_LABEL_BATCH_MAX` (38)
+ * ids. Ordering is applied here so the caller gets the same stable order as the
+ * cursor path.
  */
 export async function listParticipantsByIdsForLabels(
   db: D1Database,
@@ -206,10 +207,9 @@ export async function listParticipantsByIdsForLabels(
 /**
  * Writes the five credential columns only when no credential exists yet.
  *
- * The `qr_token_hash IS NULL` guard is the concurrency contract: two printers
- * racing on the same participant produce one winner and one `changes = 0`
- * result. The loser must re-read and reuse the winner's credential instead of
- * rotating it (see `routes/labels.ts`).
+ * @deprecated Pre-`0010` write path. Credentials now live in `qr_identities`;
+ * this helper is kept only for the legacy-baseline regression test. Do not call
+ * it from a route.
  */
 export function claimQrCredentialStatement(
   db: D1Database,

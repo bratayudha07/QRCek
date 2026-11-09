@@ -6,12 +6,13 @@ Tujuan pengujian di proyek ini **bukan** mengejar angka coverage, tetapi membukt
 
 ## Snapshot verifikasi terkini
 
-- Snapshot 9 November 2026 (Q4 API-only, `0010` lokal): `typecheck` PASS, `lint` PASS,
-  `test` **667 tes di 65 file** lulus, `build` PASS. Produksi masih `schema_version = 9`;
-  `0010_qr_identities.sql` sudah lulus lokal dan **belum diterapkan remote**. Gate Q4 belum
-  ditutup sampai apply remote setelah konfirmasi pemilik dan review manusia. Pengukuran Q4:
-  lookup scan 1 `SEARCH` pada `uq_qr_identity_hash`, halaman 40 label = 49 statement
-  (reprint 8), backfill lokal 0 baris (`OPERASIONAL.md` §6.2–§6.3).
+- Snapshot 9 November 2026 (Q4 API-only, `0010` diterapkan remote): `typecheck` PASS, `lint`
+  PASS, `test` **672 tes di 65 file** lulus, `build` PASS. Produksi `schema_version = 10` dengan 60
+  baris `qr_identities` (backfill 60 kandidat, `mismatched = 0`); Workers Builds `ad02903`
+  success. Gate Q4 ditutup dengan catatan: smoke sesi produksi belum dijalankan pemilik, dan
+  AC-018 (PNG/ZIP) tetap Q9. Pengukuran Q4: lookup scan 1 `SEARCH` pada
+  `uq_qr_identity_hash`, halaman 38 label = 47 statement (reprint 8, lost-race 48), backfill
+  lokal 0 baris (`OPERASIONAL.md` §6.2–§6.3).
 - Snapshot 8 November 2026 (Q3 API-only, `0009` lokal): `typecheck` PASS, `lint` PASS,
   `test` **637 tes di 60 file** lulus, `build` PASS. Produksi kini `schema_version = 9`
   (`0009_entitlement_rules.sql` diterapkan remote 8 November 2026, deploy `dc8b8546`,
@@ -225,7 +226,7 @@ Tambahan Q4 (QR Identity per Tema, `0010`, ADR-0017):
 | DB | Tabel, dua unique index, dua trigger; insert lintas Tema ditolak; hash unik; rotasi in-place; guard `rotation_count`; query plan `uq_qr_identity_hash` | `qr-identity.db.test.ts` |
 | API | Rotasi `200`/`409`, token lama `not_found`, riwayat absensi tetap; alasan wajib; `404` sebelum terbit; promosi kredensial lama; audit tanpa kredensial; metadata tanpa token | `qr-identity.api.test.ts` |
 | API | Promosi kredensial `participants.qr_*` tanpa mengganti token; audit `qr.identity_issued` berisi `count` | `labels.api.test.ts` |
-| Budget | Satu halaman 40 label = 49 statement saat terbit, 8 saat reprint | `qr-labels.statements.test.ts` |
+| Budget | Satu halaman 38 label = 47 statement saat terbit, 8 saat reprint, 48 pada jalur lost-race | `qr-labels.statements.test.ts` |
 
 **NOT RUN (butuh browser/perangkat):** tampilan visual halaman label, perilaku `window.print()`,
 page break fisik, ukuran QR di kertas, pembacaan QR hasil cetak oleh kamera HP, serta keyboard
@@ -571,16 +572,19 @@ Semua keputusan produk D-001…D-024 sudah disetujui `[A]`; AQ arsitektur ditang
 | T-062 | QR peserta nonaktif ditolak | `FR-061`, `AC-017` | — |
 | T-063 ★ | Permintaan data token tanpa izin ditolak (403/404); respons tidak memuat hash/ciphertext | `FR-200` | — |
 | T-064 | Ekspor QR tercatat di audit dengan jumlah, bukan token | `FR-062`, `FR-135` | — |
-| T-065 | Satu halaman label 40 peserta ≤ 50 statement D1; reprint tidak menulis kredensial | `NFR-011` | — |
+| T-065 | Satu halaman label 38 peserta ≤ 50 statement D1, termasuk jalur lost-race; reprint tidak menulis kredensial | `NFR-011` | — |
 
 **Status 9 November 2026 (Q4 API-only).** T-060/T-062 dibuktikan sebagai keputusan murni
 (`packages/shared/src/qr.test.ts`: scope Tema diperiksa sebelum status peserta) dan aturan
 database (`qr-identity.db.test.ts`: trigger lintas Tema). T-061/T-063 dibuktikan lewat HTTP
 nyata (`qr-identity.api.test.ts`: rotasi `200`/`409`, token lama `not_found`, audit tanpa
 kredensial, metadata tanpa token, `403`/`404` per peran/Tema). T-064 lewat `labels.api.test.ts`;
-T-065 lewat `qr-labels.statements.test.ts` (**49** statement saat terbit, **8** saat cetak
-ulang). Scan target berkonteks Aktivitas/Sesi tetap **belum ada** sampai Q5; baseline
-`scan.test.ts` tetap lulus sebagai regression. Rendering PNG/ZIP (AC-018) tetap Q9.
+T-065 lewat `qr-labels.statements.test.ts` (**47** statement saat terbit, **8** saat cetak
+ulang, **48** pada jalur lost-race). Rotasi juga diuji menyalin kredensial ke kolom legacy
+`participants.qr_*` agar rollback Worker tidak menghidupkan token lama; retry dengan
+`expectedRotationCount` basi ditolak `409`. Scan target berkonteks Aktivitas/Sesi tetap
+**belum ada** sampai Q5; baseline `scan.test.ts` tetap lulus sebagai regression. Rendering
+PNG/ZIP (AC-018) tetap Q9.
 
 ### 9.5 Transaksi Attendance dan koreksi (Q5)
 

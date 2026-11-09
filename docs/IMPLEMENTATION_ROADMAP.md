@@ -37,7 +37,7 @@
 | Q1 | Fondasi Tema → Aktivitas → Sesi, lifecycle, mekanisme audit | **Selesai (API-only)** | AQ-001, AQ-010, AQ-014 (ADR-0009–0011, Diterima); ADR-0012 (lifecycle), ADR-0013 (registrasi), keduanya Diterima; `D-009`, `D-010`, `D-023` [A]; `OQ-033` [A] untuk aksi arsip Sesi |
 | Q2 | Peserta, kategori, custom field, impor CSV | **Selesai (API-only) — kode + migrasi `0008` live 8 November 2026** | AQ-006 dijawab ADR-0014 (Diterima 6 November 2026); `D-008`, `D-020` [A] |
 | Q3 | Entitlement | **Selesai (API-only) — kode + migrasi `0009` live 8 November 2026, gate ditutup 9 November 2026** | AQ-005 dijawab ADR-0016 (Diterima 8 November 2026) |
-| Q4 | QR Identity per Tema, rotasi, ekspor PNG/ZIP | **Implementasi selesai (API-only) 9 November 2026; menunggu apply `0010` remote + review pemilik** | AQ-009 dijawab ADR-0017 (Diterima 9 November 2026); `D-016` [A] |
+| Q4 | QR Identity per Tema, rotasi, ekspor PNG/ZIP | **Ditutup 9 November 2026 (API-only)**; smoke sesi produksi menunggu pemilik, AC-018 (PNG/ZIP) tetap Q9 | AQ-009 dijawab ADR-0017 (Diterima 9 November 2026); `D-016` [A] |
 | Q5 | Transaksi Attendance, Manual Entry, Reversal/Adjustment | Belum dibuka | AQ-002–AQ-004, AQ-007, AQ-008; `D-010`, `D-011`, `D-022`, `D-024` [A]; `OQ-034` [A] |
 | Q6 | Penugasan Petugas & Scanner/Kiosk | Belum dibuka | AQ-007, AQ-008, AQ-012; `D-012`, `D-013` [A] |
 | Q7 | Distribusi konsumsi | Belum dibuka | AQ-002, AQ-003; `D-009`, `D-014` [A] |
@@ -233,15 +233,15 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 - Tes: token Tema A ditolak di konteks Tema B; rotasi → token lama langsung ditolak, riwayat transaksi tidak berubah, audit tercatat tanpa token; QR peserta nonaktif ditolak; permintaan data token tanpa izin → 403/404; ekspor tercatat di audit dengan jumlah, bukan token.
 - Batas batch per request ditetapkan dari pengukuran CPU (baseline 50).
 
-**Status implementasi 9 November 2026 (lokal/CI, bukan bukti rilis):**
+**Status rilis 9 November 2026 (API-only):**
 
-- `migrations/0010_qr_identities.sql` dibuat; `typecheck`/`lint`/`test`/`build` hijau dan seluruh tes lokal lulus. Belum diterapkan di remote.
+- Commit `ad02903` di-push ke `main`; Workers Builds **success**. Migrasi `0010_qr_identities.sql` diterapkan ke remote (backup pra-migrasi 149 KB), `app_meta.schema_version = 10`, **60 baris** `qr_identities` dari 60 kandidat legacy, 2 index unik + 2 trigger, `mismatched = 0`, `GET /api/health/ready` → `200`.
 - `AC-015`/`AC-017` dibuktikan di level keputusan murni, database, dan HTTP scan baseline. Jalur scan target berkonteks Aktivitas/Sesi tetap **deferral Q5**.
-- `AC-016` dibuktikan: rotasi in-place, token lama `not_found`, riwayat `attendance` tidak berubah, audit `qr.identity_rotated` tanpa kredensial, rotasi paralel satu `200`/satu `409`.
+- `AC-016` dibuktikan: rotasi in-place, token lama `not_found`, riwayat `attendance` tidak berubah, audit `qr.identity_rotated` tanpa kredensial, rotasi paralel satu `200`/satu `409`, dan mirror kredensial ke `participants.qr_*` agar rollback Worker tidak menghidupkan token lama. Retry dengan `expectedRotationCount` basi → `409`.
 - `AC-018` **sebagian**: otorisasi, payload, batas batch, dan audit jumlah terbukti; rendering PNG/ZIP dan tombol unduh tetap Q9.
-- Batas batch diturunkan ke **40** setelah pengukuran: halaman 40 label = 49 statement D1 (batas 50), reprint 8. Angka di [`OPERASIONAL.md`](./OPERASIONAL.md) §6.2.
+- Batas batch diturunkan ke **38** setelah pengukuran: halaman 38 label = 47 statement D1 (batas 50), reprint 8, jalur lost-race 48. Angka di [`OPERASIONAL.md`](./OPERASIONAL.md) §6.2.
 - Penyimpangan dari rencana: audit penerbitan lazy satu baris per request berisi `count`, bukan per peserta, agar tetap di bawah 50 statement. Dicatat di `.opencode/plans/q4-qr-identity.md` §16.
-- Gate Q4 **belum ditutup**: perlu apply `0010` remote setelah konfirmasi pemilik dan review manusia.
+- **Gate Q4 ditutup 9 November 2026** dengan persetujuan pemilik untuk urutan rilis, setelah review keamanan independen (0 blocker; 2 major diperbaiki: mirror legacy saat rotasi dan urutan migrasi-dulu). **Belum dijalankan:** smoke dengan sesi produksi (cetak → scan → rotasi → token lama ditolak); pemilik perlu menjalankannya. AC-018 tetap Q9.
 
 ---
 
@@ -414,3 +414,4 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 | Draft v1.8 | 9 November 2026 | Q3 **Selesai (API-only)**: deploy `dc8b8546` (8 November 2026 04:26 UTC), migrasi `0009` diterapkan remote (`schema_version = 9`), backfill produksi 0 baris, health ready, verifikasi penuh 637 tes hijau. Gate Q3 ditutup; `AC-043` tingkat transaksi tetap dibuktikan di Q5. |
 | Draft v1.9 | 9 November 2026 | AQ-009 dijawab **ADR-0017 Diterima**: tabel `qr_identities` satu baris aktif per `(theme_id, participant_id)`, penerbitan lazy, rotasi in-place dengan alasan wajib, riwayat di audit, backfill kredensial lama, QR nonaktif ditolak saat scan. Q4 **Dibuka (API-only)**; UI ekspor final tetap di Q9. |
 | Draft v1.10 | 9 November 2026 | Q4 **implementasi selesai secara kode (API-only)**: migrasi `0010`, rotasi in-place, metadata QR, promosi kredensial lama, lookup scan lewat `qr_identities`, tes/ukuran lulus; `QR_LABEL_BATCH_MAX` 50 → 40 setelah terukur 49 statement. Penerapan remote `0010` dan review pemilik masih pending; gate Q4 belum ditutup. |
+| Draft v1.11 | 9 November 2026 | **Gate Q4 ditutup (API-only).** `0010` diterapkan remote (`schema_version = 10`, 60 baris backfill, `mismatched = 0`), Workers Builds `ad02903` success. Review keamanan: 0 blocker; 2 major diperbaiki (mirror kredensial rotasi ke `participants.qr_*` agar rollback tidak menghidupkan token; urutan rilis menjadi migrasi-dulu). `QR_LABEL_BATCH_MAX` 40 → 38 (47 statement, lost-race 48). Retry rotasi dengan `expectedRotationCount` basi → `409`. Smoke sesi produksi belum dijalankan; AC-018 tetap Q9. |

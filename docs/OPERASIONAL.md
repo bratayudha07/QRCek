@@ -4,7 +4,7 @@ Dokumen ini mencatat hasil pengukuran, instruksi operasi, status deployment, dan
 
 > **Konteks (9 November 2026).** Semua pengukuran dan prosedur di sini berlaku untuk baseline (model `events` datar, commit acuan `157c330`) ditambah fondasi Q1 (Aktivitas/Sesi), Q2 (kategori, custom field, atribut peserta), Q3 (konfigurasi entitlement), dan Q4 (QR Identity per Tema) — semuanya API-only. Model target QRCek ([`REQUIREMENTS.md`](./REQUIREMENTS.md)) akan menambah tabel, indeks, dan jalur transaksi baru; angka CPU/statement/baris di bawah **tidak** otomatis berlaku untuk model itu dan harus diukur ulang di tahap roadmap terkait ([`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md) Q5 dan Q11). Uji perangkat fisik scanner, akun Google Sheets nyata, dan CPU produksi belum pernah dilakukan (`REQUIREMENTS.md` §7.3). Rujukan "ADR-00N" di dokumen ini = `docs/adr/000N-*.md`.
 
-## Status operasi saat ini (8 November 2026)
+## Status operasi saat ini (9 November 2026)
 
 - Worker produksi berjalan di `https://qrcek.hamdirobbi5.workers.dev` dan di-deploy lewat
   **Cloudflare Workers Builds** (Git integration): push/merge ke `main` memicu build lalu
@@ -15,7 +15,7 @@ Dokumen ini mencatat hasil pengukuran, instruksi operasi, status deployment, dan
   (`content-security-policy`, `permissions-policy: camera=(self)`, HSTS) ada. Route Q2
   `GET /api/events/x/categories` dan `/custom-fields` → `401 UNAUTHENTICATED` (route ada,
   sesi belum dikirim), bukan `404`.
-- Migrasi remote `0001`–`0008` sudah diterapkan. `0007_q1_activities_sessions.sql`
+- Migrasi remote `0001`–`0010` sudah diterapkan. `0007_q1_activities_sessions.sql`
   diterapkan **6 November 2026** (backup: `/tmp/opencode/qrcek-backup-2026-11-06.sql`,
   122 KB). `0008_q2_categories_custom_fields.sql` diterapkan **8 November 2026 02:28 UTC**
   dari `apps/api`; `app_meta.schema_version = 8`.
@@ -43,6 +43,13 @@ Dokumen ini mencatat hasil pengukuran, instruksi operasi, status deployment, dan
   membaca `category_id` tidak kompatibel pada jendela itu; tidak ada bukti kerusakan data
   (verifikasi di atas bersih). Rilis berikutnya yang mengubah kontrak harus memakai pola
   expand/contract atau mematikan auto-deploy sementara agar jendela itu tidak terulang.
+- **Rilis Q4 (9 November 2026):** commit `ad02903` memicu Workers Builds dan berstatus
+  **success**. Migrasi `0010_qr_identities.sql` diterapkan ke remote pada 02:34 UTC dengan
+  backup pra-migrasi `/tmp/opencode/qrcek-backup-2026-11-09-pre-0010.sql` (149 KB). Verifikasi
+  remote: `app_meta.schema_version = 10`, `qr_identities = 60` baris (kandidat legacy 60 dari
+  80 peserta), 2 index unik + 2 trigger konteks, `mismatched = 0`, dan
+  `GET /api/health/ready` → `200`. Route `GET .../qr` dan `PUT .../qr/rotate` → `401`
+  (terdaftar, sesi belum dikirim). Smoke dengan sesi produksi belum dijalankan pemilik.
 - Pendaftaran mandiri publik sudah dihapus (ADR-0013). `POST /api/auth/register` → 404, dan
   tidak ada lagi `TURNSTILE_SECRET_KEY` maupun `VITE_TURNSTILE_SITE_KEY` yang perlu diatur.
   Akun Admin Acara hanya dibuat lewat undangan Super Admin. Saat deploy pertama setelah
@@ -300,30 +307,59 @@ Diukur 9 November 2026 di `workerd` lokal (D1 uji). Bukan CPU produksi; lihat pe
 
 | Metrik | Hasil | Cara |
 |---|---|---|
-| Lookup scan | **1** `SEARCH ... USING INDEX` pada `uq_qr_identity_hash` + join primary-key ke `participants` | `EXPLAIN QUERY PLAN` di `qr-identity.db.test.ts` |
-| Statement halaman label 40 peserta (terbit) | **49** dari batas 50/invokasi | `qr-labels.statements.test.ts` menghitung `prepare()` pada env yang di-proxy |
-| Statement halaman label 40 peserta (reprint) | **8** | sama; tidak ada insert/audit terbit |
-| Waktu halaman label 40 (lokal) | terbit **48 ms**, reprint p50 **22 ms**, p95 **23 ms** | `spike.qr-labels.measure.test.ts` |
-| Crypto 100 kredensial (lokal) | issue p50 **9 ms** / p95 15 ms; read p50 5 ms | sama |
+| Lookup scan | **1** `SEARCH ... USING INDEX` pada `uq_qr_identity_hash` + join primary-key ke `participants` dengan `p.event_id = q.theme_id` | `EXPLAIN QUERY PLAN` di `qr-identity.db.test.ts` |
+| Statement halaman label 38 peserta (terbit) | **47** dari batas 50/invokasi | `qr-labels.statements.test.ts` menghitung `prepare()` pada env yang di-proxy |
+| Statement halaman label 38 peserta (reprint) | **8** | sama; tidak ada insert/audit terbit |
+| Statement halaman label 38 peserta (lost-race) | **48** | tes yang menyuntikkan pemenang konkuren setelah SELECT |
+| Waktu halaman label 38 (lokal) | terbit **45 ms**, reprint p50 **19 ms**, p95 **21 ms** | `spike.qr-labels.measure.test.ts` |
+| Crypto 100 kredensial (lokal) | issue p50 **7 ms** / p95 8 ms; read p50 4 ms | sama |
 | Scan proxy (HMAC + lookup + batch) | p50 **4 ms**, p95 7 ms, max 12 ms | `spike.measure.test.ts` |
 | Backfill `0010` pada DB lokal kosong | **0 baris** | `npm run db:reset:local && npm run db:migrate:local` |
 
-Karena halaman 40 label sudah memakai 49 statement, `QR_LABEL_BATCH_MAX` diturunkan dari 50
-ke **40**. Menaikkannya tanpa mengubah strategi audit (satu baris per request) akan melewati
-batas 50. Angka backfill produksi harus dihitung dengan `countLegacyQrCandidates` **sebelum**
-apply remote dan dicatat di §8.
+Karena halaman 38 label memakai 47 statement dan jalur lost-race menambah satu baca ulang
+menjadi 48, `QR_LABEL_BATCH_MAX` diturunkan dari 50 ke **38**. Menaikkannya tanpa mengubah
+strategi audit (satu baris per request) akan menyentuh batas 50. Angka backfill produksi
+dihitung dengan SQL di §6.3 **sebelum** apply remote dan dicatat di §8: **60 kandidat, 60
+baris**.
 
-### 6.3 Prosedur rilis `0010` (Q4)
+### 6.3 Prosedur rilis `0010` (Q4) — sudah dijalankan
 
-Urutan wajib (belum dijalankan per 9 November 2026):
+**Urutan wajib untuk rilis yang menambah tabel yang langsung dibaca kode baru: migrasi
+dulu, deploy kemudian.** Workers Builds otomatis men-deploy setiap push ke `main`, jadi
+migrasi harus selesai sebelum push (atau auto-deploy dimatikan sementara). Kode lama tidak
+membaca `qr_identities`, sehingga migrasi additive aman lebih dulu. Urutan yang sempat
+ditulis di draf Q4 (deploy lalu migrasi) akan membuat scan/label/rotasi `500` selama jendela
+antara deploy dan migrasi.
+
+**Langkah eksplisit bila tidak ingin bergantung pada timing build:** sebelum push, buka
+Cloudflare Dashboard → Worker `qrcek` → Settings → Builds, dan **matikan automatic
+deployment** (atau putuskan Git integration) sampai migrasi selesai. Setelah migrasi dan
+verifikasi, push kode lalu nyalakan kembali auto-deploy. Jangan mengandalkan "kebetulan
+build masih berjalan" seperti pada rilis `0010`.
 
 1. Backup remote: `npx wrangler d1 export absensi-db --remote --output /tmp/opencode/qrcek-backup-$(date -u +%Y-%m-%d)-pre-0010.sql`.
-2. Hitung kandidat backfill: `SELECT COUNT(*) FROM participants WHERE qr_token_hash IS NOT NULL AND qr_token_ciphertext IS NOT NULL AND qr_token_nonce IS NOT NULL AND qr_key_version IS NOT NULL AND qr_issued_at IS NOT NULL` (sama dengan `countLegacyQrCandidates`). Catat angkanya.
-3. Deploy kode additive (kode baru sudah membaca `qr_identities` dengan fallback promosi).
-4. Setelah konfirmasi eksplisit pemilik: `npm run db:migrate:remote`.
-5. Verifikasi: `app_meta.schema_version = 10`, tabel `qr_identities`, dua index, dua trigger ada, jumlah baris = kandidat, `GET /api/health/ready` → 200.
-6. Smoke di Tema uji: cetak label, scan, rotasi, scan token lama (`not_found`), audit `qr.identity_rotated` tanpa token.
+2. Hitung kandidat backfill:
+   `SELECT COUNT(*) FROM participants WHERE qr_token_hash IS NOT NULL AND qr_token_ciphertext IS NOT NULL AND qr_token_nonce IS NOT NULL AND qr_key_version IS NOT NULL AND qr_issued_at IS NOT NULL`.
+   Catat angkanya.
+3. Setelah konfirmasi eksplisit pemilik: `npm run db:migrate:remote`.
+4. Baru push/merge kode ke `main` (atau biarkan build yang sudah berjalan selesai setelah
+   migrasi). Jangan membalik langkah 3 dan 4.
+5. Verifikasi: `app_meta.schema_version = 10`, tabel `qr_identities`, dua index, dua trigger
+   ada, jumlah baris = kandidat, `GET /api/health/ready` → 200.
+6. Smoke di Tema uji dengan sesi produksi: cetak label, scan, rotasi, scan token lama
+   (`not_found`), audit `qr.identity_rotated` tanpa token.
 7. **Jangan** menghapus `participants.qr_*` pada rilis ini; itu migrasi contract terpisah.
+
+**Yang benar-benar terjadi pada 9 November 2026:**
+
+- Backup: `/tmp/opencode/qrcek-backup-2026-11-09-pre-0010.sql` (149 KB).
+- Kandidat: **60** (dari 80 peserta).
+- Commit `ad02903` di-push dan Workers Builds berstatus **success**. Migrasi `0010` diterapkan
+  ke remote saat build masih berjalan (02:34 UTC), sehingga deploy baru mendarat di atas
+  skema `10`.
+- Hasil: `schema_version = 10`, `qr_identities = 60`, 2 index unik + 2 trigger, `mismatched = 0`.
+- **Belum dijalankan:** smoke dengan sesi produksi (cetak → scan → rotasi → token lama
+  ditolak). Butuh kredensial pemilik; dicatat di §8.
 
 ---
 
@@ -441,15 +477,30 @@ Tujuan: token dan `qr_token_hash` **tidak berubah**; hanya ciphertext, nonce, da
 diperbarui. QR yang sudah dicetak tetap sah.
 
 1. Siapkan kunci baru: `NEW_KEY="$(openssl rand -base64 32)"`, `NEW_VERSION=<versi+1>`.
-2. Jalankan skrip satu kali (Worker/Node dengan akses D1) yang membaca baris
-   `WHERE qr_key_version = <versi lama>`, memanggil `reencryptQrCredential(configLama,
-   configBaru, row)`, lalu `UPDATE participants SET qr_token_ciphertext = ?, qr_token_nonce = ?,
-   qr_key_version = ? WHERE id = ?`. Skrip harus memproses per batch dan berhenti pada error
-   pertama; jangan pernah menulis plaintext.
-3. Setelah **semua** baris versi lama selesai, pasang `QR_ENCRYPTION_KEY` baru dan
-   `QR_KEY_VERSION` baru sebagai secret Worker.
-4. Verifikasi: cetak ulang satu label lama → QR harus identik dengan hasil sebelumnya, dan scan
-   (Tahap 5) harus menemukan peserta yang sama.
+2. Jalankan skrip satu kali (Worker/Node dengan akses D1). **Runtime membaca
+   `qr_identities`**, jadi tabel itu wajib diperbarui; `participants` hanya mirror untuk
+   rollback dan baris legacy yang belum dipromosikan. Skrip harus:
+   - memproses `qr_identities WHERE key_version = <versi lama>` per batch, memanggil
+     `reencryptQrCredential(configLama, configBaru, row)`, lalu
+     `UPDATE qr_identities SET ciphertext = ?, nonce = ?, key_version = ?
+      WHERE id = ? AND key_version = ?` (guard versi lama);
+   - untuk setiap identity yang punya mirror `participants.qr_token_hash IS NOT NULL`,
+     menulis ciphertext/nonce/key_version yang **sama** ke `participants` dengan guard
+     `qr_key_version = <versi lama>`;
+   - untuk peserta legacy yang belum punya baris `qr_identities`, memproses
+     `participants WHERE qr_token_hash IS NOT NULL AND qr_key_version = <versi lama>` dan
+     memperbarui kolom legacy saja (promosi tetap terjadi saat label berikutnya dibaca).
+   - `participants.qr_token_hash` **tidak berubah**; token, hash, dan QR tercetak tetap sama.
+   Skrip harus berhenti pada error pertama; jangan pernah menulis plaintext.
+3. Verifikasi tidak ada baris versi lama tersisa di **kedua** tabel:
+   `SELECT COUNT(*) FROM qr_identities WHERE key_version = <versi lama>` dan
+   `SELECT COUNT(*) FROM participants WHERE qr_token_hash IS NOT NULL AND qr_key_version = <versi lama>`.
+   Keduanya harus `0` sebelum langkah berikutnya.
+4. Pasang `QR_ENCRYPTION_KEY` baru dan `QR_KEY_VERSION` baru sebagai secret Worker.
+5. Verifikasi: cetak ulang **dua** label — satu peserta yang kredensialnya berasal dari backfill
+   legacy dan satu peserta yang diterbitkan setelah `0010` — QR harus identik dengan hasil
+   sebelumnya, dan scan harus menemukan peserta yang sama. Jika hanya `participants` yang
+   diperbarui, cetak ulang peserta `qr_identities` akan `500` (versi kunci tidak cocok).
 
 Jangan membalik urutan langkah 2 dan 3: Worker dengan kunci baru tidak bisa mendekripsi baris
 lama, dan itu akan terlihat sebagai `500` pada cetak ulang (bukan kerusakan data).
@@ -464,9 +515,10 @@ lama, dan itu akan terlihat sebagai `500` pada cetak ulang (bukan kerusakan data
 - Dua admin yang mencetak bersamaan untuk peserta yang sama menghasilkan satu kredensial:
   `INSERT ... ON CONFLICT DO NOTHING` pada `uq_qr_identity_participant` menentukan pemenang,
   yang kalah membaca ulang baris pemenang.
-- Batas satu request adalah **40 label**. Angka ini diturunkan dari 50 setelah `qr_identities`
-  menambah satu insert per peserta: terukur 49 statement untuk 40 label (batas D1 50/invokasi),
-  sedangkan reprint hanya 8. Untuk acara besar, cetak per batch.
+- Batas satu request adalah **38 label**. Angka ini diturunkan dari 50 setelah `qr_identities`
+  menambah satu insert per peserta: terukur 47 statement untuk 38 label, 48 pada jalur
+  lost-race (batas D1 50/invokasi), sedangkan reprint hanya 8. Untuk acara besar, cetak per
+  batch.
 - Format: A4 3 × 8 (24 label/halaman, margin 8 mm) dan stiker 50 × 30 mm (satu label/halaman).
   Cetak lewat dialog browser (`window.print()`); tidak ada PDF di server. Di dialog cetak,
   matikan "Headers and footers" dan set skala 100% agar ukuran mm tidak berubah.
@@ -489,13 +541,14 @@ lama, dan itu akan terlihat sebagai `500` pada cetak ulang (bukan kerusakan data
 | Rate limit di balik NAT bersama | Setelah ada pengguna nyata | Amati 429 pada petugas yang berbagi IP; naikkan batas bila perlu |
 | Verifikasi lokal | Setiap rilis | `npm run typecheck` → `lint` → `test` → `build`; Workers Builds hanya build + deploy, tidak menjalankan test |
 | Batas baris import final | Setelah pengukuran CPU | Naikkan `MAX_IMPORT_ROWS` bertahap sambil memantau CPU |
-| Batas batch label 40 | Setelah deploy pertama | Ukur CPU `wrangler tail` saat cetak 40 label; angka lokal (crypto 100 ≈ 9 ms p50) adalah proksi, bukan CPU tertagih |
+| Batas batch label 38 | Setelah deploy pertama | Ukur CPU `wrangler tail` saat cetak 38 label; angka lokal (crypto 100 ≈ 7 ms p50) adalah proksi, bukan CPU tertagih |
 | Ukuran dan keterbacaan QR hasil cetak | Uji manual sebelum rilis | Cetak A4 + stiker, ukur dengan penggaris, pindai dengan kamera HP |
 | Rotasi kunci QR | Sebelum rotasi produksi pertama | Uji prosedur §7.5 di database salinan; pastikan QR lama tetap identik |
 | Penerapan `0009` dan jumlah backfill produksi | Selesai (dokumentasi 8 November 2026) | Backup (`/tmp/opencode/qrcek-backup-2026-11-08-post-0008.sql`), hitung kandidat backfill (0), apply remote, verifikasi `schema_version = 9` dan jumlah baris (0) |
-| Penerapan `0010` dan jumlah backfill produksi | Sebelum rilis Q4 | Backup pre-0010, hitung kandidat, deploy kode, apply remote setelah konfirmasi, verifikasi `schema_version = 10` dan jumlah baris = kandidat (§6.3) |
+| Penerapan `0010` dan jumlah backfill produksi | **Selesai 9 November 2026** | Backup pre-0010 (149 KB), kandidat 60, apply remote, verifikasi `schema_version = 10` dan 60 baris (§6.3) |
+| Smoke produksi Q4 dengan sesi nyata | **Belum; menunggu pemilik** | Cetak label, scan, rotasi, scan token lama (`not_found`), periksa audit `qr.identity_rotated` tanpa token (§6.3 langkah 6) |
 | CPU produksi route entitlement | Setelah deploy Q3 | `wrangler tail`; matriks/batch 15 baris adalah kandidat terberat |
-| CPU produksi rotasi/QR label | Setelah deploy Q4 | `wrangler tail` saat cetak 40 label dan rotasi; lokal 49 statement / 48 ms adalah proksi |
+| CPU produksi rotasi/QR label | Setelah deploy Q4 | `wrangler tail` saat cetak 38 label dan rotasi; lokal 47 statement / 45 ms adalah proksi |
 
 Repo ini tidak memakai GitHub Actions. Workers Builds hanya menjalankan build dan deploy, bukan
 test suite, jadi verifikasi wajib dijalankan lokal sebelum merge/deploy; jangan menyimpulkan
@@ -687,3 +740,16 @@ curl -sI "$base/assets/" 2>/dev/null | head -1   # aset ada
   itu keputusan pemilik proyek.
 - Jangan rollback ke versi yang lebih tua dari skema database saat ini tanpa memeriksa
   kompatibilitas query-nya.
+- **Khusus Q4:** rotasi menyalin kredensial baru ke `participants.qr_*` dengan guard
+  `token_hash`, jadi rollback ke Worker pra-`0010` **tidak** menghidupkan token yang sudah
+  dicabut. Namun Worker lama tidak membaca `qr_identities`: peserta yang kredensialnya hanya
+  pernah diterbitkan setelah `0010` akan tampak "belum punya QR" dan scan-nya gagal sampai
+  Worker baru dipulihkan. Jangan menghapus `qr_identities` saat rollback.
+- **Kredensial yang terbit selama rollback belum tentu dikenali setelah roll-forward.**
+  Worker pra-`0010` menulis kredensial baru hanya ke `participants.qr_*`; baris
+  `qr_identities` tidak bertambah. Setelah Worker baru dipulihkan, lookup **scan** membaca
+  `qr_identities` saja, sehingga kartu yang dicetak pada jendela rollback akan `not_found`
+  sampai peserta itu dicetak/dipromosikan sekali lewat `POST .../qr-labels`. Setelah
+  roll-forward, jalankan promosi untuk setiap peserta yang menerima kartu baru selama
+  rollback, lalu scan ulang kartu tersebut. Jangan mengandalkan `qr_identities` yang lebih
+  tua sebagai sumber kebenaran untuk kredensial rollback.

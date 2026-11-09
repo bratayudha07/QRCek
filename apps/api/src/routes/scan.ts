@@ -109,14 +109,16 @@ async function scan(ctx: RouteContext): Promise<RouteResult> {
   if (decision.outcome === "rejected" && decision.reason === "wrong_theme") {
     // Audited, but the response deliberately returns no event or participant
     // details so a scanned label cannot be used to enumerate another event.
+    // The audit row follows the same rule: the other Tema's identifiers are not
+    // persisted, only the outcome and the actor that attempted the scan.
     await recordAudit(ctx.env.DB, {
       id: newId(ctx.now),
       eventId,
       actorUserId: auth.user.id,
       action: "attendance.wrong_event",
-      entityType: "participant",
-      entityId: participant.id,
-      after: { participantEventId: participant.identity_theme_id },
+      entityType: "scan_attempt",
+      entityId: null,
+      after: { outcome: "wrong_theme" },
       ipHash,
       createdAt: ctx.now,
     });

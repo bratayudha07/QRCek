@@ -206,6 +206,25 @@ describe("PUT /participants/:participantId/qr/rotate", () => {
     // History is untouched: same attendance count and row.
     expect(await attendanceCount(w.eventA)).toBe(1);
 
+    // The legacy mirror follows the rotation so a Worker rollback cannot
+    // revive the token that was just revoked.
+    const mirror = await testEnv.DB.prepare(
+      `SELECT p.qr_token_hash AS legacy_hash, p.qr_issued_at AS legacy_issued_at,
+              q.token_hash AS identity_hash, q.issued_at AS identity_issued_at
+         FROM participants p
+         JOIN qr_identities q ON q.participant_id = p.id AND q.theme_id = p.event_id
+        WHERE p.id = ?`,
+    )
+      .bind(participant.id)
+      .first<{
+        legacy_hash: string;
+        legacy_issued_at: number;
+        identity_hash: string;
+        identity_issued_at: number;
+      }>();
+    expect(mirror?.legacy_hash).toBe(mirror?.identity_hash);
+    expect(mirror?.legacy_issued_at).toBe(mirror?.identity_issued_at);
+
     const oldToken = await scan(w.officerA.cookie, w.eventA, oldQr);
     const oldBody = oldToken.json<ScanResultPayload>();
     expect(oldBody.ok && oldBody.data.result).toBe("not_found");
@@ -310,6 +329,39 @@ describe("PUT /participants/:participantId/qr/rotate", () => {
     expect(audits?.n).toBe(1);
   });
 
+  it("does not rotate twice when a retry carries a stale rotation count", async () => {
+    const w = await world();
+    const participant = await createParticipant(w.eventA, { fullName: "Siti" });
+    await print(w.eventA, w.adminA.cookie, participant.id);
+
+    const first = await rotate(w.eventA, participant.id, w.adminA.cookie, {
+      reason: "Kartu peserta hilang",
+      expectedRotationCount: 0,
+    });
+    expect(first.status).toBe(200);
+
+    const hashBefore = await testEnv.DB.prepare(
+      "SELECT token_hash FROM qr_identities WHERE participant_id = ?",
+    )
+      .bind(participant.id)
+      .first<{ token_hash: string }>();
+
+    const retry = await rotate(w.eventA, participant.id, w.adminA.cookie, {
+      reason: "Kartu peserta hilang",
+      expectedRotationCount: 0,
+    });
+    expect(retry.status).toBe(409);
+    expect(errorCode(retry)).toBe("CONFLICT");
+
+    const after = await testEnv.DB.prepare(
+      "SELECT token_hash, rotation_count FROM qr_identities WHERE participant_id = ?",
+    )
+      .bind(participant.id)
+      .first<{ token_hash: string; rotation_count: number }>();
+    expect(after?.token_hash).toBe(hashBefore?.token_hash);
+    expect(after?.rotation_count).toBe(1);
+  });
+
   it("refuses to mutate an archived Tema", async () => {
     const w = await world();
     const participant = await createParticipant(w.eventA, { fullName: "Siti" });
@@ -335,11 +387,20 @@ describe("QR scan scope", () => {
     expect(await attendanceCount(w.eventB)).toBe(0);
 
     const audit = await testEnv.DB.prepare(
-      "SELECT COUNT(*) AS n FROM audit_log WHERE event_id = ? AND action = 'attendance.wrong_event'",
+      `SELECT entity_type, entity_id, after_json
+         FROM audit_log WHERE event_id = ? AND action = 'attendance.wrong_event'`,
     )
       .bind(w.eventB)
-      .first<{ n: number }>();
-    expect(audit?.n).toBe(1);
+      .first<{ entity_type: string; entity_id: string | null; after_json: string }>();
+
+    expect(audit?.entity_type).toBe("scan_attempt");
+    expect(audit?.entity_id).toBeNull();
+
+    // The scanning tenant can read this audit row, so the other Tema's
+    // identifiers must not be persisted (no cross-tenant enumeration).
+    expect(audit?.after_json).not.toContain(participant.id);
+    expect(audit?.after_json).not.toContain(w.eventA);
+    expect(JSON.parse(audit?.after_json ?? "{}")).toEqual({ outcome: "wrong_theme" });
   });
 });
 
@@ -371,6 +432,35 @@ describe("GET /participants/:participantId/qr", () => {
       keyVersion: 1,
     });
     expect(JSON.stringify(afterBody.data)).not.toContain(token);
+  });
+
+  it("reports a legacy credential without promoting it on a GET", async () => {
+    const w = await world();
+    const participant = await createParticipant(w.eventA, { fullName: "Siti" });
+    const legacyQr = await seedLegacyParticipantQr(w.eventA, participant.id);
+
+    const response = await callApi(metadataPath(w.eventA, participant.id), {
+      cookie: w.adminA.cookie,
+    });
+    const body = response.json<QrIdentityMetadataPayload>();
+    if (!body.ok || !body.data.identity) throw new Error("expected legacy identity metadata");
+
+    expect(body.data.identity).toMatchObject({
+      participantId: participant.id,
+      rotationCount: 0,
+      rotatedAt: null,
+      keyVersion: 1,
+    });
+    expect(JSON.stringify(body.data)).not.toContain(
+      legacyQr.slice("absensi:v1:".length),
+    );
+
+    const identities = await testEnv.DB.prepare(
+      "SELECT COUNT(*) AS n FROM qr_identities WHERE participant_id = ?",
+    )
+      .bind(participant.id)
+      .first<{ n: number }>();
+    expect(identities?.n).toBe(0);
   });
 
   it("is scoped by Tema and by the print permission", async () => {

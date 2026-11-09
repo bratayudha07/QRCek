@@ -4,6 +4,7 @@ import type { LabelConfigPayload, LabelFieldKey, QrLabelItem, QrLabelPayload } f
 import {
   EventIdSchema,
   LabelConfigRequestSchema,
+  QR_LABEL_BATCH_MAX,
   QrLabelRequestSchema,
   formatLabelValue,
   labelFieldMeta,
@@ -59,10 +60,10 @@ const EventParamsSchema = z.object({ eventId: EventIdSchema });
 
 /**
  * D1 accepts at most 100 SQL statements per `batch` call. The page itself is
- * capped at `QR_LABEL_BATCH_MAX` (40) so the whole invocation stays under the
- * free-tier 50-statement limit after auth and audit queries.
+ * capped at `QR_LABEL_BATCH_MAX` (38) so the whole invocation stays under the
+ * free-tier 50-statement limit after auth, reads, lost-race recovery, and audit.
  */
-const CLAIM_BATCH_SIZE = 40;
+const CLAIM_BATCH_SIZE = QR_LABEL_BATCH_MAX;
 
 /**
  * Configuration failures are 500s on purpose: they mean the Worker is missing a

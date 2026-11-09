@@ -48,8 +48,17 @@ export interface RotateQrIdentityInput {
   expectedRotationCount: number;
 }
 
+export interface MirrorRotatedCredentialInput {
+  identityId: string;
+  themeId: string;
+  participantId: string;
+  credential: QrCredential;
+  /** Original issuance time, so the legacy mirror stays a complete credential. */
+  issuedAt: number;
+}
+
 /**
- * Bounded parameters per query (D1 limit is 100). Label pages are at most 40,
+ * Bounded parameters per query (D1 limit is 100). Label pages are at most 38,
  * so this only matters if the helper is reused for larger batches.
  */
 const IN_CHUNK_SIZE = 90;
@@ -67,7 +76,7 @@ export async function findIdentityParticipantByHash(
     .prepare(
       `SELECT q.id AS identity_id, q.theme_id AS identity_theme_id, p.*
          FROM qr_identities q
-         JOIN participants p ON p.id = q.participant_id
+         JOIN participants p ON p.id = q.participant_id AND p.event_id = q.theme_id
         WHERE q.token_hash = ?`,
     )
     .bind(tokenHash)
@@ -174,6 +183,43 @@ export function rotateQrIdentityStatement(
     );
 }
 
+/**
+ * Keeps the legacy `participants.qr_*` mirror in sync with a rotation.
+ *
+ * The legacy columns are still read by a Worker deployed before `0010`. Without
+ * this statement, rolling the Worker back would revive the token that rotation
+ * just revoked (FR-059, AC-016). The `EXISTS` guard ties the mirror to the
+ * rotation that actually landed: a request that lost the counter race writes
+ * neither the identity nor the mirror. `issued_at` stays the original issuance
+ * time so the mirrored credential remains complete for the legacy reader.
+ */
+export function mirrorRotatedCredentialToLegacyStatement(
+  db: D1Database,
+  input: MirrorRotatedCredentialInput,
+): D1PreparedStatement {
+  return db
+    .prepare(
+      `UPDATE participants
+          SET qr_token_hash = ?, qr_token_ciphertext = ?, qr_token_nonce = ?,
+              qr_key_version = ?, qr_issued_at = ?
+        WHERE event_id = ? AND id = ?
+          AND EXISTS (
+            SELECT 1 FROM qr_identities WHERE id = ? AND token_hash = ?
+          )`,
+    )
+    .bind(
+      input.credential.tokenHash,
+      input.credential.ciphertext,
+      input.credential.nonce,
+      input.credential.keyVersion,
+      input.issuedAt,
+      input.themeId,
+      input.participantId,
+      input.identityId,
+      input.credential.tokenHash,
+    );
+}
+
 /** The five credential values stored on `participants` before `0010`. */
 export interface LegacyQrCredential {
   credential: QrCredential;
@@ -202,21 +248,3 @@ export function legacyQrCredential(row: ParticipantRow): LegacyQrCredential | nu
   };
 }
 
-/**
- * Number of complete legacy credentials that would be copied by `0010`.
- * Used by the release procedure to size the backfill before touching remote D1.
- */
-export async function countLegacyQrCandidates(db: D1Database): Promise<number> {
-  const row = await db
-    .prepare(
-      `SELECT COUNT(*) AS n FROM participants
-        WHERE qr_token_hash IS NOT NULL
-          AND qr_token_ciphertext IS NOT NULL
-          AND qr_token_nonce IS NOT NULL
-          AND qr_key_version IS NOT NULL
-          AND qr_issued_at IS NOT NULL`,
-    )
-    .first<{ n: number }>();
-
-  return row?.n ?? 0;
-}

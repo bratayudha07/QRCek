@@ -92,7 +92,7 @@ WHERE p.qr_token_hash IS NOT NULL
 ```
 
 - Hanya kredensial lengkap yang di-backfill; kartu tercetak tetap sah.
-- ID dibuat deterministik dari pasangan `(theme_id, participant_id)` agar migrasi idempoten bila diulang pada salinan.
+- ID memakai `randomblob(16)` (bukan deterministik); idempotensi berasal dari guard `NOT EXISTS` pada pasangan `(theme_id, participant_id)`, sehingga blok aman diulang pada salinan.
 - Sebelum apply remote: hitung `COUNT(*)` kandidat; bila >10.000 baris, pecah per Tema atau minta persetujuan pemilik (`COSTS_AND_LIMITS.md`).
 
 ## 5. Domain dan akses database
@@ -156,7 +156,7 @@ Perilaku rotasi:
 ### 6.3 Ekspor batch
 
 - `POST .../participants/qr-labels` tetap jalur utama; respons memuat `payload` per peserta.
-- Batas batch awal **50** (`QR_LABEL_BATCH_MAX`), diverifikasi ulang dengan `spike.qr-labels.measure.test.ts`; bila CPU/statement menurun, batas boleh naik, tidak boleh melebihi 50 tanpa pengukuran baru.
+- Batas batch final **38** (`QR_LABEL_BATCH_MAX`), diturunkan dari 50 setelah `qr_identities` menambah satu insert per peserta. Diukur dengan `qr-labels.statements.test.ts`: 47 statement saat terbit, 8 reprint, 48 pada jalur lost-race (batas 50).
 - Audit `qr.labels_exported` menyimpan `count`, `issued`, `reused`; tanpa token/nama.
 - Backend **tidak** merender PNG/ZIP; browser yang merender (Q9). Worker hanya mengembalikan payload.
 
@@ -268,19 +268,32 @@ Urutan wajib: **typecheck → lint → test → build**. Iterasi pakai tes terfo
 
 ## 14. Rollout
 
+**Urutan wajib: migrasi dulu, deploy kemudian.** Workers Builds otomatis men-deploy push ke
+`main`, jadi migrasi harus selesai sebelum push (atau auto-deploy dimatikan sementara). Kode
+lama tidak membaca `qr_identities`, jadi migrasi additive aman lebih dulu; urutan sebaliknya
+membuat scan/label/rotasi `500` selama jendela deploy.
+
+0. **Eksplisit:** matikan auto-deploy Workers Builds sebelum push (Cloudflare Dashboard →
+   Worker `qrcek` → Settings → Builds), lalu nyalakan lagi setelah migrasi + verifikasi.
+   Jangan bergantung pada build yang kebetulan masih berjalan.
+
 1. Backup D1 remote sebelum migrasi (`wrangler d1 export` ke `/tmp/opencode/`).
 2. Hitung kandidat backfill; catat angkanya.
-3. Push `main` → Workers Builds deploy (kode additive; membaca `qr_identities` dengan fallback promote).
-4. `npm run db:migrate:remote` setelah konfirmasi eksplisit pemilik.
+3. `npm run db:migrate:remote` setelah konfirmasi eksplisit pemilik.
+4. Push `main` → Workers Builds deploy.
 5. Verifikasi: `schema_version = 10`, tabel/index/trigger ada, jumlah baris backfill = kandidat, `GET /api/health/ready` 200.
-6. Smoke: cetak/rotasi peserta uji di Tema uji; token lama ditolak; audit tercatat tanpa token.
+6. Smoke dengan sesi produksi: cetak/rotasi peserta uji di Tema uji; token lama ditolak; audit tercatat tanpa token.
 7. Jangan menghapus kolom `participants.qr_*` pada rilis ini.
+
+**Realisasi 9 November 2026:** backup 149 KB → kandidat 60 → push `ad02903` → apply `0010`
+saat build masih berjalan (02:34 UTC) → build success → `schema_version = 10`, 60 baris,
+`mismatched = 0`, health 200. Smoke sesi produksi belum dijalankan pemilik.
 
 ## 15. Risiko
 
 | Risiko | Mitigasi |
 |---|---|
-| Jendela deploy: kode lama menulis kolom lama, kode baru tidak melihatnya | Promote-on-read sebelum penerbitan baru; unique index mencegah duplikat. |
+| Jendela deploy: kode lama menulis kolom lama, kode baru tidak melihatnya | Migrasi dulu baru deploy; promote-on-read sebelum penerbitan baru; unique index mencegah duplikat. |
 | Rotasi tidak sengaja (tombol/klik ganda) | Alasan wajib + audit + respons menampilkan `rotationCount`; pertimbangkan konfirmasi UI di Q9. |
 | Backfill besar melewati kuota tulis | Hitung kandidat; pecah per Tema bila >10.000 baris. |
 | Token bocor lewat log/audit | Allowlist audit; tidak ada token di log; payload hanya di respons berizin. |
@@ -291,13 +304,13 @@ Urutan wajib: **typecheck → lint → test → build**. Iterasi pakai tes terfo
 
 Diisi setelah implementasi.
 
-1. **Batas batch 50 → 40.** Setelah `qr_identities` diperkenalkan, satu halaman label mengirim
-   40 insert + auth/baca/audit. Diukur dengan `qr-labels.statements.test.ts`: **49 statement**
-   saat terbit dan **8** saat reprint. Dengan 50 label, jumlahnya melewati batas D1 50
-   statement/invokasi, jadi `QR_LABEL_BATCH_MAX` dan default diturunkan ke 40.
+1. **Batas batch 50 → 38.** Setelah `qr_identities` diperkenalkan, satu halaman label mengirim
+   38 insert + auth/baca/audit. Diukur dengan `qr-labels.statements.test.ts`: **47 statement**
+   saat terbit, **8** saat reprint, dan **48** pada jalur lost-race (satu query baca ulang).
+   Dengan 38 label masih ada dua statement headroom di bawah batas D1 50/invokasi.
 2. **Audit penerbitan lazy digabung per request.** Rencana awal menyebut audit penerbitan;
    implementasi menulis **satu** `qr.identity_issued` berisi `count`, bukan satu baris per
-   peserta. Alasan: 40 baris audit tambahan akan melewati anggaran statement. Promosi
+   peserta. Alasan: 38 baris audit tambahan akan melewati anggaran statement. Promosi
    kredensial lama tidak menulis audit per baris; promosi tercatat sebagai `promoted` di
    `qr.labels_exported`.
 3. **Guard audit rotasi memakai `token_hash`, bukan `rotation_count`.** Dua rotasi paralel
@@ -312,15 +325,28 @@ Diisi setelah implementasi.
    kode hasil baseline dipertahankan dan dibuktikan lewat `decideQrScan`, yang memeriksa scope
    Tema sebelum status peserta. Ini menjaga kompatibilitas UI scan Q6 dan tidak membocorkan
    status peserta Tema lain.
-6. **Route rotasi memakai `PUT .../qr/rotate`** (bukan `POST`) karena operasinya idempoten
-   terhadap satu permintaan: `rotationCount` naik sekali, dan permintaan kedua dengan state
-   lama menjadi `409`. Metadata ada di `GET .../qr`.
-7. **`qr_identities` tidak punya `updated_at`.** Rotasi memakai `rotated_at` + `rotation_count`;
-   tidak ada kolom audit tambahan. Riwayat lengkap ada di `audit_log`.
-8. **ZIP tetap diputuskan di Q9.** Q4 tidak menambah dependensi ZIP dan tidak merender PNG di
-   Worker; backend hanya mengembalikan payload scan per peserta.
-9. **Verifikasi 9 November 2026:** `typecheck` PASS, `lint` PASS, `test` **667 tes di 65 file**
-   PASS, `build` PASS. Backfill `0010` diuji dengan menjalankan blok `INSERT ... SELECT` dari
-   `__MIGRATIONS__` pada baris lama lengkap dan setengah jadi; scan lintas Tema diuji lewat HTTP
-   (`wrong_event`, tanpa baris `attendance`). Angka ini snapshot lokal; migrasi `0010` belum
-   diterapkan di remote, jadi gate Q4 belum ditutup.
+6. **Route rotasi memakai `PUT .../qr/rotate`** (bukan `POST`). Idempotensi retry ditegakkan
+   lewat field opsional `expectedRotationCount`: pemanggil mengirim `rotationCount` yang
+   terakhir dibaca, dan nilai basi menghasilkan `409` sebelum token baru dibuat. Tanpa field
+   itu, permintaan kedua tetap merotasi (perilaku lama). Metadata ada di `GET .../qr`.
+7. **Mirror kredensial rotasi ke `participants.qr_*`** dalam batch yang sama, dengan guard
+   `token_hash`. Tanpa mirror ini, rollback Worker ke versi pra-`0010` menghidupkan kembali
+   token yang baru dicabut. Penerbitan baru tidak di-mirror karena akan melewati anggaran 50
+   statement label; konsekuensinya, Worker lama melihat peserta itu "belum punya QR".
+8. **Audit `attendance.wrong_event` tidak menyimpan ID lintas Tema.** Snapshot hanya
+   `{ outcome: "wrong_theme" }`, `entity_type = scan_attempt`, `entity_id = null`. Admin Tema
+   yang melakukan scan dapat membaca audit itu, jadi ID peserta/Tema asal tidak boleh ikut.
+9. **Carve-out cetak pada Tema `archived` dipertahankan.** Penerbitan kredensial bukan
+   perubahan data bisnis dan acara `archived` tidak menerima absensi, jadi kredensial baru
+   tidak dapat menghasilkan transaksi. Rotasi pada Tema `archived` tetap ditolak. Dicatat di
+   `docs/DESAIN_API.md` §5.
+10. **`qr_identities` tidak punya `updated_at`.** Rotasi memakai `rotated_at` + `rotation_count`;
+    tidak ada kolom audit tambahan. Riwayat lengkap ada di `audit_log`.
+11. **ZIP tetap diputuskan di Q9.** Q4 tidak menambah dependensi ZIP dan tidak merender PNG di
+    Worker; backend hanya mengembalikan payload scan per peserta.
+12. **Verifikasi 9 November 2026:** `typecheck` PASS, `lint` PASS, `test` **672 tes di 65
+    file** PASS, `build` PASS. Backfill `0010` diuji dengan menjalankan blok `INSERT ... SELECT` dari
+    `__MIGRATIONS__` pada baris lama lengkap dan setengah jadi; scan lintas Tema diuji lewat HTTP
+    (`wrong_event`, tanpa baris `attendance`). Migrasi `0010` sudah diterapkan remote
+    (`schema_version = 10`, 60 baris, `mismatched = 0`) dan Workers Builds `ad02903` success;
+    gate Q4 ditutup dengan catatan smoke sesi produksi belum dijalankan pemilik.

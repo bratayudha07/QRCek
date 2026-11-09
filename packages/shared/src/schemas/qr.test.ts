@@ -27,6 +27,18 @@ describe("RotateQrRequestSchema", () => {
     );
   });
 
+  it("accepts an optional non-negative rotation counter", () => {
+    expect(
+      RotateQrRequestSchema.parse({ reason: "kartu hilang", expectedRotationCount: 0 }),
+    ).toEqual({ reason: "kartu hilang", expectedRotationCount: 0 });
+    expect(
+      RotateQrRequestSchema.safeParse({ reason: "kartu hilang", expectedRotationCount: -1 }).success,
+    ).toBe(false);
+    expect(
+      RotateQrRequestSchema.safeParse({ reason: "kartu hilang", expectedRotationCount: 1.5 }).success,
+    ).toBe(false);
+  });
+
   it("keeps the minimum below the maximum", () => {
     expect(QR_ROTATION_REASON_MIN).toBeLessThan(QR_ROTATION_REASON_MAX);
   });
