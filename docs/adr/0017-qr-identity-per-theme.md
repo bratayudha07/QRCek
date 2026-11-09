@@ -2,12 +2,12 @@
 
 | Atribut | Nilai |
 |---|---|
-| Status | **Diusulkan** — calon jawaban AQ-009; belum disetujui pemilik proyek |
+| Status | **Diterima** 9 November 2026 (pemilik proyek menyetujui Opsi A dan tujuh sub-keputusan) |
 | Tanggal | 2026-11-09 |
-| Menjawab | AQ-009 (`docs/ARCHITECTURE.md` §6) — **usulan, bukan jawaban final** |
+| Menjawab | AQ-009 (`docs/ARCHITECTURE.md` §6) — **dijawab** |
 | Terkait kebutuhan | `FR-004`, `FR-054`–`FR-065`, `FR-200`; `BR-002`, `BR-024`–`BR-029`; `AC-015`–`AC-018`; `D-004` [A], `D-016` [A], `D-019` [A] |
 | Tetap berlaku | ADR-0003 (token opaque), ADR-0006 (hash + ciphertext), prefix `absensi:v1:` (`D-019` [A]), `NG-06` (tanpa mode offline) |
-| Memblokir | Q4 |
+| Memblokir (sebelum diterima) | Q4 — dibuka 9 November 2026 setelah ADR ini diterima |
 | Dampak | Migrasi `0010_*` (additive), tabel `qr_identities`, route rotasi, ekspor PNG/ZIP, audit `qr.*`, pemakaian ulang `domain/qr-token.ts` |
 
 ## Konteks
@@ -31,7 +31,7 @@ AQ-009 meminta keputusan: **di entitas mana kredensial melekat** dan **bagaimana
 
 ## Opsi
 
-### Opsi A — Tabel `qr_identities`, satu baris aktif per `(theme_id, participant_id)` (**direkomendasikan**)
+### Opsi A — Tabel `qr_identities`, satu baris aktif per `(theme_id, participant_id)` (dipilih)
 
 ```sql
 CREATE TABLE qr_identities (
@@ -71,7 +71,7 @@ CREATE UNIQUE INDEX uq_qr_identity_hash ON qr_identities(token_hash);
 - Setiap rotasi membuat baris baru; baris lama diberi `superseded_at`; transaksi bisa mereferensikan baris kredensial tertentu.
 - Kekurangan: lookup scan harus menyaring `superseded_at IS NULL`; data tumbuh setiap rotasi; `FR-060` tetap terpenuhi tetapi dengan biaya baris dan kompleksitas yang tidak diminta `REQUIREMENTS.md`.
 
-## Keputusan yang diusulkan
+## Keputusan
 
 **Opsi A.** Satu tabel `qr_identities` dengan satu baris aktif per `(theme_id, participant_id)`, memakai ulang `domain/qr-token.ts` (generate, hash, issue, reencrypt) dan dua secret yang sudah ada (`QR_PEPPER`, `QR_ENCRYPTION_KEY`, `QR_KEY_VERSION`).
 
@@ -80,7 +80,7 @@ Rancangan yang mengikuti opsi ini:
 1. **Skema additive `0010_*`.** Tabel baru + dua unique index parsial. Backfill dari kolom `participants.qr_*` yang **sudah terisi** agar kartu yang sudah tercetak tetap sah; peserta tanpa kredensial tidak dibuatkan baris sampai QR pertama dibutuhkan.
 2. **Kolom lama dipertahankan sampai Q4 stabil**, lalu dihapus lewat migrasi contract terpisah. Alasannya sama dengan pelajaran rilis Q2/`0008`: jangan mengubah dan menghapus dalam satu jendela.
 3. **Trigger konteks**: `participant_id` wajib milik `theme_id` yang sama (pola Q2/Q3). Trigger menolak baris lintas Tema; route tetap memvalidasi agar pesan ke admin jelas.
-4. **Rotasi**: `PUT /api/events/:eventId/participants/:participantId/qr/rotate` (nama final mengikuti `DESAIN_API.md` saat Q4 dibuka), hanya `event_admin` pada Tema itu atau Super Admin; alasan wajib bila disetujui pemilik; audit `qr.identity_rotated` di `db.batch()` yang sama. Token lama langsung tidak berlaku karena hash-nya diganti; ciphertext lama ikut diganti sehingga cetak ulang memakai token baru.
+4. **Rotasi**: `PUT /api/events/:eventId/participants/:participantId/qr/rotate` (nama final mengikuti `DESAIN_API.md` saat Q4 dibuka), hanya `event_admin` pada Tema itu atau Super Admin; **alasan wajib** (keputusan pemilik 9 November 2026); audit `qr.identity_rotated` di `db.batch()` yang sama. Token lama langsung tidak berlaku karena hash-nya diganti; ciphertext lama ikut diganti sehingga cetak ulang memakai token baru.
 5. **Scan**: resolver QR berada di jalur scan Q5/Q6. Lookup hash **harus** memverifikasi `identity.theme_id` sama dengan Tema konteks scan; QR Tema A di konteks Tema B = tidak ditemukan (`AC-015`). Peserta `inactive` ditolak (`FR-061`/`AC-017`).
 6. **Ekspor PNG/ZIP** (`D-016` [A]): backend mengotorisasi dan mengembalikan payload token (hasil dekripsi) per batch; browser merender PNG dan memaketkan ZIP. Batas batch mengikuti pengukuran baseline `QR_LABEL_BATCH_MAX = 50`. Audit `qr.labels_exported` menyimpan jumlah, bukan token.
 7. **Audit**: `qr.identity_issued`, `qr.identity_rotated`, `qr.labels_exported`; allowlist hanya `themeId`, `participantId`, `keyVersion`, `rotationCount`, `count`. Tidak ada token, hash, ciphertext, nonce, nama, atau email (`FR-062`, `FR-207`).
@@ -95,28 +95,26 @@ Rancangan yang mengikuti opsi ini:
 - Ekspor ZIP di browser membutuhkan keputusan dependensi atau implementasi manual; ini masuk justifikasi dependency Q4, bukan ADR ini.
 - Tidak ada perubahan pada `absensi:v1:` atau dua secret; QR yang sudah tercetak tetap sah setelah backfill.
 
-## Sub-keputusan yang perlu diputuskan pemilik proyek
+## Sub-keputusan (diputuskan pemilik proyek, 9 November 2026)
 
-| # | Pertanyaan | Opsi yang diusulkan |
+| # | Pertanyaan | Keputusan |
 |---|---|---|
-| 1 | Kapan kredensial dibuat? | (a) **Lazy saat cetak/unduh pertama** — hemat tulis, perilaku baseline (**rekomendasi**); (b) eager saat peserta dibuat/diimpor — lebih dekat bunyi `FR-004`, tetapi menambah satu baris + index per peserta (impor 1.000 baris). |
-| 2 | Siapa yang boleh merotasi token? | (a) **Admin Acara Tema itu + Super Admin** (rekomendasi); (b) Admin Acara saja; (c) hanya Super Admin. |
-| 3 | Apakah alasan rotasi wajib? | (a) **Wajib** seperti koreksi transaksi (`D-006`) karena rotasi membatalkan kartu fisik (**rekomendasi**); (b) opsional. |
-| 4 | Bagaimana nasib kredensial lama saat migrasi? | (a) **Backfill hash/ciphertext/nonce/key_version yang ada** agar kartu tercetak tetap sah (**rekomendasi**); (b) terbitkan ulang semua token (kartu lama hangus). |
-| 5 | Kapan kolom QR lama di `participants` dihapus? | (a) **Migrasi contract terpisah setelah Q4 stabil** (rekomendasi); (b) hapus di `0010` yang sama. |
-| 6 | QR peserta nonaktif ditolak di mana? | (a) **Saat scan, join status peserta** (rekomendasi, tanpa tulis tambahan); (b) cabut kredensial saat peserta dinonaktifkan (menulis + audit pada setiap perubahan status). |
-| 7 | Ekspor ZIP: dependensi browser atau implementasi manual? | (a) Library ZIP kecil dengan justifikasi satu baris; (b) implementasi manual (ZIP store-only) tanpa dependensi. Keputusan di Q4 setelah ukuran dan CPU diukur. |
+| 1 | Kapan kredensial dibuat? | **Lazy** — dibuat saat cetak/unduh pertama; peserta tanpa kredensial tidak punya baris sampai QR dibutuhkan. Ditafsirkan konsisten dengan `FR-004`: satu QR per Tema + Peserta, dibuat saat pertama diperlukan. |
+| 2 | Siapa yang boleh merotasi token? | **Admin Acara Tema itu + Super Admin.** |
+| 3 | Apakah alasan rotasi wajib? | **Wajib**, karena rotasi membatalkan kartu fisik. |
+| 4 | Bagaimana nasib kredensial lama saat migrasi? | **Backfill** `hash/ciphertext/nonce/key_version` yang sudah ada agar kartu tercetak tetap sah. |
+| 5 | Kapan kolom QR lama di `participants` dihapus? | **Migrasi contract terpisah** setelah Q4 stabil. |
+| 6 | QR peserta nonaktif ditolak di mana? | **Saat scan**, dengan join status peserta; tidak ada penulisan tambahan saat status berubah. |
+| 7 | Ekspor ZIP: dependensi browser atau implementasi manual? | **Diputuskan di Q4** setelah ukuran dan CPU diukur; ADR ini tidak mengunci pilihan, tetapi setiap dependensi wajib justifikasi satu baris (`AGENTS.md`). |
 
-Catatan: Opsi 1(a) perlu ditulis eksplisit terhadap `FR-004`. Jika pemilik membaca `FR-004` sebagai "setiap peserta wajib langsung punya QR", pilih 1(b) dan rencanakan backfill untuk peserta lama.
+## Keputusan pemilik proyek (9 November 2026)
 
-## Pertanyaan untuk pemilik proyek
+1. **Opsi A disetujui** — tabel `qr_identities`, satu baris aktif per `(theme_id, participant_id)`.
+2. **Sub-keputusan 1–7 disetujui** sesuai tabel di atas.
+3. **Riwayat rotasi cukup di audit** (bukan baris kredensial historis), sesuai `D-023` [A].
+4. **Q4 membuka kode + migrasi `0010`**; UI ekspor final masuk Q9, sedangkan backend + payload + batas batch tetap Q4.
 
-1. Setujui **Opsi A** (tabel `qr_identities`, satu baris aktif per `(theme_id, participant_id)`)?
-2. Setujui sub-keputusan 1–7 di atas, atau ada yang ingin diubah?
-3. Setujui bahwa riwayat rotasi cukup di audit (bukan baris kredensial historis), sesuai `D-023` [A]?
-4. Setujui bahwa Q4 hanya membuka **kode + migrasi `0010`**, tanpa UI ekspor final? (UI ekspor masuk Q9; backend + payload + batas batch tetap Q4.)
-
-Setelah dijawab, status ADR ini menjadi **Diterima**, AQ-009 ditutup di `docs/DECISIONS.md` dan `docs/ARCHITECTURE.md`, dan Q4 boleh dibuka di `docs/IMPLEMENTATION_ROADMAP.md`.
+Dengan keputusan ini AQ-009 ditutup di `docs/DECISIONS.md` dan `docs/ARCHITECTURE.md`, dan Q4 dibuka di `docs/IMPLEMENTATION_ROADMAP.md` pada 9 November 2026.
 
 ## Referensi
 

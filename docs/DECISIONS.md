@@ -86,7 +86,7 @@ Pertanyaan arsitektur terbuka (`AQ`): `REQUIREMENTS.md` §13.2 / `ARCHITECTURE.m
 | [0014](./adr/0014-categories-and-custom-fields.md) | Kategori dan custom field peserta | Diterima (AQ-006) | `FR-026`–`FR-036`, `D-008` [A] |
 | [0015](./adr/0015-archived-theme-is-read-only.md) | Tema terarsip membuat resource anak read-only | Diterima (detail Q1) | `D-003` [A], `D-010` [A] |
 | [0016](./adr/0016-entitlement-resolution.md) | Representasi dan resolusi entitlement | Diterima (AQ-005) | `D-005` [A], `FR-037`–`FR-045`, `FR-199` |
-| [0017](./adr/0017-qr-identity-per-theme.md) | QR Identity per Tema dan rotasi token | **Diusulkan** (calon jawaban AQ-009) | `D-004` [A], `FR-054`–`FR-065`, `FR-200` |
+| [0017](./adr/0017-qr-identity-per-theme.md) | QR Identity per Tema dan rotasi token | **Diterima** (AQ-009, 9 November 2026) | `D-004` [A], `FR-054`–`FR-065`, `FR-200` |
 
 Nomor ADR berikutnya: **0018**.
 
@@ -94,7 +94,7 @@ Nomor ADR berikutnya: **0018**.
 
 ## 4. Pertanyaan arsitektur terbuka (AQ)
 
-Detail opsi: [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6. Status: **AQ-001, AQ-005, AQ-006, AQ-010, dan AQ-014 dijawab** oleh ADR-0009/0016/0014/0010/0011 (Diterima); AQ lainnya masih **Terbuka**. ADR-0012 tidak menjawab AQ; isinya menetapkan detail tabel transisi untuk `D-010` [A]. ADR-0015 juga tidak menjawab AQ; isinya menutup celah aturan arsip Tema. **AQ-005 dijawab ADR-0016 (Diterima 8 November 2026):** satu tabel `entitlement_rules`, resolver murni, default deny, dan lima sub-keputusan `FR-040`/`FR-041` (draft→active gate, baris eksplisit per kategori, kategori baru fail-closed, backfill `allowed`, Theme default sebagai fallback). **AQ-009 masih terbuka;** draf usulan tersedia di [ADR-0017](./adr/0017-qr-identity-per-theme.md) (Diusulkan 9 November 2026) dan belum boleh dijadikan dasar implementasi final.
+Detail opsi: [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6. Status: **AQ-001, AQ-005, AQ-006, AQ-009, AQ-010, dan AQ-014 dijawab** oleh ADR-0009/0016/0014/0017/0010/0011 (Diterima); AQ lainnya masih **Terbuka**. ADR-0012 tidak menjawab AQ; isinya menetapkan detail tabel transisi untuk `D-010` [A]. ADR-0015 juga tidak menjawab AQ; isinya menutup celah aturan arsip Tema. **AQ-005 dijawab ADR-0016 (Diterima 8 November 2026):** satu tabel `entitlement_rules`, resolver murni, default deny, dan lima sub-keputusan `FR-040`/`FR-041` (draft→active gate, baris eksplisit per kategori, kategori baru fail-closed, backfill `allowed`, Theme default sebagai fallback). **AQ-009 dijawab ADR-0017 (Diterima 9 November 2026):** satu tabel `qr_identities` dengan satu baris aktif per `(theme_id, participant_id)`, penerbitan lazy saat cetak/unduh pertama, rotasi in-place oleh Admin Acara Tema itu atau Super Admin dengan alasan wajib, riwayat rotasi di audit append-only, backfill kredensial lama, dan QR peserta nonaktif ditolak saat scan.
 
 | ID | Pertanyaan | Bergantung pada | Memblokir |
 |---|---|---|---|
@@ -106,7 +106,7 @@ Detail opsi: [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6. Status: **AQ-001, AQ-00
 | AQ-006 | Kategori & custom field | `FR-026`–`FR-036` | Q2 |
 | AQ-007 | Penugasan Petugas & matriks izin | `D-022` [A], `D-024` [A], `OQ-034` [A] | Q5, Q7 |
 | AQ-008 | Pemetaan penolakan ke result code & HTTP | `D-011` [A] | Q5, Q7 |
-| AQ-009 | Kepemilikan kredensial QR per Tema; rotasi token | `D-004` [A], AQ-001 | **Diusulkan** ADR-0017 (9 November 2026) |
+| AQ-009 | Kepemilikan kredensial QR per Tema; rotasi token | `D-004` [A], AQ-001 | **Dijawab** ADR-0017 (9 November 2026) |
 | AQ-010 | Strategi skema/migrasi menuju model baru | `D-007` [A] | Q1 |
 | AQ-011 | Proyeksi Sheets untuk Sesi & Consumption | `D-017` [A] | Q10 |
 | AQ-012 | Template pesan scanner per Tema | `D-012` [A], `D-013` [A] | Q7 |

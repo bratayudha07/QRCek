@@ -37,7 +37,7 @@
 | Q1 | Fondasi Tema → Aktivitas → Sesi, lifecycle, mekanisme audit | **Selesai (API-only)** | AQ-001, AQ-010, AQ-014 (ADR-0009–0011, Diterima); ADR-0012 (lifecycle), ADR-0013 (registrasi), keduanya Diterima; `D-009`, `D-010`, `D-023` [A]; `OQ-033` [A] untuk aksi arsip Sesi |
 | Q2 | Peserta, kategori, custom field, impor CSV | **Selesai (API-only) — kode + migrasi `0008` live 8 November 2026** | AQ-006 dijawab ADR-0014 (Diterima 6 November 2026); `D-008`, `D-020` [A] |
 | Q3 | Entitlement | **Selesai (API-only) — kode + migrasi `0009` live 8 November 2026, gate ditutup 9 November 2026** | AQ-005 dijawab ADR-0016 (Diterima 8 November 2026) |
-| Q4 | QR Identity per Tema, rotasi, ekspor PNG/ZIP | Belum dibuka | AQ-009; `D-016` [A] |
+| Q4 | QR Identity per Tema, rotasi, ekspor PNG/ZIP | **Dibuka (API-only) 9 November 2026** | AQ-009 dijawab ADR-0017 (Diterima 9 November 2026); `D-016` [A] |
 | Q5 | Transaksi Attendance, Manual Entry, Reversal/Adjustment | Belum dibuka | AQ-002–AQ-004, AQ-007, AQ-008; `D-010`, `D-011`, `D-022`, `D-024` [A]; `OQ-034` [A] |
 | Q6 | Penugasan Petugas & Scanner/Kiosk | Belum dibuka | AQ-007, AQ-008, AQ-012; `D-012`, `D-013` [A] |
 | Q7 | Distribusi konsumsi | Belum dibuka | AQ-002, AQ-003; `D-009`, `D-014` [A] |
@@ -225,7 +225,7 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 
 **Reuse yang dievaluasi:** `domain/qr-token.ts` (ADR-0003, ADR-0006), `routes/labels.ts`, `components/qr-code.tsx`, `lib/qr-labels.ts`. Cetak label A4/stiker via `window.print()` tidak diminta `REQUIREMENTS.md` dan bukan generator PDF; mempertahankan atau memensiunkannya diputuskan pemilik proyek saat tahap dibuka.
 
-**Prasyarat keputusan:** AQ-009 dijawab lewat ADR-0017 (draf **Diusulkan** 9 November 2026; satu tabel `qr_identities` per Tema + Peserta, rotasi in-place, riwayat di audit). Tahap **belum dibuka** sampai ADR diterima dan pemilik proyek membukanya.
+**Prasyarat keputusan:** AQ-009 dijawab **ADR-0017 (Diterima 9 November 2026)**: satu tabel `qr_identities` dengan satu baris aktif per `(theme_id, participant_id)`, penerbitan lazy saat cetak/unduh pertama, rotasi in-place dengan alasan wajib, riwayat rotasi di audit, backfill kredensial lama, dan QR peserta nonaktif ditolak saat scan. Tahap **dibuka 9 November 2026** (API-only); rencana eksekusi ada di `.opencode/plans/q4-qr-identity.md`. UI ekspor final masuk Q9; Q4 menyediakan backend, payload, dan batas batch.
 
 **Gate:**
 
@@ -402,3 +402,4 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 | Draft v1.6 | 8 November 2026 | AQ-005 dijawab **ADR-0016 Diterima**: `entitlement_rules`, resolver murni, default deny, gate `draft → active`, baris eksplisit per kategori, kategori baru fail-closed, backfill `allowed`, Theme default sebagai fallback. Q3 **Dibuka (API-only)**. |
 | Draft v1.7 | 8 November 2026 | Q3 **dikembangkan API-only**: migrasi `0009` + resolver + route konfigurasi + gate `draft → active` + tes/ukuran selesai lulus (`typecheck`/`lint`/`test`/`build` hijau; 637 tes lulus). |
 | Draft v1.8 | 9 November 2026 | Q3 **Selesai (API-only)**: deploy `dc8b8546` (8 November 2026 04:26 UTC), migrasi `0009` diterapkan remote (`schema_version = 9`), backfill produksi 0 baris, health ready, verifikasi penuh 637 tes hijau. Gate Q3 ditutup; `AC-043` tingkat transaksi tetap dibuktikan di Q5. |
+| Draft v1.9 | 9 November 2026 | AQ-009 dijawab **ADR-0017 Diterima**: tabel `qr_identities` satu baris aktif per `(theme_id, participant_id)`, penerbitan lazy, rotasi in-place dengan alasan wajib, riwayat di audit, backfill kredensial lama, QR nonaktif ditolak saat scan. Q4 **Dibuka (API-only)**; UI ekspor final tetap di Q9. |
