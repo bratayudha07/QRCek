@@ -4,7 +4,7 @@ Semua endpoint di bawah `/api`. Otentikasi memakai cookie sesi `HttpOnly` (same-
 
 Sumber kebenaran kontrak: skema zod di `packages/shared/src/schemas/`. Dokumen ini menjelaskan **perilaku**, bukan menggantikan skema.
 
-> **Status dokumen (8 November 2026).** Dokumen ini mencatat **API aktual**: baseline `157c330` ditambah Q1 (Aktivitas/Sesi), Q2 (kategori, custom field, atribut peserta, impor ber-kategori), dan Q3 (konfigurasi entitlement), semuanya API-only; registrasi publik dihapus. Jumlahnya **83 definisi route** dan **225 pola efektif** setelah alias `/api/calendar` dan `/api/themes` (`71` definisi ber-prefix `/api/events` × 3). API target untuk konsumsi, koreksi Reversal/Adjustment, dan scanner berkonteks **belum ada**; bentuk payload-nya diputuskan lewat AQ di [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6 dan ditambahkan ke dokumen ini bersama route-nya. Endpoint yang tercantum di sini bukan bukti bahwa kebutuhan produk terpenuhi (`FR-178`). Bagian yang bertentangan dengan keputusan produk `[A]` ditandai **Delta**.
+> **Status dokumen (9 November 2026).** Dokumen ini mencatat **API aktual**: baseline `157c330` ditambah Q1 (Aktivitas/Sesi), Q2 (kategori, custom field, atribut peserta, impor ber-kategori), Q3 (konfigurasi entitlement), dan Q4 (QR Identity per Tema: lookup scan, rotasi, metadata), semuanya API-only; registrasi publik dihapus. Jumlahnya **85 definisi route** dan **231 pola efektif** setelah alias `/api/calendar` dan `/api/themes` (`73` definisi ber-prefix `/api/events` × 3). Rendering PNG/ZIP untuk unduh berada di Q9, bukan di Q4. API target untuk konsumsi, koreksi Reversal/Adjustment, dan scanner berkonteks **belum ada**; bentuk payload-nya diputuskan lewat AQ di [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6 dan ditambahkan ke dokumen ini bersama route-nya. Endpoint yang tercantum di sini bukan bukti bahwa kebutuhan produk terpenuhi (`FR-178`). Bagian yang bertentangan dengan keputusan produk `[A]` ditandai **Delta**.
 
 ---
 
@@ -234,9 +234,11 @@ bocor).
 | `POST` | `/api/calendar/:eventId/participants/import` | event_admin, superadmin | Import CSV (pratinjau + konfirmasi) |
 | `GET` | `/api/calendar/:eventId/participants/export` | event_admin, superadmin | Unduh CSV (PII) |
 | `GET` | `/api/calendar/:eventId/participants/template` | event_admin, superadmin | Template header-only |
-| `POST` | `/api/calendar/:eventId/participants/qr-labels` | event_admin, superadmin | Terbitkan/baca kredensial QR untuk label (POST karena bisa menulis) |
-| `GET` | `/api/calendar/:eventId/label-config` | officer+ | Konfigurasi field label acara |
-| `PUT` | `/api/calendar/:eventId/label-config` | event_admin, superadmin | Simpan field + urutan + nama acara |
+| `POST` | `/api/events/:eventId/participants/qr-labels` | event_admin, superadmin | Terbitkan/baca kredensial QR untuk label (POST karena bisa menulis) |
+| `GET` | `/api/events/:eventId/participants/:participantId/qr` | event_admin, superadmin | Metadata identitas QR (tanpa token) |
+| `PUT` | `/api/events/:eventId/participants/:participantId/qr/rotate` | event_admin, superadmin | Rotasi token QR; alasan wajib |
+| `GET` | `/api/events/:eventId/label-config` | officer+ | Konfigurasi field label acara |
+| `PUT` | `/api/events/:eventId/label-config` | event_admin, superadmin | Simpan field + urutan + nama acara |
 
 ### Daftar, pencarian, dan paginasi
 
@@ -375,21 +377,26 @@ CRLF agar aman dibuka di Excel, dan menetralkan formula injection (`=`, `@`).
 ### Label QR
 
 ```
-POST /api/calendar/:eventId/participants/qr-labels
+POST /api/events/:eventId/participants/qr-labels
 ```
 
 Memakai **POST**, bukan GET, karena panggilan pertama menerbitkan kredensial (efek samping).
 Otorisasi `qr:print` (event_admin/superadmin) + scope `event_id`; acara `archived` tetap boleh
 dicetak karena penerbitan kredensial bukan perubahan data bisnis.
 
+Sumber kebenaran kredensial adalah `qr_identities` (`0010`, ADR-0017): satu baris aktif per
+Tema + Peserta. Kredensial yang ditulis deployment lama pada `participants.qr_*`
+dipromosikan saat pertama kali dibaca **tanpa mengganti token**, sehingga kartu yang sudah
+tercetak tetap sah selama jendela deploy.
+
 ```jsonc
 // request
 {
   "format": "a4" | "sticker",        // default "a4"
-  "participantIds": ["01J…"],        // opsional, maks 50, tanpa duplikat
+  "participantIds": ["01J…"],        // opsional, maks 40, tanpa duplikat
   "fields": ["fullName", "category"], // opsional; default = konfigurasi acara
   "showEventName": true,              // opsional; default = konfigurasi acara
-  "limit": 50,                        // 1–50, default 50 (hanya mode kursor)
+  "limit": 40,                        // 1–40, default 40 (hanya mode kursor)
   "cursor": "<opaque>"                // hanya mode "semua peserta aktif"
 }
 ```
@@ -401,8 +408,8 @@ Dua mode:
 | Pilihan eksplisit | `participantIds` diisi | `created_at DESC, id DESC` | selalu `null` |
 | Semua peserta aktif | `participantIds` tidak diisi | `created_at DESC, id DESC` | kursor halaman berikutnya |
 
-`participantIds` dan `cursor` tidak boleh dikirim bersamaan (`400`). `limit` > 50, lebih dari
-50 id, id duplikat, atau cursor rusak → `400 VALIDATION_ERROR`.
+`participantIds` dan `cursor` tidak boleh dikirim bersamaan (`400`). `limit` > 40, lebih dari
+40 id, id duplikat, atau cursor rusak → `400 VALIDATION_ERROR`.
 
 ```jsonc
 // 200
@@ -434,13 +441,18 @@ Dua mode:
 - Kegagalan konfigurasi secret atau dekripsi → `500 INTERNAL` dengan pesan yang menyuruh
   memeriksa konfigurasi server (tidak ada fallback plaintext).
 - Setiap respons sukses non-kosong menulis satu baris `audit_log` `qr.labels_exported`
-  (jumlah, terbit/daur ulang, format, pilihan field; tanpa token atau PII).
+  (jumlah, terbit/daur ulang/dipromosikan, format, pilihan field; tanpa token atau PII).
+- Penerbitan lazy menulis **satu** baris `qr.identity_issued` per request berisi `count`,
+  bukan satu baris per peserta. Ini penyimpangan sadar dari rencana Q4 demi anggaran 50
+  statement/invokasi (lihat `.opencode/plans/q4-qr-identity.md` §16).
+- Anggaran terukur: satu halaman 40 label = **49 statement** saat terbit, **8** saat cetak
+  ulang (`qr-labels.statements.test.ts`). Karena itu batas batch diturunkan dari 50 ke 40.
 
 Konfigurasi label:
 
 ```
-GET /api/calendar/:eventId/label-config
-PUT /api/calendar/:eventId/label-config   body: { fields: [...], showEventName: boolean }
+GET /api/events/:eventId/label-config
+PUT /api/events/:eventId/label-config   body: { fields: [...], showEventName: boolean }
 ```
 
 - Field yang diizinkan hanya kolom peserta yang sudah ada: `fullName`, `externalRef`,
@@ -450,6 +462,66 @@ PUT /api/calendar/:eventId/label-config   body: { fields: [...], showEventName: 
 - `PUT` ditolak `422 BUSINESS_RULE` untuk acara `archived`; `officer` boleh `GET` tetapi
   `403` untuk `PUT`.
 - QR selalu dicetak; konfigurasi tidak pernah memengaruhi penerbitan kredensial.
+
+### Rotasi dan metadata QR Identity
+
+```
+GET /api/events/:eventId/participants/:participantId/qr
+PUT /api/events/:eventId/participants/:participantId/qr/rotate
+```
+
+ADR-0017: rotasi mengganti kredensial **di baris yang sama**, sehingga `id` identitas stabil
+untuk referensi transaksi Q5 dan token lama langsung tidak ditemukan oleh lookup scan.
+
+| Method | Izin | Perilaku |
+|---|---|---|
+| `GET` | `qr:print` (event_admin/superadmin) | Metadata identitas; `identity: null` bila belum pernah diterbitkan |
+| `PUT` | `qr:rotate` (event_admin/superadmin) | Rotasi; body `{ "reason": "…" }` wajib 3–500 karakter setelah trim |
+
+```jsonc
+// 200 GET sebelum terbit
+{ "ok": true, "data": { "participantId": "01J…", "identity": null } }
+
+// 200 GET setelah terbit
+{
+  "ok": true,
+  "data": {
+    "participantId": "01J…",
+    "identity": {
+      "participantId": "01J…",
+      "issuedAt": 1760000000000,
+      "rotatedAt": null,
+      "rotationCount": 0,
+      "keyVersion": 1
+    }
+  }
+}
+
+// 200 PUT
+{
+  "ok": true,
+  "data": {
+    "participantId": "01J…",
+    "issuedAt": 1760000000000,
+    "rotatedAt": 1760000500000,
+    "rotationCount": 1,
+    "keyVersion": 1,
+    "qr": "absensi:v1:<token baru>"
+  }
+}
+```
+
+- `qr` hanya muncul pada respons rotasi agar admin bisa langsung mencetak ulang. Metadata
+  **tidak pernah** memuat token, hash, ciphertext, nonce, atau PII.
+- Belum pernah diterbitkan → `404 NOT_FOUND` dengan pesan "Cetak QR terlebih dahulu"; rotasi
+  **tidak** menerbitkan identitas baru.
+- Kredensial lama pada `participants.qr_*` dipromosikan dulu lalu langsung dirotasi.
+- Dua rotasi paralel: satu `200`, satu `409 CONFLICT`; hanya pemenang menulis audit.
+- Setiap rotasi menulis `audit_log` `qr.identity_rotated` (`entity_type = qr_identity`) dengan
+  `rotationCount`, `keyVersion`, dan `reason`; snapshot memakai allowlist tanpa materi kredensial.
+- Acara `archived` → `422 BUSINESS_RULE`; petugas (`officer`) → `403`; Tema lain → `404`.
+- Jumlah statement rotasi (auth + baca + promosi opsional + 1 update + 1 audit) tetap di bawah
+  batas 50/invokasi; tidak ada batch per peserta.
 
 ---
 
@@ -814,11 +886,17 @@ disaring allowlist ADR-0011 (`packages/shared/src/audit-allowlist.ts`):
 | `custom_field.created`, `custom_field.updated`, `custom_field.type_changed`, `custom_field.archived`, `custom_field.activated` | Custom field |
 | `entitlement_rule.created`, `entitlement_rule.updated`, `entitlement_rule.deleted` | Aturan entitlement |
 | `participant.created`, `participant.updated`, `participant.deactivated`, `participant.imported` | Peserta |
+| `qr.identity_issued` (per request, berisi `count`) | `qr_identities` (penerbitan lazy) |
+| `qr.identity_rotated` | `qr_identities` (rotasi in-place) |
+| `qr.labels_exported` | `events` (metadata ekspor label) |
 
 Baris audit hanya ditulis bila mutasi di batch yang sama benar-benar berhasil: helper audit
-memeriksa `updated_at` (Aktivitas/Sesi/aturan entitlement) atau `status`/keberadaan baris (Tema).
-Karena itu "audit tertulis" berarti "mutasi mendarat". Snapshot `entitlement_rule` hanya memuat
-`themeId`, `activityId`, `sessionId`, `participantId`, `categoryId`, dan `status` (`FR-207`).
+memeriksa `updated_at` (Aktivitas/Sesi/aturan entitlement), `status`/keberadaan baris (Tema),
+atau `token_hash` hasil rotasi. Karena itu "audit tertulis" berarti "mutasi mendarat".
+Snapshot `entitlement_rule` hanya memuat `themeId`, `activityId`, `sessionId`,
+`participantId`, `categoryId`, dan `status`; snapshot `qr_identity` memuat `themeId`,
+`participantId`, `keyVersion`, `rotationCount`, `issuedAt`, dan `rotatedAt` — tidak pernah
+token, hash, ciphertext, nonce, atau PII (`FR-207`).
 
 ---
 
@@ -854,6 +932,13 @@ Peran: `officer`, `event_admin`, `superadmin` (anggota acara).
 | `wrong_event` | Token milik acara lain | tidak ada; dicatat di audit |
 | `event_closed` | Di luar jendela waktu / status bukan `active` | nama acara |
 | `participant_inactive` | Peserta dinonaktifkan | `participant` |
+
+Sejak Q4 lookup token memakai satu `SEARCH` pada `qr_identities.token_hash`
+(`uq_qr_identity_hash`) lalu join primary-key ke `participants`; scope Tema diperiksa dari
+`qr_identities.theme_id`, bukan dari `participants.event_id`. Rotasi membuat hash lama tidak
+ditemukan (`not_found`) tanpa mengubah baris `attendance`. Token dari Tema lain tetap
+`wrong_event`, dan status peserta diperiksa setelah scope Tema agar token lintas Tema tidak
+membocorkan status peserta lain.
 
 `deviceTs` hanya **dicatat** untuk analisis selisih jam, **tidak dipakai** sebagai waktu absensi. Waktu resmi selalu dari server (UTC).
 

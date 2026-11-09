@@ -17,7 +17,8 @@ export type AuditEntityType =
   | "category"
   | "custom_field"
   | "entitlement_rule"
-  | "participant";
+  | "participant"
+  | "qr_identity";
 
 export const REDACTED = "[REDACTED]" as const;
 
@@ -60,6 +61,16 @@ export const AUDIT_FIELDS: Readonly<Record<AuditEntityType, readonly string[]>> 
   // Names/notes/attribute values are PII; only the category and lifecycle facts
   // are snapshotted. Attribute changes are recorded separately as key names.
   participant: ["categoryId", "status", "attributesChanged"],
+  // Credential metadata only. `tokenHash`, `ciphertext`, and `nonce` are never
+  // allowed; the rotation reason belongs in `audit_log.reason`, not a snapshot.
+  qr_identity: [
+    "themeId",
+    "participantId",
+    "keyVersion",
+    "rotationCount",
+    "issuedAt",
+    "rotatedAt",
+  ],
 };
 
 const SENSITIVE_FIELD_PATTERN =
@@ -69,6 +80,9 @@ export function isSensitiveAuditField(field: string): boolean {
   // `custom_fields.key` is a public identifier, not a credential; every other
   // field containing "key" (encryption keys, API keys) stays sensitive.
   if (field === "key") return false;
+  // `keyVersion` is a generation counter, not key material; the value is safe to
+  // keep in a QR identity snapshot (ADR-0017 audit allowlist).
+  if (field === "keyVersion") return false;
   return SENSITIVE_FIELD_PATTERN.test(field);
 }
 

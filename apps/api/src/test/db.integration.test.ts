@@ -36,6 +36,7 @@ describe("D1 integration", () => {
       "0007_q1_activities_sessions.sql",
       "0008_q2_categories_custom_fields.sql",
       "0009_entitlement_rules.sql",
+      "0010_qr_identities.sql",
     ]);
   });
 
@@ -44,7 +45,7 @@ describe("D1 integration", () => {
       .bind("schema_version")
       .first<{ value: string }>();
 
-    expect(row?.value).toBe("9");
+    expect(row?.value).toBe("10");
   });
 
   it("stores and updates a key", async () => {
@@ -106,6 +107,7 @@ describe("D1 integration", () => {
       "invites",
       "outbox",
       "participants",
+      "qr_identities",
       "rate_limits",
       "recovery_codes",
       "sessions",

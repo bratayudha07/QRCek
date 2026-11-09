@@ -83,6 +83,7 @@ describe("allowlist table", () => {
       "custom_field",
       "entitlement_rule",
       "participant",
+      "qr_identity",
       "session",
       "theme",
     ]);

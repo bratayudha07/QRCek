@@ -85,13 +85,14 @@ export const STICKER_WIDTH_MM = 50;
 export const STICKER_HEIGHT_MM = 30;
 
 /**
- * Free-tier CPU budget. Measured in `spike.qr-labels.measure.test.ts`: issuing
- * 100 credentials costs ~12 ms p50 in local workerd, over the ~10 ms free-tier
- * CPU limit before any D1/JSON work. 50 keeps issuance around 6 ms, so the
- * batch limit was reduced from the initial 100 after measurement.
+ * Free-tier limits. The batch is 40, not 50: one label page costs roughly
+ * `40 insert + 10 auth/read/audit` statements, and D1 free tier allows 50
+ * statements per Worker invocation (see `QrLabelRequestSchema` and
+ * `spike.qr-labels.measure.test.ts`). CPU was measured separately: 100
+ * credentials cost ~12 ms p50, so 40 stays well inside the ~10 ms CPU budget.
  */
-export const QR_LABEL_BATCH_MAX = 50;
-export const QR_LABEL_BATCH_DEFAULT = 50;
+export const QR_LABEL_BATCH_MAX = 40;
+export const QR_LABEL_BATCH_DEFAULT = 40;
 
 const LabelFieldListSchema = z
   .array(z.enum(LABEL_FIELD_KEYS))

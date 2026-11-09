@@ -24,6 +24,7 @@ export type Action =
   | "entitlement:read"
   | "entitlement:write"
   | "qr:print"
+  | "qr:rotate"
   | "scan"
   | "recap:read"
   | "attendance:correct"
@@ -57,6 +58,9 @@ const MIN_MEMBERSHIP: Record<Action, EventRole | null> = {
   "entitlement:read": "officer",
   "entitlement:write": "event_admin",
   "qr:print": "event_admin",
+  // Rotation invalidates every printed card; only Admins of the Tema may do it
+  // (ADR-0017 sub-decision 2). Officers never.
+  "qr:rotate": "event_admin",
   scan: "officer",
   "recap:read": "officer",
   "attendance:correct": "event_admin",

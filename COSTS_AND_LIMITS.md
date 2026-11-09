@@ -80,6 +80,7 @@ Anggaran CPU per endpoint (target, bukan janji):
 | `POST /auth/activate` | 2–4 ms | 2 HMAC + batch 6 statement |
 | `POST /participants/import` (1.000 baris) | **5–9 ms** ⚠️ | Risiko tertinggi; wajib diukur dan mungkin perlu diturunkan ke 500 baris/request |
 | `GET /attendance` (50 baris) | 1–2 ms | |
+| `POST /participants/qr-labels` (40 label) | belum diukur CPU produksi | **49 statement** dari batas 50; lokal 48 ms wall clock saat terbit, 8 statement/22 ms saat reprint (`OPERASIONAL.md` §6.2) |
 | Cron sync (5 item, 1 batch write) | 1–3 ms + jaringan | Waktu tunggu jaringan tidak dihitung sebagai CPU |
 
 **Aturan**: bila sebuah endpoint terukur di atas 5 ms p95, endpoint itu harus dipecah atau dibatasi payload-nya. Margin 2× wajib dipertahankan karena angka CPU bervariasi antar mesin.

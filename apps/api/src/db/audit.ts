@@ -301,6 +301,48 @@ export function insertAuditAfterEntitlementRuleUpdateStatement(
 }
 
 /**
+ * QR identity rotation has no `updated_at` and two concurrent rotations both
+ * compute the same next counter, so the counter cannot identify the winner.
+ * The new token hash can: only the statement that actually landed stores it.
+ * A lost race leaves the hash absent, so the audit insert writes 0 rows and
+ * "audit written" keeps meaning "rotation landed". The hash is used as a bind
+ * value only — it never becomes part of the audit row (FR-200).
+ */
+export function insertAuditAfterQrIdentityRotationStatement(
+  db: D1Database,
+  entry: AuditEntry,
+  identityId: string,
+  tokenHash: string,
+): D1PreparedStatement {
+  return db
+    .prepare(
+      `INSERT INTO audit_log
+         (id, event_id, actor_user_id, action, entity_type, entity_id,
+          before_json, after_json, reason, request_id, ip_hash, created_at)
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        WHERE EXISTS (
+          SELECT 1 FROM qr_identities WHERE id = ? AND token_hash = ?
+        )`,
+    )
+    .bind(
+      entry.id,
+      entry.eventId,
+      entry.actorUserId,
+      entry.action,
+      entry.entityType,
+      entry.entityId ?? null,
+      jsonOrNull(entry.before),
+      jsonOrNull(entry.after),
+      entry.reason ?? null,
+      entry.requestId ?? null,
+      entry.ipHash ?? null,
+      entry.createdAt,
+      identityId,
+      tokenHash,
+    );
+}
+
+/**
  * Delete audit fires only when the row is gone after the delete statement in the
  * same batch. A stale `updated_at` leaves the row in place, so no audit row.
  */

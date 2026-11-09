@@ -290,3 +290,37 @@ Urutan wajib: **typecheck → lint → test → build**. Iterasi pakai tes terfo
 ## 16. Catatan penyimpangan
 
 Diisi setelah implementasi.
+
+1. **Batas batch 50 → 40.** Setelah `qr_identities` diperkenalkan, satu halaman label mengirim
+   40 insert + auth/baca/audit. Diukur dengan `qr-labels.statements.test.ts`: **49 statement**
+   saat terbit dan **8** saat reprint. Dengan 50 label, jumlahnya melewati batas D1 50
+   statement/invokasi, jadi `QR_LABEL_BATCH_MAX` dan default diturunkan ke 40.
+2. **Audit penerbitan lazy digabung per request.** Rencana awal menyebut audit penerbitan;
+   implementasi menulis **satu** `qr.identity_issued` berisi `count`, bukan satu baris per
+   peserta. Alasan: 40 baris audit tambahan akan melewati anggaran statement. Promosi
+   kredensial lama tidak menulis audit per baris; promosi tercatat sebagai `promoted` di
+   `qr.labels_exported`.
+3. **Guard audit rotasi memakai `token_hash`, bukan `rotation_count`.** Dua rotasi paralel
+   sama-sama membaca `rotation_count = 0` dan sama-sama menghitung `next = 1`, sehingga guard
+   `rotation_count = 1` juga lolos untuk yang kalah. Guard `WHERE token_hash = ?` hanya lolos
+   untuk statement yang benar-benar mendarat; hash dipakai sebagai bind value, tidak masuk baris
+   audit.
+4. **Rotasi tanpa identitas → `404`, tanpa penerbitan.** Keputusan pemilik: rotasi tidak boleh
+   membuat identitas baru secara diam-diam. Kredensial lama pada `participants.qr_*`
+   dipromosikan dulu, lalu langsung dirotasi.
+5. **Cross-Tema tetap `wrong_event`.** Lookup tidak memakai `not_found` untuk token Tema lain;
+   kode hasil baseline dipertahankan dan dibuktikan lewat `decideQrScan`, yang memeriksa scope
+   Tema sebelum status peserta. Ini menjaga kompatibilitas UI scan Q6 dan tidak membocorkan
+   status peserta Tema lain.
+6. **Route rotasi memakai `PUT .../qr/rotate`** (bukan `POST`) karena operasinya idempoten
+   terhadap satu permintaan: `rotationCount` naik sekali, dan permintaan kedua dengan state
+   lama menjadi `409`. Metadata ada di `GET .../qr`.
+7. **`qr_identities` tidak punya `updated_at`.** Rotasi memakai `rotated_at` + `rotation_count`;
+   tidak ada kolom audit tambahan. Riwayat lengkap ada di `audit_log`.
+8. **ZIP tetap diputuskan di Q9.** Q4 tidak menambah dependensi ZIP dan tidak merender PNG di
+   Worker; backend hanya mengembalikan payload scan per peserta.
+9. **Verifikasi 9 November 2026:** `typecheck` PASS, `lint` PASS, `test` **667 tes di 65 file**
+   PASS, `build` PASS. Backfill `0010` diuji dengan menjalankan blok `INSERT ... SELECT` dari
+   `__MIGRATIONS__` pada baris lama lengkap dan setengah jadi; scan lintas Tema diuji lewat HTTP
+   (`wrong_event`, tanpa baris `attendance`). Angka ini snapshot lokal; migrasi `0010` belum
+   diterapkan di remote, jadi gate Q4 belum ditutup.

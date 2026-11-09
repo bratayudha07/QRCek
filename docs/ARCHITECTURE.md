@@ -383,10 +383,10 @@ Detail: [`DESAIN_DATABASE.md`](./DESAIN_DATABASE.md).
 `POST /api/events/:eventId/participants/qr-labels` dengan `{ format, participantIds?, limit?, cursor? }`.
 
 1. Otorisasi `qr:print` (admin acara/superadmin) dan scope `event_id`.
-2. Hanya peserta aktif; maksimal 50 per request.
-3. Kredensial dibuat lazy (`UPDATE ... WHERE qr_token_hash IS NULL`) atau didekripsi ulang; token sama → QR sama.
+2. Hanya peserta aktif; maksimal **40** per request (diturunkan dari 50 setelah terukur 49 statement D1; `OPERASIONAL.md` §6.2).
+3. Sejak Q4 sumber kredensial adalah `qr_identities`: baris ada → dekripsi; belum ada → `INSERT ... ON CONFLICT DO NOTHING` (kalah balapan membaca ulang); kredensial lama `participants.qr_*` dipromosikan tanpa mengganti token. Token sama → QR sama.
 4. Respons hanya `participantId`, `qr`, dan field label terpilih — tanpa hash/ciphertext/kunci.
-5. Audit `qr.labels_exported` mencatat jumlah dan format, tanpa token.
+5. Audit `qr.labels_exported` mencatat jumlah, terbit/reprint/promosi, dan format, tanpa token; penerbitan lazy dicatat sekali per request sebagai `qr.identity_issued` dengan `count`.
 
 Konfigurasi field label per acara di `event_label_config`; format A4 3 × 8 dan stiker 50 × 30 mm via `window.print()`.
 
@@ -397,7 +397,7 @@ Konfigurasi field label per acara di `event_label_config`; format A4 3 × 8 dan 
 `POST /api/events/:eventId/scan` dengan `{ qr: "absensi:v1:<token>" }`.
 
 1. Cek sesi + user + keanggotaan (join).
-2. `HMAC(QR_PEPPER, token)`; cari peserta berdasarkan hash **dan** `event_id`. Tidak ketemu → `not_found`; ketemu di acara lain → `wrong_event` + audit `attendance.wrong_event`.
+2. `HMAC(QR_PEPPER, token)`; cari identitas lewat `qr_identities.token_hash` (`uq_qr_identity_hash`). Tidak ketemu → `not_found`; ketemu tetapi `theme_id` lain → `wrong_event` + audit `attendance.wrong_event` (scope Tema diperiksa sebelum status peserta).
 3. Cek status acara dan jendela waktu → `event_closed`; peserta nonaktif → `participant_inactive`.
 4. `db.batch()`: `INSERT INTO attendance ... ON CONFLICT DO NOTHING`, outbox, audit.
 5. `changes = 1` → `present`; `changes = 0` → `duplicate` (bukan 500).

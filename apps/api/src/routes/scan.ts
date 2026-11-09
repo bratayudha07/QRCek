@@ -1,14 +1,14 @@
 import { z } from "zod";
 
 import type { ScanResultPayload } from "@absensi/shared";
-import { EventIdSchema, ScanRequestSchema } from "@absensi/shared";
+import { EventIdSchema, ScanRequestSchema, decideQrScan } from "@absensi/shared";
 
 import { insertAuditAfterAttendanceStatement, recordAudit } from "../db/audit";
 import { findAttendanceForParticipant, insertAttendanceStatement } from "../db/attendance";
 import { findEventById } from "../db/events";
 import { enqueueAttendanceStatement } from "../db/outbox";
 import type { ParticipantRow } from "../db/participants";
-import { findParticipantByQrHash } from "../db/participants";
+import { findIdentityParticipantByHash } from "../db/qr-identities";
 import { consumeRateLimit } from "../db/rate-limit";
 import { isEventOpenForAttendance } from "../domain/attendance-policy";
 import { newId } from "../domain/ids";
@@ -92,7 +92,7 @@ async function scan(ctx: RouteContext): Promise<RouteResult> {
     qrFailure(error);
   }
 
-  const participant = await findParticipantByQrHash(ctx.env.DB, tokenHash);
+  const participant = await findIdentityParticipantByHash(ctx.env.DB, tokenHash);
   if (!participant) {
     const payload: ScanResultPayload = { result: "not_found" };
     return { data: payload };
@@ -100,7 +100,13 @@ async function scan(ctx: RouteContext): Promise<RouteResult> {
 
   const ipHash = await clientIpHash(ctx.request, ctx.env.SESSION_PEPPER);
 
-  if (participant.event_id !== eventId) {
+  const decision = decideQrScan({
+    contextThemeId: eventId,
+    identityThemeId: participant.identity_theme_id,
+    participantStatus: participant.status,
+  });
+
+  if (decision.outcome === "rejected" && decision.reason === "wrong_theme") {
     // Audited, but the response deliberately returns no event or participant
     // details so a scanned label cannot be used to enumerate another event.
     await recordAudit(ctx.env.DB, {
@@ -110,7 +116,7 @@ async function scan(ctx: RouteContext): Promise<RouteResult> {
       action: "attendance.wrong_event",
       entityType: "participant",
       entityId: participant.id,
-      after: { participantEventId: participant.event_id },
+      after: { participantEventId: participant.identity_theme_id },
       ipHash,
       createdAt: ctx.now,
     });
@@ -127,7 +133,7 @@ async function scan(ctx: RouteContext): Promise<RouteResult> {
     return { data: payload };
   }
 
-  if (participant.status !== "active") {
+  if (decision.outcome === "rejected" && decision.reason === "participant_inactive") {
     const payload: ScanResultPayload = {
       result: "participant_inactive",
       participant: participantPayload(participant),

@@ -2,7 +2,7 @@
 
 Database: Cloudflare D1, binding `DB`. Dialek **SQLite**, bukan Postgres.
 
-> **Status dokumen (8 November 2026).** Dokumen ini mencatat **skema aktual**: migrasi `0001`–`0009`. `0001`–`0006` sudah diterapkan di remote dan **tidak boleh diedit**; `0007_q1_activities_sessions.sql` diterapkan di remote pada 6 November 2026 (backup: `/tmp/opencode/qrcek-backup-2026-11-06.sql`). `0008_q2_categories_custom_fields.sql` diterapkan di remote pada **8 November 2026 02:28 UTC** (`app_meta.schema_version = 8`) berdekatan dengan deploy kode Q2; verifikasi data: 80 peserta, 32 kategori, 0 peserta tanpa `category_id`, 0 kategori lintas Tema (`docs/OPERASIONAL.md`). `0009_entitlement_rules.sql` (Q3) sudah diuji di database lokal dan **sudah diterapkan di remote** pada 8 November 2026 (`app_meta.schema_version = 9`, deploy `dc8b8546`); backfill menghasilkan 0 baris. Model target QRCek yang tersisa (transaksi efektif, Reversal/Adjustment, kuota konsumsi) **belum punya skema**; bentuknya diputuskan lewat AQ-002–AQ-004, AQ-009 di [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6 — AQ-005 sudah dijawab ADR-0016 dan menjadi `0009`, AQ-006 menjadi `0008`. `D-007` [A] menghapus kewajiban migrasi data produksi, **bukan** kewajiban regression test, dan bukan izin mengedit migrasi lama.
+> **Status dokumen (9 November 2026).** Dokumen ini mencatat **skema aktual**: migrasi `0001`–`0010`. `0001`–`0006` sudah diterapkan di remote dan **tidak boleh diedit**; `0007_q1_activities_sessions.sql` diterapkan di remote pada 6 November 2026 (backup: `/tmp/opencode/qrcek-backup-2026-11-06.sql`). `0008_q2_categories_custom_fields.sql` diterapkan di remote pada **8 November 2026 02:28 UTC** (`app_meta.schema_version = 8`) berdekatan dengan deploy kode Q2; verifikasi data: 80 peserta, 32 kategori, 0 peserta tanpa `category_id`, 0 kategori lintas Tema (`docs/OPERASIONAL.md`). `0009_entitlement_rules.sql` (Q3) sudah diuji di database lokal dan **sudah diterapkan di remote** pada 8 November 2026 (`app_meta.schema_version = 9`, deploy `dc8b8546`); backfill menghasilkan 0 baris. `0010_qr_identities.sql` (Q4) **sudah lulus seluruh tes lokal tetapi belum diterapkan di remote**; `schema_version` lokal/CI menjadi `10`. Model target QRCek yang tersisa (transaksi efektif, Reversal/Adjustment, kuota konsumsi) **belum punya skema**; bentuknya diputuskan lewat AQ-002–AQ-004, AQ-009 di [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6 — AQ-005 sudah dijawab ADR-0016 dan menjadi `0009`, AQ-006 menjadi `0008`. `D-007` [A] menghapus kewajiban migrasi data produksi, **bukan** kewajiban regression test, dan bukan izin mengedit migrasi lama.
 >
 > Bagian yang bertentangan dengan keputusan produk `[A]` ditandai **Delta**: `attendance` satu baris per `(event_id, participant_id)` (target: per ruang lingkup Aktivitas/Sesi, `D-003`), koreksi via `UPDATE attendance` (target: Reversal/Adjustment, `D-006`), dan kredensial QR per baris peserta per acara (target: per Tema + Peserta, `D-004`).
 
@@ -324,8 +324,8 @@ CREATE TABLE rate_limits (
 > Nomor file aktual: `0001_init.sql`, `0002_auth.sql`, `0003_participants.sql`,
 > `0004_qr.sql`, `0005_attendance_sync.sql`, `0006_self_signup.sql`,
 > `0007_q1_activities_sessions.sql`, `0008_q2_categories_custom_fields.sql`,
-> `0009_entitlement_rules.sql`. Perubahan berikutnya harus memakai `0010_*.sql` atau nomor
-> berurutan berikutnya.
+> `0009_entitlement_rules.sql`, `0010_qr_identities.sql`. Perubahan berikutnya harus memakai
+> `0011_*.sql` atau nomor berurutan berikutnya.
 
 > **ADR-007 (`0006_self_signup.sql`) dan ADR-0013.** Satu kolom baru pada `users`:
 >
@@ -669,6 +669,72 @@ WHERE a.status = 'active'
 >    masih punya aturan ditolak. Produk mengarsipkan, bukan menghapus.
 > 7. Perubahan aturan **tidak** menyalin atau mengubah transaksi historis (`FR-199`, `BR-075`).
 
+File: `migrations/0010_qr_identities.sql` (Q4, ADR-0017, `D-004`)
+
+```sql
+CREATE TABLE qr_identities (
+  id             TEXT PRIMARY KEY,
+  theme_id       TEXT NOT NULL REFERENCES events(id) ON DELETE RESTRICT,
+  participant_id TEXT NOT NULL REFERENCES participants(id) ON DELETE RESTRICT,
+  token_hash     TEXT NOT NULL CHECK (length(token_hash) = 43),
+  ciphertext     TEXT NOT NULL CHECK (length(ciphertext) = 79),
+  nonce          TEXT NOT NULL CHECK (length(nonce) = 16),
+  key_version    INTEGER NOT NULL CHECK (key_version >= 1),
+  issued_at      INTEGER NOT NULL CHECK (issued_at > 0),
+  rotated_at     INTEGER,
+  rotation_count INTEGER NOT NULL DEFAULT 0 CHECK (rotation_count >= 0),
+  CHECK (rotated_at IS NULL OR rotated_at >= issued_at)
+);
+
+CREATE UNIQUE INDEX uq_qr_identity_participant
+  ON qr_identities(theme_id, participant_id);
+CREATE UNIQUE INDEX uq_qr_identity_hash
+  ON qr_identities(token_hash);
+```
+
+Trigger `trg_qr_identity_context_insert` dan `trg_qr_identity_context_update`
+(`BEFORE UPDATE OF theme_id, participant_id`) menolak peserta yang bukan milik Tema baris itu.
+Route juga memvalidasi scope Tema lebih dulu agar pesan ke admin jelas.
+
+Backfill satu kali (`-- >>> backfill` / `-- <<< backfill`), hanya kredensial lengkap:
+
+```sql
+INSERT INTO qr_identities (
+  id, theme_id, participant_id, token_hash, ciphertext, nonce, key_version,
+  issued_at, rotated_at, rotation_count
+)
+SELECT lower(hex(randomblob(16))),
+       p.event_id, p.id, p.qr_token_hash, p.qr_token_ciphertext, p.qr_token_nonce,
+       p.qr_key_version, p.qr_issued_at, NULL, 0
+FROM participants p
+WHERE p.qr_token_hash IS NOT NULL
+  AND p.qr_token_ciphertext IS NOT NULL
+  AND p.qr_token_nonce IS NOT NULL
+  AND p.qr_key_version IS NOT NULL
+  AND p.qr_issued_at IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM qr_identities q
+     WHERE q.theme_id = p.event_id AND q.participant_id = p.id
+  );
+```
+
+> **Catatan 0010.**
+>
+> 1. **Satu baris aktif per Tema + Peserta**, ditegakkan `uq_qr_identity_participant` — bukan
+>    cek baca-lalu-tulis di Worker. Rotasi mengganti kredensial **di baris yang sama** sehingga
+>    `id` stabil untuk referensi transaksi Q5 (`FR-060`).
+> 2. **Riwayat rotasi di audit, bukan di tabel.** `rotation_count` + `rotated_at` cukup untuk
+>    metadata; token lama tidak pernah disimpan (`D-023`, ADR-0008).
+> 3. **Backfill menyalin token apa adanya**, jadi kartu yang sudah tercetak tetap sah. Kode
+>    juga mempromosikan baris lama saat pertama kali dibaca selama jendela deploy. Backfill
+>    tidak menulis audit karena migrasi bukan aksi admin.
+> 4. **Kolom `participants.qr_*` belum dihapus.** Penghapusan lewat migrasi contract terpisah
+>    setelah Q4 stabil (ADR-0017 sub-keputusan 5); migrasi ini additive.
+> 5. **`ON DELETE RESTRICT`** menjaga kredensial yang menjadi jangkar riwayat tidak hilang saat
+>    peserta/Tema dihapus. Produk mengarsipkan, bukan menghapus.
+> 6. **Lookup scan** memakai `uq_qr_identity_hash`: satu `SEARCH ... USING INDEX` lalu join
+>    primary-key ke `participants`. Scope Tema dibaca dari `qr_identities.theme_id`.
+
 ---
 
 ## 4. Indeks: alasan dan biaya
@@ -698,6 +764,8 @@ Setiap indeks menambah baris tulis. Indeks di bawah dipilih karena setiap halama
 | `idx_custom_fields_theme_scope_status` | Katalog field per scope/status/urutan |
 | `idx_participant_event_category` | Jumlah peserta per kategori dan filter kategori |
 | `uq_ent_*` (5 partial unique, `0009`) | Satu sel per tingkat; dipakai resolver untuk `SEARCH` per cabang `UNION ALL` |
+| `uq_qr_identity_participant` (`0010`) | Satu identitas per Tema + Peserta; `ON CONFLICT` penerbitan lazy |
+| `uq_qr_identity_hash` (`0010`) | Lookup scan satu `SEARCH`; menjamin hash hanya milik satu identitas |
 
 **Wajib diverifikasi di Fase 0**: jalankan semua query utama dengan `EXPLAIN QUERY PLAN` dan pastikan memakai indeks (`SEARCH ... USING INDEX`), bukan `SCAN`.
 
@@ -708,17 +776,17 @@ Setiap indeks menambah baris tulis. Indeks di bawah dipilih karena setiap halama
 | Aturan | Ditegakkan oleh | Tes yang membuktikannya |
 |---|---|---|
 | Absensi ganda mustahil (baseline; **Delta**: target per transaksi efektif per ruang lingkup, AQ-003) | `UNIQUE (event_id, participant_id)` — jangan dilepas sebelum constraint pengganti teruji | `scan.duplicate.test.ts` — dua scan paralel, satu `present` satu `duplicate` |
-| Scan lintas acara ditolak | Query selalu `WHERE event_id = ?` | `scan.cross-event.test.ts` |
+| Scan lintas acara ditolak | `qr_identities.theme_id` diperiksa sebelum status peserta (Q4); jalur baseline tetap `WHERE event_id = ?` | `qr-identity.db.test.ts`, `qr-identity.api.test.ts`, `scan.test.ts` |
 | Audit tidak bisa diubah | Trigger `RAISE(ABORT)` | `audit.immutable.test.ts` — `UPDATE`/`DELETE` harus error |
 | Satu undangan satu pemakaian | `used_at` + cek dalam transaksi batch | `invite.replay.test.ts` |
 | Import CSV idempoten | `ON CONFLICT (event_id, external_ref) WHERE external_ref IS NOT NULL DO UPDATE` | `participants.import.test.ts` |
 | Peserta tidak bisa diakses lintas acara | Semua query `WHERE event_id = ? AND id = ?` | `participants.crud.test.ts` |
 | Soft-delete tidak menghapus data | `UPDATE status = 'inactive'`, restore lewat PATCH | `participants.crud.test.ts` |
 | Tidak ada outbox duplikat | `uq_outbox_pending` (partial unique) | `outbox.coalesce.test.ts` |
-| Satu kredensial QR hanya milik satu peserta | `uq_participant_qr_hash` (partial unique) | `qr.db.test.ts` — hash yang sama pada peserta lain ditolak |
-| Kredensial tidak pernah ditimpa saat cetak ulang | `UPDATE ... WHERE qr_token_hash IS NULL` | `qr.db.test.ts` — klaim kedua `changes = 0`; `labels.api.test.ts` — QR sama pada cetak ulang |
-| Kredensial utuh (hash + ciphertext + nonce + versi) | Per-kolom `CHECK` + kode menulis kelimanya sekaligus | `qr.db.test.ts` — nilai cacat ditolak |
-| Import CSV tidak merotasi QR | `ON CONFLICT ... DO UPDATE` tidak menyentuh kolom QR | `qr.db.test.ts` — kredensial bertahan setelah upsert |
+| Satu kredensial QR hanya milik satu peserta | Q4: `uq_qr_identity_participant`; baseline: `uq_participant_qr_hash` (partial unique) | `qr-identity.db.test.ts`, `qr.db.test.ts` |
+| Kredensial tidak pernah ditimpa saat cetak ulang | Q4: `INSERT ... ON CONFLICT DO NOTHING` + baca ulang; baseline: `UPDATE ... WHERE qr_token_hash IS NULL` | `qr-identity.db.test.ts`, `labels.api.test.ts` — QR sama pada cetak ulang |
+| Kredensial utuh (hash + ciphertext + nonce + versi) | Per-kolom `CHECK` + kode menulis kelimanya sekaligus | `qr-identity.db.test.ts`, `qr.db.test.ts` — nilai cacat ditolak |
+| Import CSV tidak merotasi QR | `ON CONFLICT ... DO UPDATE` tidak menyentuh kredensial | `qr.db.test.ts`, `labels.api.test.ts` — kredensial bertahan setelah upsert |
 | Audit tidak bisa diubah/dihapus | Trigger `RAISE(ABORT)` | `qr.db.test.ts` — `UPDATE`/`DELETE` gagal |
 | Aktivitas/Sesi tidak bisa lintas Tema | `findActivity` scope `theme_id`, `findActivitySession` scope `activity_id` | `activities.api.test.ts`, `activity-sessions.api.test.ts` |
 | Sesi hanya bisa diarsipkan setelah selesai/dinonaktifkan | `CHECK archived_session_is_finished` + `WHERE status IN (...)` | `activity-sessions.api.test.ts` |
@@ -739,6 +807,13 @@ Setiap indeks menambah baris tulis. Indeks di bawah dipilih karena setiap halama
 | Override individual tidak hilang saat kategori peserta berubah | Baris individual terpisah dari baris kategori | `entitlements.api.test.ts` — "preserves an individual override…" |
 | Audit entitlement hanya tertulis bila mutasi mendarat | `INSERT ... WHERE EXISTS (updated_at = ?)` / `NOT EXISTS` di `db.batch` | `audit.guarded-write.test.ts` — update dan delete |
 | Snapshot audit entitlement tanpa PII | Allowlist `entitlement_rule` (6 field) | `entitlements.api.test.ts` — "stores only rule coordinates and status" |
+| Satu QR Identity per Tema + Peserta | `uq_qr_identity_participant` + `ON CONFLICT DO NOTHING` | `qr-identity.db.test.ts` — insert kedua ditolak; helper balapan `changes = 0` |
+| QR tidak bisa dipakai lintas Tema | `qr_identities.theme_id` diperiksa sebelum status peserta | `qr-identity.db.test.ts`, `qr-identity.api.test.ts`, `packages/shared/src/qr.test.ts` |
+| Token lama mati setelah rotasi | `UPDATE` in-place pada `uq_qr_identity_hash` | `qr-identity.db.test.ts` — hash lama tidak ditemukan; `qr-identity.api.test.ts` — scan `not_found` |
+| Rotasi paralel hanya satu yang mendarat | Guard `rotation_count` + audit `WHERE token_hash = ?` | `qr-identity.api.test.ts` — satu `200`, satu `409`, satu audit |
+| Riwayat transaksi tidak berubah karena rotasi | Tidak ada UPDATE/DELETE pada `attendance` | `qr-identity.api.test.ts` — jumlah absensi tetap |
+| Identitas tidak bisa lintas Tema di level database | Trigger `trg_qr_identity_context_*` | `qr-identity.db.test.ts` — insert lintas Tema error |
+| Metadata/rotasi tidak membocorkan kredensial | Respons & allowlist audit tanpa token/hash/ciphertext/nonce | `qr-identity.api.test.ts`, `audit-allowlist.test.ts` |
 
 ---
 

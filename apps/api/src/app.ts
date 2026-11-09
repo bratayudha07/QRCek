@@ -16,6 +16,7 @@ import { eventRoutes } from "./routes/events";
 import { healthRoutes } from "./routes/health";
 import { labelRoutes } from "./routes/labels";
 import { participantRoutes } from "./routes/participants";
+import { qrIdentityRoutes } from "./routes/qr-identities";
 import { scanRoutes } from "./routes/scan";
 import { syncRoutes } from "./routes/sync";
 
@@ -37,6 +38,7 @@ export const ROUTES: readonly RouteDefinition[] = [
   ...customFieldRoutes,
   ...entitlementRoutes,
   ...labelRoutes,
+  ...qrIdentityRoutes,
   ...scanRoutes,
   ...attendanceRoutes,
   ...auditRoutes,

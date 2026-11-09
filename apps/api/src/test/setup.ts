@@ -27,6 +27,7 @@ const TABLES_CHILDREN_FIRST = [
   "device_credentials",
   "recovery_codes",
   "invites",
+  "qr_identities",
   "participants",
   "custom_fields",
   "categories",

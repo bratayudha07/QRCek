@@ -2,7 +2,7 @@
 
 Dokumen ini mencatat hasil pengukuran, instruksi operasi, status deployment, dan quirk lingkungan yang tidak terlihat dari kode.
 
-> **Konteks (8 November 2026).** Semua pengukuran dan prosedur di sini berlaku untuk baseline (model `events` datar, commit acuan `157c330`) ditambah fondasi Q1 (Aktivitas/Sesi), Q2 (kategori, custom field, atribut peserta), dan Q3 (konfigurasi entitlement) — semuanya API-only. Model target QRCek ([`REQUIREMENTS.md`](./REQUIREMENTS.md)) akan menambah tabel, indeks, dan jalur transaksi baru; angka CPU/statement/baris di bawah **tidak** otomatis berlaku untuk model itu dan harus diukur ulang di tahap roadmap terkait ([`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md) Q5 dan Q11). Uji perangkat fisik scanner, akun Google Sheets nyata, dan CPU produksi belum pernah dilakukan (`REQUIREMENTS.md` §7.3). Rujukan "ADR-00N" di dokumen ini = `docs/adr/000N-*.md`.
+> **Konteks (9 November 2026).** Semua pengukuran dan prosedur di sini berlaku untuk baseline (model `events` datar, commit acuan `157c330`) ditambah fondasi Q1 (Aktivitas/Sesi), Q2 (kategori, custom field, atribut peserta), Q3 (konfigurasi entitlement), dan Q4 (QR Identity per Tema) — semuanya API-only. Model target QRCek ([`REQUIREMENTS.md`](./REQUIREMENTS.md)) akan menambah tabel, indeks, dan jalur transaksi baru; angka CPU/statement/baris di bawah **tidak** otomatis berlaku untuk model itu dan harus diukur ulang di tahap roadmap terkait ([`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md) Q5 dan Q11). Uji perangkat fisik scanner, akun Google Sheets nyata, dan CPU produksi belum pernah dilakukan (`REQUIREMENTS.md` §7.3). Rujukan "ADR-00N" di dokumen ini = `docs/adr/000N-*.md`.
 
 ## Status operasi saat ini (8 November 2026)
 
@@ -246,7 +246,7 @@ Konsekuensi yang disengaja:
 
 ```bash
 npm run db:reset:local    # hapus apps/api/.wrangler/state
-npm run db:migrate:local  # terapkan semua migrasi yang belum diterapkan (0001–0009)
+npm run db:migrate:local  # terapkan semua migrasi yang belum diterapkan (0001–0010)
 npm run db:migrate:local  # "✅ No migrations to apply!" (idempoten)
 ```
 
@@ -293,6 +293,37 @@ dengan predikat backfill sebelum apply → **0**; tabel `activities` di produksi
 tidak ada baris backfill yang dihasilkan). Batas 100.000 baris tulis/hari tidak terlampaui;
 bila di masa depan Aktivitas aktif mulai dipakai dalam jumlah besar, hitung ulang dan pecah
 per Tema bila kandidat >10.000 baris.
+
+### 6.2 Pengukuran Q4 — QR Identity
+
+Diukur 9 November 2026 di `workerd` lokal (D1 uji). Bukan CPU produksi; lihat peringatan §2.
+
+| Metrik | Hasil | Cara |
+|---|---|---|
+| Lookup scan | **1** `SEARCH ... USING INDEX` pada `uq_qr_identity_hash` + join primary-key ke `participants` | `EXPLAIN QUERY PLAN` di `qr-identity.db.test.ts` |
+| Statement halaman label 40 peserta (terbit) | **49** dari batas 50/invokasi | `qr-labels.statements.test.ts` menghitung `prepare()` pada env yang di-proxy |
+| Statement halaman label 40 peserta (reprint) | **8** | sama; tidak ada insert/audit terbit |
+| Waktu halaman label 40 (lokal) | terbit **48 ms**, reprint p50 **22 ms**, p95 **23 ms** | `spike.qr-labels.measure.test.ts` |
+| Crypto 100 kredensial (lokal) | issue p50 **9 ms** / p95 15 ms; read p50 5 ms | sama |
+| Scan proxy (HMAC + lookup + batch) | p50 **4 ms**, p95 7 ms, max 12 ms | `spike.measure.test.ts` |
+| Backfill `0010` pada DB lokal kosong | **0 baris** | `npm run db:reset:local && npm run db:migrate:local` |
+
+Karena halaman 40 label sudah memakai 49 statement, `QR_LABEL_BATCH_MAX` diturunkan dari 50
+ke **40**. Menaikkannya tanpa mengubah strategi audit (satu baris per request) akan melewati
+batas 50. Angka backfill produksi harus dihitung dengan `countLegacyQrCandidates` **sebelum**
+apply remote dan dicatat di §8.
+
+### 6.3 Prosedur rilis `0010` (Q4)
+
+Urutan wajib (belum dijalankan per 9 November 2026):
+
+1. Backup remote: `npx wrangler d1 export absensi-db --remote --output /tmp/opencode/qrcek-backup-$(date -u +%Y-%m-%d)-pre-0010.sql`.
+2. Hitung kandidat backfill: `SELECT COUNT(*) FROM participants WHERE qr_token_hash IS NOT NULL AND qr_token_ciphertext IS NOT NULL AND qr_token_nonce IS NOT NULL AND qr_key_version IS NOT NULL AND qr_issued_at IS NOT NULL` (sama dengan `countLegacyQrCandidates`). Catat angkanya.
+3. Deploy kode additive (kode baru sudah membaca `qr_identities` dengan fallback promosi).
+4. Setelah konfirmasi eksplisit pemilik: `npm run db:migrate:remote`.
+5. Verifikasi: `app_meta.schema_version = 10`, tabel `qr_identities`, dua index, dua trigger ada, jumlah baris = kandidat, `GET /api/health/ready` → 200.
+6. Smoke di Tema uji: cetak label, scan, rotasi, scan token lama (`not_found`), audit `qr.identity_rotated` tanpa token.
+7. **Jangan** menghapus `participants.qr_*` pada rilis ini; itu migrasi contract terpisah.
 
 ---
 
@@ -426,14 +457,16 @@ lama, dan itu akan terlihat sebagai `500` pada cetak ulang (bukan kerusakan data
 ### 7.6 Mencetak dan mencetak ulang label QR
 
 - Kredensial dibuat **saat label pertama dicetak**, bukan saat peserta dibuat/diimpor. Peserta
-  yang belum pernah dicetak tidak punya baris QR dan tidak bisa dipakai untuk scan (Tahap 5).
+  yang belum pernah dicetak tidak punya baris `qr_identities` dan tidak bisa dipakai untuk scan.
+  Kredensial lama pada `participants.qr_*` dipromosikan saat pertama dibaca tanpa mengganti token.
 - **Cetak ulang tidak pernah merotasi token.** Halaman label memanggil endpoint yang sama;
   hasilnya `qr` identik. Kalau hasilnya berbeda, itu bug, bukan fitur.
 - Dua admin yang mencetak bersamaan untuk peserta yang sama menghasilkan satu kredensial:
-  `UPDATE ... WHERE qr_token_hash IS NULL` menentukan pemenang, yang kalah membaca ulang.
-- Batas satu request adalah **50 label**. Halaman label memilih maksimal 50 peserta; untuk
-  acara besar, cetak per batch. Angka ini diturunkan dari 100 setelah pengukuran CPU lokal
-  (lihat §2 dan `docs/RENCANA_PENGUJIAN.md`).
+  `INSERT ... ON CONFLICT DO NOTHING` pada `uq_qr_identity_participant` menentukan pemenang,
+  yang kalah membaca ulang baris pemenang.
+- Batas satu request adalah **40 label**. Angka ini diturunkan dari 50 setelah `qr_identities`
+  menambah satu insert per peserta: terukur 49 statement untuk 40 label (batas D1 50/invokasi),
+  sedangkan reprint hanya 8. Untuk acara besar, cetak per batch.
 - Format: A4 3 × 8 (24 label/halaman, margin 8 mm) dan stiker 50 × 30 mm (satu label/halaman).
   Cetak lewat dialog browser (`window.print()`); tidak ada PDF di server. Di dialog cetak,
   matikan "Headers and footers" dan set skala 100% agar ukuran mm tidak berubah.
@@ -456,11 +489,13 @@ lama, dan itu akan terlihat sebagai `500` pada cetak ulang (bukan kerusakan data
 | Rate limit di balik NAT bersama | Setelah ada pengguna nyata | Amati 429 pada petugas yang berbagi IP; naikkan batas bila perlu |
 | Verifikasi lokal | Setiap rilis | `npm run typecheck` → `lint` → `test` → `build`; Workers Builds hanya build + deploy, tidak menjalankan test |
 | Batas baris import final | Setelah pengukuran CPU | Naikkan `MAX_IMPORT_ROWS` bertahap sambil memantau CPU |
-| Batas batch label 50 | Setelah deploy pertama | Ukur CPU `wrangler tail` saat cetak 50 label; angka lokal (crypto 100 ≈ 12 ms p50) adalah proksi, bukan CPU tertagih |
+| Batas batch label 40 | Setelah deploy pertama | Ukur CPU `wrangler tail` saat cetak 40 label; angka lokal (crypto 100 ≈ 9 ms p50) adalah proksi, bukan CPU tertagih |
 | Ukuran dan keterbacaan QR hasil cetak | Uji manual sebelum rilis | Cetak A4 + stiker, ukur dengan penggaris, pindai dengan kamera HP |
 | Rotasi kunci QR | Sebelum rotasi produksi pertama | Uji prosedur §7.5 di database salinan; pastikan QR lama tetap identik |
 | Penerapan `0009` dan jumlah backfill produksi | Selesai (dokumentasi 8 November 2026) | Backup (`/tmp/opencode/qrcek-backup-2026-11-08-post-0008.sql`), hitung kandidat backfill (0), apply remote, verifikasi `schema_version = 9` dan jumlah baris (0) |
+| Penerapan `0010` dan jumlah backfill produksi | Sebelum rilis Q4 | Backup pre-0010, hitung kandidat, deploy kode, apply remote setelah konfirmasi, verifikasi `schema_version = 10` dan jumlah baris = kandidat (§6.3) |
 | CPU produksi route entitlement | Setelah deploy Q3 | `wrangler tail`; matriks/batch 15 baris adalah kandidat terberat |
+| CPU produksi rotasi/QR label | Setelah deploy Q4 | `wrangler tail` saat cetak 40 label dan rotasi; lokal 49 statement / 48 ms adalah proksi |
 
 Repo ini tidak memakai GitHub Actions. Workers Builds hanya menjalankan build dan deploy, bukan
 test suite, jadi verifikasi wajib dijalankan lokal sebelum merge/deploy; jangan menyimpulkan

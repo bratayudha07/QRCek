@@ -10,6 +10,7 @@ import {
   createParticipant,
   createSession,
   createUser,
+  seedLegacyParticipantQr,
 } from "./fixtures";
 import { callApi, errorCode } from "./http";
 
@@ -22,11 +23,16 @@ import { callApi, errorCode } from "./http";
  */
 
 interface CredentialRow {
-  qr_token_hash: string | null;
-  qr_token_ciphertext: string | null;
-  qr_token_nonce: string | null;
-  qr_key_version: number | null;
-  qr_issued_at: number | null;
+  id: string;
+  theme_id: string;
+  participant_id: string;
+  token_hash: string;
+  ciphertext: string;
+  nonce: string;
+  key_version: number;
+  issued_at: number;
+  rotated_at: number | null;
+  rotation_count: number;
 }
 
 interface AuditRow {
@@ -79,8 +85,9 @@ async function world(): Promise<World> {
 
 async function credentialOf(participantId: string): Promise<CredentialRow | null> {
   return testEnv.DB.prepare(
-    `SELECT qr_token_hash, qr_token_ciphertext, qr_token_nonce, qr_key_version, qr_issued_at
-       FROM participants WHERE id = ?`,
+    `SELECT id, theme_id, participant_id, token_hash, ciphertext, nonce, key_version,
+            issued_at, rotated_at, rotation_count
+       FROM qr_identities WHERE participant_id = ?`,
   )
     .bind(participantId)
     .first<CredentialRow>();
@@ -107,7 +114,7 @@ describe("POST /participants/qr-labels", () => {
     });
     await createParticipant(eventA, { fullName: "Budi", category: "Kelas 7" });
 
-    expect((await credentialOf(first.id))?.qr_token_hash).toBeNull();
+    expect(await credentialOf(first.id)).toBeNull();
 
     const response = await callApi(labelsPath(eventA), {
       method: "POST",
@@ -131,11 +138,13 @@ describe("POST /participants/qr-labels", () => {
       expect(token).not.toBeNull();
 
       const stored = await credentialOf(label.participantId);
-      expect(stored?.qr_token_hash).toBe(await hashQrToken(testEnv.QR_PEPPER, token as string));
-      expect(stored?.qr_token_ciphertext).toHaveLength(79);
-      expect(stored?.qr_token_nonce).toHaveLength(16);
-      expect(stored?.qr_key_version).toBe(1);
-      expect(stored?.qr_issued_at).toBeGreaterThan(0);
+      expect(stored?.theme_id).toBe(eventA);
+      expect(stored?.token_hash).toBe(await hashQrToken(testEnv.QR_PEPPER, token as string));
+      expect(stored?.ciphertext).toHaveLength(79);
+      expect(stored?.nonce).toHaveLength(16);
+      expect(stored?.key_version).toBe(1);
+      expect(stored?.issued_at).toBeGreaterThan(0);
+      expect(stored?.rotation_count).toBe(0);
       // Plaintext never reaches D1: neither the token nor its payload is a column.
       expect(JSON.stringify(stored)).not.toContain(token as string);
     }
@@ -213,7 +222,7 @@ describe("POST /participants/qr-labels", () => {
     const explicitBody = explicit.json<QrLabelPayload>();
     if (!explicitBody.ok) throw new Error("expected success");
     expect(explicitBody.data.labels).toEqual([]);
-    expect((await credentialOf(inactive.id))?.qr_token_hash).toBeNull();
+    expect(await credentialOf(inactive.id)).toBeNull();
   });
 
   it("reuses the exact same QR credential on reprint", async () => {
@@ -245,6 +254,38 @@ describe("POST /participants/qr-labels", () => {
     const metadata = rows.map((row) => JSON.parse(row.after_json) as Record<string, number>);
     expect(metadata.some((row) => row.issued === 1 && row.reused === 0)).toBe(true);
     expect(metadata.some((row) => row.issued === 0 && row.reused === 1)).toBe(true);
+  });
+
+  it("promotes a pre-0010 credential without changing the printed token", async () => {
+    const { eventA, adminA } = await world();
+    const participant = await createParticipant(eventA, { fullName: "Siti" });
+    const legacyQr = await seedLegacyParticipantQr(eventA, participant.id);
+
+    expect(await credentialOf(participant.id)).toBeNull();
+
+    const first = await callApi(labelsPath(eventA), {
+      method: "POST",
+      cookie: adminA.cookie,
+      body: {},
+    });
+    const firstBody = first.json<QrLabelPayload>();
+    if (!firstBody.ok) throw new Error("expected success");
+
+    expect(firstBody.data.labels[0]?.qr).toBe(legacyQr);
+
+    const promoted = await credentialOf(participant.id);
+    expect(promoted?.theme_id).toBe(eventA);
+    expect(promoted?.rotation_count).toBe(0);
+    expect(promoted?.token_hash).toBe(await hashQrToken(testEnv.QR_PEPPER, parseQrPayload(legacyQr) as string));
+
+    const second = await callApi(labelsPath(eventA), {
+      method: "POST",
+      cookie: adminA.cookie,
+      body: {},
+    });
+    const secondBody = second.json<QrLabelPayload>();
+    if (!secondBody.ok) throw new Error("expected success");
+    expect(secondBody.data.labels[0]?.qr).toBe(legacyQr);
   });
 
   it("requires the CSRF header and a matching Origin", async () => {
@@ -357,8 +398,8 @@ describe("POST /participants/qr-labels", () => {
 
     const serialised = JSON.stringify(rows[0]);
     expect(serialised).not.toContain(token as string);
-    expect(serialised).not.toContain(stored?.qr_token_hash as string);
-    expect(serialised).not.toContain(stored?.qr_token_ciphertext as string);
+    expect(serialised).not.toContain(stored?.token_hash as string);
+    expect(serialised).not.toContain(stored?.ciphertext as string);
 
     const metadata = JSON.parse(rows[0]?.after_json ?? "{}") as Record<string, unknown>;
     expect(metadata.count).toBe(1);

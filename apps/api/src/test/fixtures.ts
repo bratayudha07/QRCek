@@ -316,8 +316,40 @@ export async function createParticipant(
   return { id, externalRef, fullName, categoryId };
 }
 
-/** Issues the same credential shape the label endpoint writes, for scan tests. */
+/** Issues a real identity row, for scan and label tests (Q4). */
 export async function issueParticipantQr(
+  eventId: string,
+  participantId: string,
+): Promise<string> {
+  const config = await qrKeyConfig(testEnv);
+  const { token, credential } = await issueQrCredential(config);
+
+  await testEnv.DB.prepare(
+    `INSERT INTO qr_identities
+       (id, theme_id, participant_id, token_hash, ciphertext, nonce,
+        key_version, issued_at, rotation_count)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+  )
+    .bind(
+      newId(TEST_NOW),
+      eventId,
+      participantId,
+      credential.tokenHash,
+      credential.ciphertext,
+      credential.nonce,
+      credential.keyVersion,
+      TEST_NOW,
+    )
+    .run();
+
+  return `absensi:v1:${token}`;
+}
+
+/**
+ * Writes a credential the way a pre-`0010` deployment did. Used to prove that
+ * promotion keeps an already-printed card valid.
+ */
+export async function seedLegacyParticipantQr(
   eventId: string,
   participantId: string,
 ): Promise<string> {
@@ -342,7 +374,7 @@ export async function issueParticipantQr(
     .run();
 
   if ((result.meta.changes ?? 0) === 0) {
-    throw new Error("issueParticipantQr: participant not found");
+    throw new Error("seedLegacyParticipantQr: participant not found");
   }
 
   return `absensi:v1:${token}`;

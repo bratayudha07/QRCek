@@ -1,4 +1,5 @@
 import type { QrLabelPayload } from "@absensi/shared";
+import { QR_LABEL_BATCH_MAX } from "@absensi/shared";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -14,12 +15,12 @@ import { testEnv } from "./env";
  * Spike: cost proxy for a full label page and for the crypto behind it.
  *
  * Like `spike.measure.test.ts`, this measures wall clock inside local workerd,
- * not the platform's billed CPU time. The page batch is 50 because that is the
- * current API limit; the crypto block still issues 100 credentials so the
- * measurement that justified lowering the limit stays reproducible.
+ * not the platform's billed CPU time. The page batch is the shared limit (40);
+ * the crypto block still issues 100 credentials so the measurement that
+ * justified lowering the limit stays reproducible.
  */
 
-const BATCH = 50;
+const BATCH = QR_LABEL_BATCH_MAX;
 const CRYPTO_BATCH = 100;
 const RUNS = 8;
 
@@ -30,7 +31,7 @@ function percentile(values: readonly number[], p: number): number {
 }
 
 describe("spike: QR label page", () => {
-  it("measures issuance and reprint of 50 labels", async () => {
+  it(`measures issuance and reprint of ${BATCH} labels`, async () => {
     const userId = await createUser({ role: "superadmin" });
     const eventId = await createEvent({ createdBy: userId, name: "Acara Spike" });
     const session = await createSession(userId);
@@ -67,7 +68,7 @@ describe("spike: QR label page", () => {
     const reprints = samples.slice(1);
 
     console.log(
-      `qr labels 50: first(issue)=${issuance.toFixed(2)}ms ` +
+      `qr labels ${BATCH}: first(issue)=${issuance.toFixed(2)}ms ` +
         `reprint p50=${percentile(reprints, 50).toFixed(2)}ms ` +
         `p95=${percentile(reprints, 95).toFixed(2)}ms ` +
         `max=${Math.max(...reprints).toFixed(2)}ms`,
