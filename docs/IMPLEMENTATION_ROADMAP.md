@@ -249,6 +249,8 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 
 **Tujuan:** model transaksi target menggantikan `attendance` baseline: konteks Aktivitas/Sesi, duplikasi berbasis transaksi efektif di database, koreksi non-destruktif.
 
+**Status:** **belum dibuka.** Rencana draft tersedia di [`.opencode/plans/q5-transactions.md`](../.opencode/plans/q5-transactions.md); rencana itu sengaja belum memilih jawaban AQ-002, AQ-003, AQ-004, AQ-007, dan AQ-008. Tahap baru boleh dibuka setelah kelima ADR diterima, input field Adjustment dan izin Manual Check-in Super Admin (`AC-055`) diselesaikan, dan pemilik menyetujui pembukaan.
+
 **Cakupan:**
 
 - Transaksi: `FR-066`–`FR-072`, `FR-075`, `FR-088`, `FR-162`–`FR-167`, `FR-169`; penegakan `FR-043`/`FR-044` dan `FR-183`–`FR-188`; `BR-030`–`BR-033`, `BR-035`, `BR-064`–`BR-066`, `BR-071`, `BR-072`.
