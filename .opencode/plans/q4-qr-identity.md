@@ -289,6 +289,9 @@ membuat scan/label/rotasi `500` selama jendela deploy.
 saat build masih berjalan (02:34 UTC) → build success → `schema_version = 10`, 60 baris,
 `mismatched = 0`, health 200. Smoke sesi produksi belum dijalankan pemilik.
 
+**Follow-up review:** commit `148685e` (versi `dedce6fc`) mendarat 03:22 UTC; health `200`,
+tiga route QR tanpa sesi `401`, dan query remote diulang dengan hasil identik.
+
 ## 15. Risiko
 
 | Risiko | Mitigasi |

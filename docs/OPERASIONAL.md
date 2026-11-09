@@ -50,6 +50,13 @@ Dokumen ini mencatat hasil pengukuran, instruksi operasi, status deployment, dan
   80 peserta), 2 index unik + 2 trigger konteks, `mismatched = 0`, dan
   `GET /api/health/ready` → `200`. Route `GET .../qr` dan `PUT .../qr/rotate` → `401`
   (terdaftar, sesi belum dikirim). Smoke dengan sesi produksi belum dijalankan pemilik.
+- **Tindak lanjut review keamanan (9 November 2026):** commit `148685e` di-push ke `main` dan
+  Workers Builds **success** (versi `dedce6fc-dc96-4fcd-9a00-78d34299720b`, 03:22 UTC).
+  Verifikasi ulang: `GET /api/health/ready` → `200`; `GET .../qr`, `PUT .../qr/rotate`, dan
+  `POST .../qr-labels` tanpa sesi → `401` (route terdaftar); remote tetap `schema_version = 10`,
+  `qr_identities = 60`, `mismatched = 0`. Perbaikan yang ikut rilis: mirror kredensial rotasi
+  ke `participants.qr_*`, urutan rilis migrasi-dulu, `expectedRotationCount`, audit
+  `wrong_event` tanpa ID lintas Tema, dan batas label 38.
 - Pendaftaran mandiri publik sudah dihapus (ADR-0013). `POST /api/auth/register` → 404, dan
   tidak ada lagi `TURNSTILE_SECRET_KEY` maupun `VITE_TURNSTILE_SITE_KEY` yang perlu diatur.
   Akun Admin Acara hanya dibuat lewat undangan Super Admin. Saat deploy pertama setelah
@@ -358,6 +365,9 @@ build masih berjalan" seperti pada rilis `0010`.
   ke remote saat build masih berjalan (02:34 UTC), sehingga deploy baru mendarat di atas
   skema `10`.
 - Hasil: `schema_version = 10`, `qr_identities = 60`, 2 index unik + 2 trigger, `mismatched = 0`.
+- **Follow-up review keamanan:** commit `148685e` (versi `dedce6fc`) mendarat 03:22 UTC;
+  health `200`, route QR tanpa sesi `401`, dan query remote di atas diulang dengan hasil
+  identik (`mismatched = 0`).
 - **Belum dijalankan:** smoke dengan sesi produksi (cetak → scan → rotasi → token lama
   ditolak). Butuh kredensial pemilik; dicatat di §8.
 
