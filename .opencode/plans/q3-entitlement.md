@@ -456,10 +456,11 @@ Tidak ada jendela inkompatibilitas seperti `0008` karena tidak ada kolom/trigger
 
 Diisi setelah implementasi. Jangan menulis ulang rencana; catat apa yang berbeda dan mengapa, seperti `.opencode/plans/q2-peserta-kategori-impor.md` §16.
 
-**Status 8 November 2026:** Q3 diimplementasikan API-only; `0009` sudah diuji lokal dan **sudah
-diterapkan di remote** (deploy `dc8b8546`, 04:26 UTC; `schema_version = 9`; backfill produksi
-diukur **0 baris**; `activities` di produksi kosong). Deploy sukses, health `200 database: ok`.
-Gate Q3 (§13) menunggu **review pemilik** untuk ditutup.
+**Status 9 November 2026:** Q3 **selesai (API-only) dan gate ditutup**. `0009` diterapkan di
+remote 8 November 2026 (deploy `dc8b8546`, 04:26 UTC; `schema_version = 9`; backfill produksi
+**0 baris** karena tabel `activities` kosong). Deploy sukses, health `200 database: ok`,
+verifikasi penuh `typecheck` → `lint` → `test` (637 tes / 60 file) → `build` hijau.
+`AC-043` tingkat transaksi tetap dibuktikan di Q5 karena Q3 tidak menulis transaksi.
 
 ### 16.1 Perbedaan dari rencana
 
@@ -485,10 +486,11 @@ Gate Q3 (§13) menunggu **review pemilik** untuk ditutup.
    `listParticipantOverrides` (limit 200), dan `listSessionParticipantOverrides` (limit 200):
    8 statement per matriks, tetap di bawah 50. `listActivityRules` dihapus agar tidak ada jalur
    tanpa batas.
-5. **Backfill diukur pada fixture representatif, bukan data produksi.** `0009` belum diterapkan
-   di remote, jadi angka 40 baris berasal dari salinan SQLite `0001`–`0008` + seed (e1/a1=16,
-   e1/a2=16, e2/b1=8). Database lokal kosong menghasilkan 0 baris. Angka produksi wajib diukur
-   sebelum apply (§6.1 `OPERASIONAL.md`).
+5. **Backfill diukur pada fixture representatif, bukan data produksi (saat implementasi).**
+   Angka 40 baris berasal dari salinan SQLite `0001`–`0008` + seed (e1/a1=16, e1/a2=16,
+   e2/b1=8); database lokal kosong menghasilkan 0 baris. **Setelah apply remote 8 November
+   2026:** kandidat dan hasil backfill produksi **0 baris** (tabel `activities` kosong); lihat
+   §16.3 dan `docs/OPERASIONAL.md` §6.1.
 6. **Tes audit tidak boleh bergantung urutan `created_at`.** Beberapa baris audit ditulis pada
    milidetik yang sama dan `id` ULID memuat komponen acak; tes membandingkan himpunan aksi atau
    memilih baris berdasarkan `action`, bukan posisi. Ini memperbaiki flakiness, bukan
@@ -509,6 +511,11 @@ Enam guard diuji dengan merusak kode sementara; keenamnya **tertangkap**:
 
 ### 16.3 Yang belum diverifikasi
 
-- Penerapan `0009` di remote dan jumlah backfill produksi.
-- CPU produksi route matriks/batch (wall-clock lokal bukan CPU tertagih).
+- CPU produksi route matriks/batch (wall-clock lokal bukan CPU tertagih). Dicatat sebagai item
+  `docs/OPERASIONAL.md` §8 "CPU produksi route entitlement" dan diukur via `wrangler tail`
+  setelah trafik nyata.
 - Penolakan transaksi `NOT_ENTITLED` dan `FR-033` nilai custom field Aktivitas: Q5.
+
+**Sudah diverifikasi (9 November 2026):** `0009` diterapkan remote (`schema_version = 9`),
+kandidat + hasil backfill produksi **0 baris**, tabel/index/trigger ada, dan
+`GET /api/health/ready` → `200 database: ok` pada deploy `dc8b8546`.

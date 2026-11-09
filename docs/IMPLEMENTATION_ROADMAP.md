@@ -36,7 +36,7 @@
 | Q0 | Penyelarasan dokumen & keputusan | **Berjalan** | `D-001`, `D-002` [A] |
 | Q1 | Fondasi Tema → Aktivitas → Sesi, lifecycle, mekanisme audit | **Selesai (API-only)** | AQ-001, AQ-010, AQ-014 (ADR-0009–0011, Diterima); ADR-0012 (lifecycle), ADR-0013 (registrasi), keduanya Diterima; `D-009`, `D-010`, `D-023` [A]; `OQ-033` [A] untuk aksi arsip Sesi |
 | Q2 | Peserta, kategori, custom field, impor CSV | **Selesai (API-only) — kode + migrasi `0008` live 8 November 2026** | AQ-006 dijawab ADR-0014 (Diterima 6 November 2026); `D-008`, `D-020` [A] |
-| Q3 | Entitlement | **Dibuka (API-only) 8 November 2026** | AQ-005 dijawab ADR-0016 (Diterima 8 November 2026) |
+| Q3 | Entitlement | **Selesai (API-only) — kode + migrasi `0009` live 8 November 2026, gate ditutup 9 November 2026** | AQ-005 dijawab ADR-0016 (Diterima 8 November 2026) |
 | Q4 | QR Identity per Tema, rotasi, ekspor PNG/ZIP | Belum dibuka | AQ-009; `D-016` [A] |
 | Q5 | Transaksi Attendance, Manual Entry, Reversal/Adjustment | Belum dibuka | AQ-002–AQ-004, AQ-007, AQ-008; `D-010`, `D-011`, `D-022`, `D-024` [A]; `OQ-034` [A] |
 | Q6 | Penugasan Petugas & Scanner/Kiosk | Belum dibuka | AQ-007, AQ-008, AQ-012; `D-012`, `D-013` [A] |
@@ -211,7 +211,9 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 - Audit: action `entitlement_rule.*`, snapshot hanya ID + `status`, dalam `db.batch()` yang sama dengan mutasi; mutasi gagal tidak menulis audit.
 - Gate `draft → active`: `422 BUSINESS_RULE` saat kategori aktif belum punya baris; `POST` tetap membuat `draft` tanpa konfigurasi otomatis (`FR-040`/`FR-041`).
 - Ukuran: resolver **1 statement, ≤5 baris**, query plan 5/5 `SEARCH` (dengan Sesi), 3/3 tanpa Sesi, 0 `SCAN`; batch kategori **15 baris** (≤50 statement/invokasi D1).
-- **Belum:** penerapan `0009` di remote, deploy kode Q3 lewat Workers Builds, penolakan transaksi `NOT_ENTITLED` (Q5), nilai custom field `scope='activity'` (`FR-033`, ditunda ke Q5).
+- **Rilis 8 November 2026:** deploy Workers Builds `dc8b8546-9a40-46f9-96af-e047987b553e` (04:26 UTC) sukses; migrasi `0009` diterapkan ke remote (`app_meta.schema_version = 9`, tabel + 5 `uq_ent_*` + 2 `trg_ent_*` terverifikasi); kandidat backfill produksi **0 baris** (tabel `activities` kosong); `GET /api/health/ready` → `200 (database: ok)`.
+- **Gate ditutup 9 November 2026:** `AC-011`, `AC-012`, `AC-014` lulus di tes (resolver murni 16 tes, DB/backfill 14 tes, API/otorisasi/gate 19 tes); `AC-043` tingkat transaksi menunggu Q5 karena Q3 tidak menulis transaksi apa pun. Verifikasi akhir `typecheck` → `lint` → `test` (637 tes / 60 file) → `build` hijau. Tidak ada UI Q3.
+- **Ditunda eksplisit:** penolakan transaksi `NOT_ENTITLED` (Q5) dan nilai custom field `scope='activity'` (`FR-033`, Q5; disetujui pemilik 8 November 2026).
 
 ---
 
@@ -396,4 +398,5 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 | Draft v1.4 | 7 November 2026 | Q2 **Selesai secara kode (API-only)**; migrasi `0008` dibuat dan diuji lokal, penerapan remote + review pemilik masih pending. UI dan nilai field per Aktivitas tetap di tahap lanjut. |
 | Draft v1.5 | 8 November 2026 | Q2 **Selesai (API-only)**: PR #1 merge ke `main`, Workers Builds aktif, `0008` diterapkan ke remote (`schema_version = 8`), verifikasi produksi bersih, gate ditutup. Deploy kode memakai Workers Builds; migrasi D1 tetap manual. Q3 belum dibuka karena AQ-005. |
 | Draft v1.6 | 8 November 2026 | AQ-005 dijawab **ADR-0016 Diterima**: `entitlement_rules`, resolver murni, default deny, gate `draft → active`, baris eksplisit per kategori, kategori baru fail-closed, backfill `allowed`, Theme default sebagai fallback. Q3 **Dibuka (API-only)**. |
-| Draft v1.7 | 8 November 2026 | Q3 **dikembangkan API-only**: migrasi `0009` + resolver + route konfigurasi + gate `draft → active` + tes/ukuran selesai lulus (`typecheck`/`lint`/`test`/`build` hijau; 637 tes lulus). Migrasi `0009` **belum** diterapkan di remote; status tahap (dibuka) belum berubah. |
+| Draft v1.7 | 8 November 2026 | Q3 **dikembangkan API-only**: migrasi `0009` + resolver + route konfigurasi + gate `draft → active` + tes/ukuran selesai lulus (`typecheck`/`lint`/`test`/`build` hijau; 637 tes lulus). |
+| Draft v1.8 | 9 November 2026 | Q3 **Selesai (API-only)**: deploy `dc8b8546` (8 November 2026 04:26 UTC), migrasi `0009` diterapkan remote (`schema_version = 9`), backfill produksi 0 baris, health ready, verifikasi penuh 637 tes hijau. Gate Q3 ditutup; `AC-043` tingkat transaksi tetap dibuktikan di Q5. |
