@@ -1,33 +1,56 @@
 import { z } from "zod";
 
-import type { ScanResultPayload } from "@absensi/shared";
-import { EventIdSchema, ScanRequestSchema, decideQrScan } from "@absensi/shared";
+import type { ScanResultPayload, ScanTransaction } from "@absensi/shared";
+import {
+  EventIdSchema,
+  ScanRequestSchema,
+  decideQrScan,
+  filterAuditFields,
+  resolveEntitlement,
+} from "@absensi/shared";
 
-import { insertAuditAfterAttendanceStatement, recordAudit } from "../db/audit";
-import { findAttendanceForParticipant, insertAttendanceStatement } from "../db/attendance";
+import { insertAuditAfterTransactionStatement, recordAudit } from "../db/audit";
 import { findEventById } from "../db/events";
-import { enqueueAttendanceStatement } from "../db/outbox";
+import { listRulesForContext } from "../db/entitlement-rules";
+import { enqueueTransactionStatement } from "../db/outbox";
 import type { ParticipantRow } from "../db/participants";
 import { findIdentityParticipantByHash } from "../db/qr-identities";
 import { consumeRateLimit } from "../db/rate-limit";
-import { isEventOpenForAttendance } from "../domain/attendance-policy";
+import {
+  findEffectiveTransactionForScope,
+  insertTransactionStatement,
+} from "../db/transactions";
+import type { TransactionJoinedRow } from "../db/transactions";
+import { findEffectiveAssignment } from "../db/staff-assignments";
 import { newId } from "../domain/ids";
-import { QrConfigError, hashQrToken, parseQrPayload, qrPepper } from "../domain/qr-token";
+import {
+  QrConfigError,
+  hashQrToken,
+  parseQrPayload,
+  qrPepper,
+} from "../domain/qr-token";
+import {
+  lifecycleRejection,
+  scanMessage,
+  transactionSnapshot,
+} from "../domain/transactions";
+import { resolveAttendanceContext } from "../services/transaction-context";
 import { authOf, requireEventAccess } from "../http/auth";
-import { ApiError, notFound, rateLimited } from "../http/errors";
+import { ApiError, forbidden, notFound, rateLimited } from "../http/errors";
 import type { RouteContext, RouteDefinition, RouteResult } from "../http/router";
 import { clientIpHash } from "../http/security";
 import { parseJsonBody, parsePathParams } from "../http/validate";
 
 /**
- * QR scan (DESAIN_API.md §7, AGENTS.md §Integritas data).
+ * QR scan (DESAIN_API.md §7, ADR-0018/0019/0021/0022).
  *
- * The QR payload is only a lookup key. Authorization comes from the session and
- * the event membership; the payload never names a participant, an event, or a
- * role. A token from another event is rejected after the lookup and audited.
+ * The QR payload is only a lookup key. Authorization comes from the session,
+ * the Tema membership, and — for Petugas — an active assignment on the chosen
+ * Aktivitas/Sesi. A token from another Tema is indistinguishable from an
+ * unknown token in the response and audited as `attendance.wrong_theme`.
  *
- * Business outcomes return HTTP 200 with a `result` discriminant. Only auth,
- * validation, rate-limit, and system failures use 4xx/5xx.
+ * Business outcomes return HTTP 200 with a stable `result`; request/auth
+ * failures and unexpected errors keep their 4xx/5xx envelope.
  */
 
 const EventParamsSchema = z.object({ eventId: EventIdSchema });
@@ -36,7 +59,9 @@ const EventParamsSchema = z.object({ eventId: EventIdSchema });
 const SESSION_SCAN_LIMIT = { windowMs: 60_000, limit: 120 };
 const EVENT_SCAN_LIMIT = { windowMs: 60_000, limit: 600 };
 
-function participantPayload(row: ParticipantRow): NonNullable<ScanResultPayload["participant"]> {
+function participantPayload(
+  row: ParticipantRow,
+): NonNullable<ScanResultPayload["participant"]> {
   return {
     id: row.id,
     fullName: row.full_name,
@@ -45,12 +70,40 @@ function participantPayload(row: ParticipantRow): NonNullable<ScanResultPayload[
   };
 }
 
+function transactionPayload(row: TransactionJoinedRow): ScanTransaction {
+  return {
+    id: row.id,
+    activityId: row.activity_id,
+    sessionId: row.session_id,
+    occurredAt: row.occurred_at,
+    status: row.status,
+  };
+}
+
+function businessResult(input: {
+  result: ScanResultPayload["result"];
+  reason: ScanResultPayload["reason"];
+  participant?: ParticipantRow;
+  transaction?: TransactionJoinedRow;
+}): RouteResult {
+  const payload: ScanResultPayload = {
+    result: input.result,
+    reason: input.reason,
+    message: scanMessage(input.reason),
+  };
+
+  if (input.participant) payload.participant = participantPayload(input.participant);
+  if (input.transaction) payload.transaction = transactionPayload(input.transaction);
+
+  return { data: payload };
+}
+
 function qrFailure(error: unknown): never {
   if (error instanceof QrConfigError) {
     console.error("scan_qr_config_error", { reason: error.message });
     throw new ApiError(
       500,
-      "INTERNAL",
+      "SYSTEM_ERROR",
       "Konfigurasi QR belum siap. Hubungi administrator.",
     );
   }
@@ -62,7 +115,14 @@ async function scan(ctx: RouteContext): Promise<RouteResult> {
   const auth = authOf(ctx);
   const { eventId } = parsePathParams(ctx.params, EventParamsSchema);
 
-  await requireEventAccess(ctx.env, auth, eventId, "scan");
+  const access = await requireEventAccess(ctx.env, auth, eventId, "scan");
+
+  // ADR-0021: Super Admin is read-only across Temas. `isAllowed` lets it pass
+  // every matrix check, so the denial must be explicit here.
+  if (auth.user.role === "superadmin") {
+    throw forbidden("Super Admin tidak berwenang melakukan scan transaksional");
+  }
+
   const body = await parseJsonBody(ctx.request, ScanRequestSchema);
 
   const sessionLimit = await consumeRateLimit(ctx.env.DB, {
@@ -81,8 +141,10 @@ async function scan(ctx: RouteContext): Promise<RouteResult> {
 
   const token = parseQrPayload(body.qr);
   if (token === null) {
-    const payload: ScanResultPayload = { result: "not_found" };
-    return { data: payload };
+    return businessResult({
+      result: "INVALID_QR",
+      reason: "qr_invalid",
+    });
   }
 
   let tokenHash: string;
@@ -94,8 +156,10 @@ async function scan(ctx: RouteContext): Promise<RouteResult> {
 
   const participant = await findIdentityParticipantByHash(ctx.env.DB, tokenHash);
   if (!participant) {
-    const payload: ScanResultPayload = { result: "not_found" };
-    return { data: payload };
+    return businessResult({
+      result: "INVALID_QR",
+      reason: "qr_invalid",
+    });
   }
 
   const ipHash = await clientIpHash(ctx.request, ctx.env.SESSION_PEPPER);
@@ -108,14 +172,12 @@ async function scan(ctx: RouteContext): Promise<RouteResult> {
 
   if (decision.outcome === "rejected" && decision.reason === "wrong_theme") {
     // Audited, but the response deliberately returns no event or participant
-    // details so a scanned label cannot be used to enumerate another event.
-    // The audit row follows the same rule: the other Tema's identifiers are not
-    // persisted, only the outcome and the actor that attempted the scan.
+    // details so a scanned label cannot be used to enumerate another Tema.
     await recordAudit(ctx.env.DB, {
       id: newId(ctx.now),
       eventId,
       actorUserId: auth.user.id,
-      action: "attendance.wrong_event",
+      action: "attendance.wrong_theme",
       entityType: "scan_attempt",
       entityId: null,
       after: { outcome: "wrong_theme" },
@@ -123,100 +185,205 @@ async function scan(ctx: RouteContext): Promise<RouteResult> {
       createdAt: ctx.now,
     });
 
-    const payload: ScanResultPayload = { result: "wrong_event" };
-    return { data: payload };
+    return businessResult({
+      result: "INVALID_QR",
+      reason: "qr_invalid",
+    });
+  }
+
+  if (decision.outcome === "rejected" && decision.reason === "participant_inactive") {
+    return businessResult({
+      result: "NOT_ENTITLED",
+      reason: "participant_inactive",
+      participant,
+    });
   }
 
   const event = await findEventById(ctx.env.DB, eventId);
   if (!event) throw notFound("Acara tidak ditemukan");
 
-  if (!isEventOpenForAttendance(event, ctx.now)) {
-    const payload: ScanResultPayload = { result: "event_closed", eventName: event.name };
-    return { data: payload };
+  const context = await resolveAttendanceContext(ctx.env.DB, {
+    eventId,
+    activityId: body.activityId,
+    sessionId: body.sessionId,
+  });
+
+  const rejection = lifecycleRejection({
+    event,
+    activity: context.activity,
+    session: context.session,
+    participant,
+    now: ctx.now,
+  });
+
+  if (rejection !== null) {
+    return businessResult({
+      result: "NOT_ENTITLED",
+      reason: rejection,
+      participant,
+    });
   }
 
-  if (decision.outcome === "rejected" && decision.reason === "participant_inactive") {
-    const payload: ScanResultPayload = {
-      result: "participant_inactive",
-      participant: participantPayload(participant),
-    };
-    return { data: payload };
+  const rules = await listRulesForContext(ctx.env.DB, {
+    themeId: eventId,
+    participantId: participant.id,
+    categoryId: participant.category_id,
+    activityId: context.activity.id,
+    sessionId: context.session?.id ?? null,
+  });
+
+  const entitlement = resolveEntitlement(
+    {
+      participantId: participant.id,
+      categoryId: participant.category_id,
+      activityId: context.activity.id,
+      sessionId: context.session?.id ?? null,
+    },
+    rules,
+  );
+
+  if (!entitlement.allowed) {
+    return businessResult({
+      result: "NOT_ENTITLED",
+      reason: "entitlement_denied",
+      participant,
+    });
   }
 
-  const attendanceId = newId(ctx.now);
+  // Petugas must be assigned to this exact Aktivitas/Sesi; URL parameters are
+  // preselection, never authorization (FR-100, FR-190). Admins of the Tema do
+  // not need an assignment.
+  if (access.membershipRole === "officer") {
+    const assignment = await findEffectiveAssignment(ctx.env.DB, {
+      themeId: eventId,
+      activityId: context.activity.id,
+      sessionId: context.session?.id ?? null,
+      userId: auth.user.id,
+    });
+
+    if (!assignment) {
+      throw forbidden("Anda tidak ditugaskan pada Aktivitas/Sesi ini");
+    }
+  }
+
+  const transactionId = newId(ctx.now);
 
   const results = await ctx.env.DB.batch([
-    insertAttendanceStatement(ctx.env.DB, {
-      id: attendanceId,
-      eventId,
+    insertTransactionStatement(ctx.env.DB, {
+      id: transactionId,
+      themeId: eventId,
+      activityId: context.activity.id,
+      sessionId: context.session?.id ?? null,
       participantId: participant.id,
+      type: "attendance",
+      source: "qr_scan",
       status: "present",
-      checkedInAt: ctx.now,
+      occurredAt: ctx.now,
+      deviceTs: body.deviceTs ?? null,
       recordedBy: auth.user.id,
-      method: "qr_scan",
       note: null,
+      slotNo: null,
+      adjustsTransactionId: null,
       now: ctx.now,
     }),
-    enqueueAttendanceStatement(ctx.env.DB, {
+    enqueueTransactionStatement(ctx.env.DB, {
       id: newId(ctx.now),
       eventId,
       participantId: participant.id,
-      attendanceId,
+      transactionId,
       now: ctx.now,
     }),
-    insertAuditAfterAttendanceStatement(
+    insertAuditAfterTransactionStatement(
       ctx.env.DB,
       {
         id: newId(ctx.now),
         eventId,
         actorUserId: auth.user.id,
-        action: "attendance.recorded",
-        entityType: "attendance",
-        entityId: attendanceId,
-        after: {
-          participantId: participant.id,
-          status: "present",
-          method: "qr_scan",
-          deviceTs: body.deviceTs ?? null,
-        },
+        action: "transaction.recorded",
+        entityType: "transaction",
+        entityId: transactionId,
+        after: filterAuditFields(
+          "transaction",
+          transactionSnapshot({
+            id: transactionId,
+            theme_id: eventId,
+            activity_id: context.activity.id,
+            session_id: context.session?.id ?? null,
+            participant_id: participant.id,
+            type: "attendance",
+            source: "qr_scan",
+            status: "present",
+            occurred_at: ctx.now,
+            adjusts_transaction_id: null,
+            reversed_at: null,
+            superseded_at: null,
+          }),
+        ),
         ipHash,
         createdAt: ctx.now,
       },
-      attendanceId,
+      transactionId,
     ),
   ]);
 
   const inserted = (results[0]?.meta.changes ?? 0) > 0;
 
   if (inserted) {
-    const payload: ScanResultPayload = {
-      result: "present",
-      participant: participantPayload(participant),
-      attendance: { status: "present", checkedInAt: ctx.now },
-    };
-    return { data: payload };
+    const created = await findEffectiveTransactionForScope(ctx.env.DB, {
+      themeId: eventId,
+      participantId: participant.id,
+      activityId: context.activity.id,
+      sessionId: context.session?.id ?? null,
+      type: "attendance",
+    });
+
+    if (!created) {
+      throw new ApiError(
+        500,
+        "SYSTEM_ERROR",
+        "Transaksi tidak dapat dibaca setelah pencatatan. Coba lagi.",
+      );
+    }
+
+    return businessResult({
+      result: "SUCCESS",
+      reason: null,
+      participant,
+      transaction: created,
+    });
   }
 
-  // Lost the race, or the participant already attended. Read the authoritative
-  // row and report it as `duplicate` — never as a 500.
-  const existing = await findAttendanceForParticipant(ctx.env.DB, eventId, participant.id);
+  // Lost the race, or the participant already attended this scope. The
+  // authoritative row is read back and reported as DUPLICATE, never a 500.
+  const existing = await findEffectiveTransactionForScope(ctx.env.DB, {
+    themeId: eventId,
+    participantId: participant.id,
+    activityId: context.activity.id,
+    sessionId: context.session?.id ?? null,
+    type: "attendance",
+  });
 
   if (!existing) {
     throw new ApiError(
       500,
-      "INTERNAL",
-      "Absensi tidak dapat dibaca setelah pencatatan. Coba lagi.",
+      "SYSTEM_ERROR",
+      "Transaksi efektif tidak dapat dibaca setelah konflik. Coba lagi.",
     );
   }
 
-  const payload: ScanResultPayload = {
-    result: "duplicate",
-    participant: participantPayload(participant),
-    attendance: { status: existing.status, checkedInAt: existing.checked_in_at },
-  };
-  return { data: payload };
+  return businessResult({
+    result: "DUPLICATE",
+    reason: "duplicate",
+    participant,
+    transaction: existing,
+  });
 }
 
 export const scanRoutes: readonly RouteDefinition[] = [
-  { method: "POST", pattern: "/api/events/:eventId/scan", public: false, handler: scan },
+  {
+    method: "POST",
+    pattern: "/api/events/:eventId/scan",
+    public: false,
+    handler: scan,
+  },
 ];

@@ -31,9 +31,12 @@ export async function listDashboardEvents(
               CASE WHEN ? = 1 THEN 'superadmin' ELSE m.role END AS access_role,
               (SELECT COUNT(*) FROM participants p
                 WHERE p.event_id = e.id) AS participant_count,
-              (SELECT COUNT(*) FROM attendance a
-                WHERE a.event_id = e.id
-                  AND a.status IN ('present','late')) AS present_count
+              (SELECT COUNT(*) FROM transactions t
+                WHERE t.theme_id = e.id
+                  AND t.type = 'attendance'
+                  AND t.status IN ('present','late')
+                  AND t.reversed_at IS NULL
+                  AND t.superseded_at IS NULL) AS present_count
          FROM events e
          LEFT JOIN event_memberships m
            ON m.event_id = e.id AND m.user_id = ? AND m.status = 'active'

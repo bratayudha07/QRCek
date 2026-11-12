@@ -18,7 +18,8 @@ export type AuditEntityType =
   | "custom_field"
   | "entitlement_rule"
   | "participant"
-  | "qr_identity";
+  | "qr_identity"
+  | "transaction";
 
 export const REDACTED = "[REDACTED]" as const;
 
@@ -70,6 +71,23 @@ export const AUDIT_FIELDS: Readonly<Record<AuditEntityType, readonly string[]>> 
     "rotationCount",
     "issuedAt",
     "rotatedAt",
+  ],
+  // Transaction coordinates and lifecycle facts only. `note` is PII and never
+  // snapshotted; `noteChanged` records that it changed without storing a value
+  // (ADR-0020, FR-207).
+  transaction: [
+    "themeId",
+    "activityId",
+    "sessionId",
+    "participantId",
+    "type",
+    "source",
+    "status",
+    "occurredAt",
+    "noteChanged",
+    "adjustsTransactionId",
+    "reversedAt",
+    "supersededAt",
   ],
 };
 

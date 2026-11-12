@@ -86,6 +86,7 @@ describe("allowlist table", () => {
       "qr_identity",
       "session",
       "theme",
+      "transaction",
     ]);
   });
 });

@@ -232,7 +232,7 @@ Matriks lengkap ada di `REQUIREMENTS.md` §8.2; ringkasan dampak arsitekturnya:
 
 ## 6. Pertanyaan arsitektur terbuka (AQ)
 
-Setiap AQ harus dijawab dengan ADR baru (`adr/NNNN-*.md`) **sebelum** fase roadmap yang diblokirnya dibuka. Opsi di bawah adalah bahan diskusi, bukan rekomendasi final. Status: **AQ-001, AQ-006, AQ-010, dan AQ-014 dijawab** oleh ADR-0009/0014/0010/0011 (Diterima); AQ lainnya **Terbuka**.
+Setiap AQ harus dijawab dengan ADR baru (`adr/NNNN-*.md`) **sebelum** fase roadmap yang diblokirnya dibuka. Opsi di bawah adalah bahan diskusi, bukan rekomendasi final. Status: **AQ-001, AQ-002, AQ-003, AQ-004, AQ-005, AQ-006, AQ-007, AQ-008, AQ-009, AQ-010, dan AQ-014 dijawab** oleh ADR-0009/0018/0019/0020/0016/0014/0021/0022/0017/0010/0011 (**Diterima**); AQ lainnya **Terbuka**. ADR-0018–0022 diterima pemilik proyek 9 November 2026.
 
 ### AQ-001 — Posisi `events` baseline dalam hierarki target
 
@@ -247,6 +247,7 @@ Setiap AQ harus dijawab dengan ADR baru (`adr/NNNN-*.md`) **sebelum** fase roadm
 - **Pertanyaan:** satu tabel transaksi dengan kolom tipe, atau tabel terpisah per tipe? (`REQUIREMENTS.md` §3.4)
 - **Pertimbangan:** laporan gabungan dan audit lebih sederhana dengan satu tabel; constraint duplikasi (Attendance) dan kuota (Consumption) berbeda bentuk.
 - **Masukan:** `D-009` [A], `D-011` [A].
+- **Status:** **dijawab** — [ADR-0018](./adr/0018-transaction-table-shape.md) (Diterima 9 November 2026).
 - **Memblokir:** Q5, Q6.
 
 ### AQ-003 — Penegakan "transaksi efektif" di database
@@ -255,6 +256,7 @@ Setiap AQ harus dijawab dengan ADR baru (`adr/NNNN-*.md`) **sebelum** fase roadm
 - **Catatan teknis:** SQLite menganggap `NULL` berbeda dalam indeks unik, sehingga `session_id NULL` tidak bisa langsung dipakai sebagai kunci ruang lingkup. Partial unique index wajib mengulang predikatnya di `ON CONFLICT` (temuan Fase 0, `OPERASIONAL.md` §4.1).
 - **Opsi awal:** (a) kolom kunci ruang lingkup non-null + partial unique index `WHERE` belum di-reversal; (b) tabel "slot efektif" terpisah yang dilepas oleh reversal dalam batch yang sama; (c) untuk kuota > 1: nomor slot `1..kuota` unik per ruang lingkup efektif. Perubahan kuota setelah transaksi adalah pertanyaan produk terbuka di `D-014` [A].
 - **Masukan:** `D-006` [A], `D-014` [A], `FR-075`, `FR-165`.
+- **Status:** **dijawab** — [ADR-0019](./adr/0019-effective-transaction-constraints.md) (Diterima 9 November 2026).
 - **Memblokir:** Q5, Q6. Tes konkuren wajib (`RENCANA_PENGUJIAN.md` §9).
 
 ### AQ-004 — Struktur Reversal dan Adjustment
@@ -262,6 +264,7 @@ Setiap AQ harus dijawab dengan ADR baru (`adr/NNNN-*.md`) **sebelum** fase roadm
 - **Pertanyaan:** bentuk data operasi koreksi, field transaksi apa yang boleh di-Adjust, dan bagaimana efektivitas dihitung. (`D-011` [A] "struktur data rinci")
 - **Catatan:** baseline punya status kehadiran `present/late/absent/excused`; `REQUIREMENTS.md` tidak menetapkan status Attendance di luar "tercatat hadir". Field yang boleh di-Adjust memerlukan masukan product owner.
 - **Masukan:** `D-006` [A], `FR-079`, `FR-202`, `FR-207`.
+- **Status:** **dijawab** — [ADR-0020](./adr/0020-reversal-adjustment-structure.md) (Diterima 9 November 2026).
 - **Memblokir:** Q5.
 
 ### AQ-005 — Representasi dan resolusi entitlement
@@ -285,12 +288,14 @@ Setiap AQ harus dijawab dengan ADR baru (`adr/NNNN-*.md`) **sebelum** fase roadm
 
 - **Pertanyaan:** keanggotaan per Tema + penugasan per Aktivitas/Sesi; izin Manual Check-in per Petugas (`D-022` [A]); evolusi `domain/permissions.ts`.
 - **Aturan yang sudah pasti:** koreksi hanya Admin Acara (`D-006` [A]); izin legacy `attendance:correct` **tidak boleh** dipakai ulang sebagai izin Manual Check-in target (`AC-055`, `OQ-034` [A]).
+- **Status:** **dijawab** — [ADR-0021](./adr/0021-staff-assignments-and-permissions.md) (Diterima 9 November 2026; Super Admin tidak boleh QR scan transaksional).
 - **Memblokir:** Q5 (manual entry), Q7.
 
 ### AQ-008 — Kontrak hasil scan
 
 - **Pertanyaan:** pemetaan setiap penolakan (peserta nonaktif, QR dirotasi, konteks salah, lifecycle tertutup, tidak ditugaskan) ke lima result code `D-011` [A], serta pemetaan ke HTTP status. `REQUIREMENTS.md` belum menetapkan kode untuk peserta nonaktif atau Sesi yang belum Berlangsung — perlu masukan product owner.
 - **Baseline:** hasil bisnis selalu HTTP 200 dengan enum lama (§7.5).
+- **Status:** **dijawab** — [ADR-0022](./adr/0022-scan-result-contract.md) (Diterima 9 November 2026).
 - **Memblokir:** Q5, Q7.
 
 ### AQ-009 — Kepemilikan kredensial QR per Tema
@@ -406,6 +411,8 @@ Hasil bisnis selalu HTTP 200; 4xx/5xx hanya untuk autentikasi/validasi/sistem.
 
 **Status baseline:** endpoint dan tes ada. Rute `/staff/scan` merender `StaffScanPage` dari `apps/web/src/pages/staff.tsx`, yang memanggil endpoint ini (pilih acara dari keanggotaan, kamera, toast hasil). `apps/web/src/pages/staff-scan.tsx` adalah placeholder lama yang **tidak diimpor** (kode mati). `REQUIREMENTS.md` §7.2/§7.3 masih menyebut scanner belum terintegrasi — koreksi baseline itu menunggu product owner. Yang belum ada tetap: audio, pemilihan kamera, indikator jaringan, konteks Aktivitas/Sesi, mode kiosk, dan uji perangkat fisik. **Target:** §5.3 dan Q5/Q6.
 
+**Status Q5 (12 November 2026):** jalur `attendance` di atas sudah diganti. `POST /api/events/:eventId/scan` menulis `transactions`, mewajibkan konteks Aktivitas/Sesi untuk Petugas, dan mengembalikan `SUCCESS`/`DUPLICATE`/`NOT_ENTITLED`/`INVALID_QR`. Super Admin ditolak. Scanner berkonteks penuh tetap Q6; lihat `docs/DESAIN_API.md` §7.
+
 ### 7.6 Koreksi absensi
 
 1. `POST /api/events/:eventId/attendance/:attendanceId/correction` dengan `{ status, reason }`; `reason` ≥ 10 karakter; izin `attendance:correct` (admin acara dan superadmin).
@@ -413,6 +420,8 @@ Hasil bisnis selalu HTTP 200; 4xx/5xx hanya untuk autentikasi/validasi/sistem.
 3. `officer` → 403 + audit `authz.denied`.
 
 **Bertentangan dengan target:** `D-006` [A] mewajibkan Reversal/Adjustment yang mempertahankan transaksi asli dan hanya Admin Acara yang berwenang; kewenangan Super Admin masih `D-024` [A]. Jalur ini diganti di Q5.
+
+**Status Q5 (12 November 2026):** endpoint `.../attendance/:attendanceId/correction` dan izin `attendance:correct` sudah **dihapus**. Koreksi sekarang `POST .../transactions/:transactionId/reversal` dan `.../adjustment`, hanya untuk `event_admin` Tema; Petugas dan Super Admin ditolak. `transaction_corrections` append-only, dan `attendance` tidak lagi ditulis. Lihat `docs/DESAIN_API.md` §7 dan `docs/DESAIN_DATABASE.md` §3 (`0011`).
 
 ---
 

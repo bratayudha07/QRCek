@@ -9,6 +9,9 @@ import { describe, expect, it } from "vitest";
 import { testEnv } from "./env";
 import {
   addMembership,
+  addStaffAssignment,
+  allowThemeDefault,
+  createActivity,
   createEvent,
   createParticipant,
   createSession,
@@ -26,6 +29,7 @@ import { TEST_NOW, callApi, errorCode } from "./http";
 interface World {
   eventA: string;
   eventB: string;
+  activityA: string;
   adminA: { id: string; cookie: string };
   officerA: { id: string; cookie: string };
   adminB: { id: string; cookie: string };
@@ -54,8 +58,13 @@ async function world(): Promise<World> {
   const adminAId = await createUser({ role: "event_admin", displayName: "Admin A" });
   await addMembership(eventA, adminAId, "event_admin");
 
+  const activityA = await createActivity(eventA);
+  await allowThemeDefault(eventA);
+  await allowThemeDefault(eventB);
+
   const officerAId = await createUser({ role: "officer", displayName: "Petugas A" });
   await addMembership(eventA, officerAId, "officer");
+  await addStaffAssignment(eventA, activityA, officerAId);
 
   const adminBId = await createUser({ role: "event_admin", displayName: "Admin B" });
   await addMembership(eventB, adminBId, "event_admin");
@@ -70,6 +79,7 @@ async function world(): Promise<World> {
   return {
     eventA,
     eventB,
+    activityA,
     adminA: { id: adminAId, cookie: adminA.cookie },
     officerA: { id: officerAId, cookie: officerA.cookie },
     adminB: { id: adminBId, cookie: adminB.cookie },
@@ -113,7 +123,7 @@ function scan(cookie: string, eventId: string, qr: string) {
 
 async function attendanceCount(eventId: string): Promise<number> {
   const row = await testEnv.DB.prepare(
-    "SELECT COUNT(*) AS n FROM attendance WHERE event_id = ?",
+    "SELECT COUNT(*) AS n FROM transactions WHERE theme_id = ?",
   )
     .bind(eventId)
     .first<{ n: number }>();
@@ -227,11 +237,11 @@ describe("PUT /participants/:participantId/qr/rotate", () => {
 
     const oldToken = await scan(w.officerA.cookie, w.eventA, oldQr);
     const oldBody = oldToken.json<ScanResultPayload>();
-    expect(oldBody.ok && oldBody.data.result).toBe("not_found");
+    expect(oldBody.ok && oldBody.data.result).toBe("INVALID_QR");
 
     const newToken = await scan(w.officerA.cookie, w.eventA, body.data.qr);
     const newBody = newToken.json<ScanResultPayload>();
-    expect(newBody.ok && newBody.data.result).toBe("duplicate");
+    expect(newBody.ok && newBody.data.result).toBe("DUPLICATE");
   });
 
   it("writes an audit row with the reason but no credential material", async () => {
@@ -297,7 +307,7 @@ describe("PUT /participants/:participantId/qr/rotate", () => {
     const old = await scan(w.officerA.cookie, w.eventA, legacyQr);
     expect(old.json<ScanResultPayload>().ok && old.status).toBe(200);
     expect((old.json<ScanResultPayload>() as { data: ScanResultPayload }).data.result).toBe(
-      "not_found",
+      "INVALID_QR",
     );
   });
 
@@ -383,12 +393,12 @@ describe("QR scan scope", () => {
 
     const response = await scan(w.adminB.cookie, w.eventB, qr);
     const body = response.json<ScanResultPayload>();
-    expect(body.ok && body.data.result).toBe("wrong_event");
+    expect(body.ok && body.data.result).toBe("INVALID_QR");
     expect(await attendanceCount(w.eventB)).toBe(0);
 
     const audit = await testEnv.DB.prepare(
       `SELECT entity_type, entity_id, after_json
-         FROM audit_log WHERE event_id = ? AND action = 'attendance.wrong_event'`,
+         FROM audit_log WHERE event_id = ? AND action = 'attendance.wrong_theme'`,
     )
       .bind(w.eventB)
       .first<{ entity_type: string; entity_id: string | null; after_json: string }>();

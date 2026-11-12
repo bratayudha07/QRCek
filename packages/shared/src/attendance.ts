@@ -1,23 +1,46 @@
 import type { EventStatus } from "./schemas/events";
+import type { TransactionType } from "./schemas/activities";
 
-/** Response contracts for scan, attendance, and recap (DESAIN_API.md §7). */
+/** Response contracts for scan, attendance, recap, and transactions (DESAIN_API.md §7). */
 
 export const ATTENDANCE_STATUSES = ["present", "late", "absent", "excused"] as const;
 export type AttendanceStatus = (typeof ATTENDANCE_STATUSES)[number];
 
+/**
+ * `correction` is kept only for legacy `attendance.method` rows that existed
+ * before Q5. New writes use `TransactionSource`, which never contains it
+ * (FR-072, ADR-0018).
+ */
 export const ATTENDANCE_METHODS = ["qr_scan", "manual", "correction"] as const;
 export type AttendanceMethod = (typeof ATTENDANCE_METHODS)[number];
 
-/** Business results are HTTP 200; only auth/validation/system failures are 4xx/5xx. */
-export const SCAN_RESULTS = [
-  "present",
-  "duplicate",
-  "not_found",
-  "wrong_event",
-  "event_closed",
-  "participant_inactive",
-] as const;
+export const TRANSACTION_SOURCES = ["qr_scan", "manual"] as const;
+export type TransactionSource = (typeof TRANSACTION_SOURCES)[number];
+
+/**
+ * Stable business results (FR-088, ADR-0022). They are never translated and
+ * never aliased to the pre-Q5 values; the web client is updated in the same
+ * release.
+ */
+export const SCAN_RESULTS = ["SUCCESS", "DUPLICATE", "NOT_ENTITLED", "INVALID_QR"] as const;
 export type ScanResult = (typeof SCAN_RESULTS)[number];
+
+/** Machine-readable reason for a non-success result. Adding values is safe. */
+export const SCAN_REASONS = [
+  "duplicate",
+  "qr_invalid",
+  "participant_inactive",
+  "entitlement_denied",
+  "theme_archived",
+  "theme_not_active",
+  "activity_not_active",
+  "activity_archived",
+  "session_required",
+  "context_mismatch",
+  "session_not_in_progress",
+  "session_archived",
+] as const;
+export type ScanReason = (typeof SCAN_REASONS)[number];
 
 export interface ScanParticipant {
   id: string;
@@ -26,21 +49,27 @@ export interface ScanParticipant {
   category: string | null;
 }
 
-export interface ScanAttendance {
-  status: AttendanceStatus;
-  checkedInAt: number;
+export interface ScanTransaction {
+  id: string;
+  activityId: string;
+  sessionId: string | null;
+  occurredAt: number;
+  status: AttendanceStatus | null;
 }
 
 export interface ScanResultPayload {
   result: ScanResult;
-  /** Present for `present`, `duplicate`, and `participant_inactive`. */
+  /** `null` only for `SUCCESS`. */
+  reason: ScanReason | null;
+  /** Ready-to-display Bahasa Indonesia message. */
+  message: string;
+  /** Present only when the participant belongs to the scanned Tema. */
   participant?: ScanParticipant;
-  /** Present for `present` and `duplicate`. */
-  attendance?: ScanAttendance;
-  /** Present for `event_closed`, so staff can tell which event blocked them. */
-  eventName?: string;
+  /** Present for `SUCCESS` and `DUPLICATE`. */
+  transaction?: ScanTransaction;
 }
 
+/** Legacy attendance list contract, kept until Q8 (ADR-0022). */
 export interface AttendanceRecord {
   id: string;
   eventId: string;
@@ -73,6 +102,37 @@ export interface AttendanceActivity {
   category: string | null;
   status: AttendanceStatus;
   checkedInAt: number;
+}
+
+/** Target transaction contract (ADR-0018). */
+export interface TransactionRecord {
+  id: string;
+  themeId: string;
+  activityId: string;
+  sessionId: string | null;
+  participantId: string;
+  type: TransactionType;
+  source: TransactionSource;
+  status: AttendanceStatus | null;
+  occurredAt: number;
+  recordedBy: string | null;
+  note: string | null;
+  slotNo: number | null;
+  adjustsTransactionId: string | null;
+  reversedAt: number | null;
+  supersededAt: number | null;
+  effective: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface TransactionDetailPayload {
+  transaction: TransactionRecord;
+}
+
+export interface TransactionListPayload {
+  items: TransactionRecord[];
+  nextCursor: string | null;
 }
 
 export interface EventDashboardPayload {

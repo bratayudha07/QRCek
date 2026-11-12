@@ -2,9 +2,9 @@
 
 Database: Cloudflare D1, binding `DB`. Dialek **SQLite**, bukan Postgres.
 
-> **Status dokumen (9 November 2026).** Dokumen ini mencatat **skema aktual**: migrasi `0001`–`0010`. `0001`–`0006` sudah diterapkan di remote dan **tidak boleh diedit**; `0007_q1_activities_sessions.sql` diterapkan di remote pada 6 November 2026 (backup: `/tmp/opencode/qrcek-backup-2026-11-06.sql`). `0008_q2_categories_custom_fields.sql` diterapkan di remote pada **8 November 2026 02:28 UTC** (`app_meta.schema_version = 8`) berdekatan dengan deploy kode Q2; verifikasi data: 80 peserta, 32 kategori, 0 peserta tanpa `category_id`, 0 kategori lintas Tema (`docs/OPERASIONAL.md`). `0009_entitlement_rules.sql` (Q3) sudah diuji di database lokal dan **sudah diterapkan di remote** pada 8 November 2026 (`app_meta.schema_version = 9`, deploy `dc8b8546`); backfill menghasilkan 0 baris. `0010_qr_identities.sql` (Q4) **sudah diterapkan di remote** pada **9 November 2026 02:34 UTC** (`app_meta.schema_version = 10`, backup pra-migrasi `/tmp/opencode/qrcek-backup-2026-11-09-pre-0010.sql`, 149 KB); backfill menyalin **60 baris** kredensial legacy dari 80 peserta, 0 nilai tidak cocok. Model target QRCek yang tersisa (transaksi efektif, Reversal/Adjustment, kuota konsumsi) **belum punya skema**; bentuknya diputuskan lewat AQ-002–AQ-004 di [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6 — AQ-005 sudah dijawab ADR-0016 dan menjadi `0009`, AQ-006 menjadi `0008`, AQ-009 menjadi `0010`. `D-007` [A] menghapus kewajiban migrasi data produksi, **bukan** kewajiban regression test, dan bukan izin mengedit migrasi lama.
+> **Status dokumen (10 November 2026).** Dokumen ini mencatat **skema aktual**: migrasi `0001`–`0011`. `0001`–`0006` sudah diterapkan di remote dan **tidak boleh diedit**; `0007_q1_activities_sessions.sql` diterapkan di remote pada 6 November 2026 (backup: `/tmp/opencode/qrcek-backup-2026-11-06.sql`). `0008_q2_categories_custom_fields.sql` diterapkan di remote pada **8 November 2026 02:28 UTC** (`app_meta.schema_version = 8`) berdekatan dengan deploy kode Q2; verifikasi data: 80 peserta, 32 kategori, 0 peserta tanpa `category_id`, 0 kategori lintas Tema (`docs/OPERASIONAL.md`). `0009_entitlement_rules.sql` (Q3) sudah diuji di database lokal dan **sudah diterapkan di remote** pada 8 November 2026 (`app_meta.schema_version = 9`, deploy `dc8b8546`); backfill menghasilkan 0 baris. `0010_qr_identities.sql` (Q4) **sudah diterapkan di remote** pada **9 November 2026 02:34 UTC** (`app_meta.schema_version = 10`, backup pra-migrasi `/tmp/opencode/qrcek-backup-2026-11-09-pre-0010.sql`, 149 KB); backfill menyalin **60 baris** kredensial legacy dari 80 peserta, 0 nilai tidak cocok. `0011_q5_transactions.sql` (Q5) **sudah diterapkan di remote** pada **12 November 2026** (`app_meta.schema_version = 11`, backup pra-migrasi `/tmp/opencode/qrcek-backup-2026-11-12-pre-0011.sql`, 187 KB). Backfill membuat **12 Aktivitas Attendance default** (satu per Tema), **32 aturan entitlement**, **5 penugasan Petugas**, dan menyalin **26 baris `attendance`** menjadi `transactions` dengan id yang sama; verifikasi lintas Tema = 0. Migrasi diuji lebih dulu di database lokal kosong dan oleh suite integrasi yang menerapkan seluruh migrasi.
 >
-> Bagian yang bertentangan dengan keputusan produk `[A]` ditandai **Delta**: `attendance` satu baris per `(event_id, participant_id)` (target: per ruang lingkup Aktivitas/Sesi, `D-003`), koreksi via `UPDATE attendance` (target: Reversal/Adjustment, `D-006`), dan kredensial QR per baris peserta per acara (target: per Tema + Peserta, `D-004`).
+> **Delta yang sudah ditutup Q5:** transaksi efektif berkonteks Aktivitas/Sesi (`D-003`), Reversal/Adjustment tanpa menimpa riwayat (`D-006`), dan koreksi via `UPDATE attendance` sudah tidak ada di kode. Tabel `attendance` **tetap ada dan tidak lagi ditulis**; ia hanya dibaca oleh adaptor kompatibilitas sampai Q8. Delta yang **masih terbuka**: kuota konsumsi ditegakkan di database (Q7) dan `slot_no` sudah disiapkan tetapi belum divalidasi; `participants.qr_*` legacy belum dihapus (ADR-0017).
 
 Batasan platform yang membentuk skema ini (terverifikasi, lihat [`../COSTS_AND_LIMITS.md`](../COSTS_AND_LIMITS.md)):
 
@@ -41,7 +41,12 @@ events ──┬──< event_memberships >── users ──┬──< device_
          │                                  ├──< recovery_codes
          │                                  └──< invites (sebagai pembuat)
          ├──< activities ──< activity_sessions
-         ├──< categories ──< participants ──┬──< attendance (1:1 per acara)
+         │        │                │
+         │        ├──< staff_assignments ──< users
+         │        │
+         │        └──< transactions ──┬──< transaction_corrections
+         │                            └──< transactions (adjusts_transaction_id)
+         ├──< categories ──< participants ──┬──< attendance (legacy, read-only)
          │                                  └──< sheet_rows (1:1)
          ├──< custom_fields
          ├──< entitlement_rules (tema/aktivitas/sesi/peserta/kategori)
@@ -52,15 +57,17 @@ events ──┬──< event_memberships >── users ──┬──< device_
 
 users.role ∈ {superadmin, event_admin, officer}
 event_memberships.role ∈ {event_admin, officer}   (superadmin tidak butuh membership)
+transactions.type ∈ {attendance, consumption}
+transactions.source ∈ {qr_scan, manual}
 ```
 
-Catatan: `superadmin` bersifat global (`users.role`), sedangkan `event_admin` dan `officer` **selalu** terikat ke satu acara lewat `event_memberships`.
+Catatan: `superadmin` bersifat global (`users.role`), sedangkan `event_admin` dan `officer` **selalu** terikat ke satu acara lewat `event_memberships`. Sejak Q5, `transactions` adalah sumber kehadiran; `attendance` dipertahankan sebagai tabel legacy yang tidak ditulis lagi.
 
 ---
 
 ## 3. DDL
 
-> **Keadaan aktual per 4 November 2026:** migrasi `0001`–`0006` membuat tabel bisnis, kolom QR, attendance, audit, outbox, Sheets, dan metadata self-signup; `0007` menambahkan `activities` dan `activity_sessions` (Q1). DDL di bawah mendokumentasikan skema; file migrasi tetap sumber kebenaran untuk definisi aktual.
+> **Keadaan aktual per 10 November 2026:** migrasi `0001`–`0006` membuat tabel bisnis, kolom QR, attendance, audit, outbox, Sheets, dan metadata self-signup; `0007` menambahkan `activities` dan `activity_sessions` (Q1); `0008`–`0010` menambahkan kategori/custom field, entitlement, dan QR Identity; `0011` menambahkan `transactions`, `transaction_corrections`, dan `staff_assignments` (Q5). DDL di bawah mendokumentasikan skema; file migrasi tetap sumber kebenaran untuk definisi aktual.
 
 File migrasi: satu file per perubahan skema, diberi nomor berurutan di `migrations/`.
 
@@ -157,7 +164,9 @@ CREATE UNIQUE INDEX uq_participant_qr_hash
   ON participants(qr_token_hash)
   WHERE qr_token_hash IS NOT NULL;
 
--- ───────────────────────────────────────────── attendance
+-- ───────────────────────────────────────────── attendance (legacy sejak Q5)
+-- Dibaca hanya oleh adaptor kompatibilitas; tidak ditulis lagi. Jangan
+-- menghapus UNIQUE di bawah sebelum adaptor baca dan ekspor dilepas (Q8).
 CREATE TABLE attendance (
   id             TEXT PRIMARY KEY,
   event_id       TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
@@ -324,8 +333,8 @@ CREATE TABLE rate_limits (
 > Nomor file aktual: `0001_init.sql`, `0002_auth.sql`, `0003_participants.sql`,
 > `0004_qr.sql`, `0005_attendance_sync.sql`, `0006_self_signup.sql`,
 > `0007_q1_activities_sessions.sql`, `0008_q2_categories_custom_fields.sql`,
-> `0009_entitlement_rules.sql`, `0010_qr_identities.sql`. Perubahan berikutnya harus memakai
-> `0011_*.sql` atau nomor berurutan berikutnya.
+> `0009_entitlement_rules.sql`, `0010_qr_identities.sql`, `0011_q5_transactions.sql`.
+> Perubahan berikutnya harus memakai `0012_*.sql` atau nomor berurutan berikutnya.
 
 > **ADR-007 (`0006_self_signup.sql`) dan ADR-0013.** Satu kolom baru pada `users`:
 >
@@ -743,6 +752,180 @@ WHERE p.qr_token_hash IS NOT NULL
 >    menghidupkan token apa pun untuk baris itu, tetapi kode lama akan melihat peserta sebagai
 >    "belum punya QR".
 
+File: `migrations/0011_q5_transactions.sql` (Q5, ADR-0018/0019/0020/0021, `D-003`/`D-006`/`D-022`)
+
+```sql
+CREATE TABLE transactions (
+  id                     TEXT PRIMARY KEY,
+  theme_id               TEXT NOT NULL REFERENCES events(id) ON DELETE RESTRICT,
+  activity_id            TEXT NOT NULL REFERENCES activities(id) ON DELETE RESTRICT,
+  session_id             TEXT REFERENCES activity_sessions(id) ON DELETE RESTRICT,
+  participant_id         TEXT NOT NULL REFERENCES participants(id) ON DELETE RESTRICT,
+  type                   TEXT NOT NULL CHECK (type IN ('attendance','consumption')),
+  source                 TEXT NOT NULL CHECK (source IN ('qr_scan','manual')),
+  status                 TEXT CHECK (status IN ('present','late','absent','excused')),
+  occurred_at            INTEGER NOT NULL,
+  device_ts              INTEGER,
+  recorded_by            TEXT REFERENCES users(id) ON DELETE RESTRICT,
+  note                   TEXT,
+  slot_no                INTEGER,                 -- Q7; belum divalidasi
+  adjusts_transaction_id TEXT REFERENCES transactions(id) ON DELETE RESTRICT,
+  reversed_at            INTEGER,
+  reversed_by            TEXT REFERENCES users(id) ON DELETE RESTRICT,
+  superseded_at          INTEGER,
+  superseded_by          TEXT REFERENCES users(id) ON DELETE RESTRICT,
+  created_at             INTEGER NOT NULL,
+  updated_at             INTEGER NOT NULL,
+  CHECK ((type = 'attendance') = (status IS NOT NULL)),
+  CHECK ((type = 'consumption') = (slot_no IS NOT NULL)),
+  CHECK (occurred_at > 0),
+  CHECK (created_at > 0),
+  CHECK (updated_at >= created_at),
+  CHECK ((reversed_at IS NULL) = (reversed_by IS NULL)),
+  CHECK ((superseded_at IS NULL) = (superseded_by IS NULL)),
+  CHECK (adjusts_transaction_id IS NULL OR adjusts_transaction_id <> id),
+  CHECK (note IS NULL OR length(note) <= 500)
+);
+
+CREATE TABLE transaction_corrections (
+  id             TEXT PRIMARY KEY,
+  transaction_id TEXT NOT NULL REFERENCES transactions(id) ON DELETE RESTRICT,
+  operation      TEXT NOT NULL CHECK (operation IN ('reversal','adjustment')),
+  reason         TEXT NOT NULL,
+  actor_user_id  TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  before_json    TEXT,
+  after_json     TEXT,
+  created_at     INTEGER NOT NULL,
+  CHECK (length(reason) BETWEEN 3 AND 500),
+  CHECK (created_at > 0),
+  CHECK ((operation = 'reversal') = (after_json IS NULL))
+);
+
+CREATE TABLE staff_assignments (
+  id                  TEXT PRIMARY KEY,
+  theme_id            TEXT NOT NULL REFERENCES events(id) ON DELETE RESTRICT,
+  activity_id         TEXT NOT NULL REFERENCES activities(id) ON DELETE RESTRICT,
+  session_id          TEXT REFERENCES activity_sessions(id) ON DELETE RESTRICT,
+  user_id             TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  can_manual_check_in INTEGER NOT NULL DEFAULT 0
+                      CHECK (can_manual_check_in IN (0, 1)),
+  status              TEXT NOT NULL DEFAULT 'active'
+                      CHECK (status IN ('active','revoked')),
+  created_at          INTEGER NOT NULL,
+  created_by          TEXT REFERENCES users(id) ON DELETE RESTRICT,
+  updated_at          INTEGER NOT NULL,
+  updated_by          TEXT REFERENCES users(id) ON DELETE RESTRICT,
+  revoked_at          INTEGER,
+  CHECK (created_at > 0),
+  CHECK (updated_at >= created_at),
+  CHECK ((status = 'revoked') = (revoked_at IS NOT NULL))
+);
+```
+
+Index (semua parsial, predikat diulang persis oleh query `ON CONFLICT`):
+
+```sql
+CREATE UNIQUE INDEX uq_tx_attendance_activity
+  ON transactions(theme_id, participant_id, activity_id)
+  WHERE type = 'attendance' AND session_id IS NULL
+    AND reversed_at IS NULL AND superseded_at IS NULL;
+
+CREATE UNIQUE INDEX uq_tx_attendance_session
+  ON transactions(theme_id, participant_id, activity_id, session_id)
+  WHERE type = 'attendance' AND session_id IS NOT NULL
+    AND reversed_at IS NULL AND superseded_at IS NULL;
+
+CREATE UNIQUE INDEX uq_tx_consumption_activity
+  ON transactions(theme_id, participant_id, activity_id, slot_no)
+  WHERE type = 'consumption' AND session_id IS NULL
+    AND reversed_at IS NULL AND superseded_at IS NULL;
+
+CREATE UNIQUE INDEX uq_tx_consumption_session
+  ON transactions(theme_id, participant_id, activity_id, session_id, slot_no)
+  WHERE type = 'consumption' AND session_id IS NOT NULL
+    AND reversed_at IS NULL AND superseded_at IS NULL;
+
+CREATE INDEX idx_tx_effective_activity
+  ON transactions(theme_id, activity_id, session_id, occurred_at DESC)
+  WHERE reversed_at IS NULL AND superseded_at IS NULL;
+
+CREATE INDEX idx_tx_effective_participant
+  ON transactions(theme_id, participant_id, occurred_at DESC)
+  WHERE reversed_at IS NULL AND superseded_at IS NULL;
+
+CREATE INDEX idx_tx_participant_history
+  ON transactions(theme_id, participant_id, occurred_at DESC);
+
+CREATE UNIQUE INDEX uq_txc_reversal
+  ON transaction_corrections(transaction_id) WHERE operation = 'reversal';
+CREATE INDEX idx_txc_transaction
+  ON transaction_corrections(transaction_id, created_at);
+
+CREATE UNIQUE INDEX uq_assignment_activity
+  ON staff_assignments(theme_id, activity_id, user_id)
+  WHERE session_id IS NULL AND status = 'active';
+CREATE UNIQUE INDEX uq_assignment_session
+  ON staff_assignments(theme_id, activity_id, session_id, user_id)
+  WHERE session_id IS NOT NULL AND status = 'active';
+CREATE INDEX idx_assignment_user_theme
+  ON staff_assignments(user_id, theme_id, status);
+CREATE INDEX idx_assignment_activity_status
+  ON staff_assignments(activity_id, session_id, status);
+```
+
+Trigger:
+
+- `trg_transaction_context_insert` (BEFORE INSERT) menolak Aktivitas yang bukan milik Tema
+  atau bertipe berbeda, peserta lintas Tema, Sesi yang bukan milik Aktivitas, Sesi yang hilang
+  padahal Aktivitas punya Sesi, Tema terarsip, dan — untuk transaksi **baru** (bukan
+  Adjustment) — Tema/Aktivitas/peserta/Sesi yang tidak lagi aktif.
+- `trg_transaction_corrections_no_update` dan `trg_transaction_corrections_no_delete`
+  menegakkan append-only pada `transaction_corrections`.
+- `trg_staff_assignment_context_insert` dan `trg_staff_assignment_context_update`
+  menolak penugasan lintas Tema, Sesi lintas Aktivitas, dan pengguna yang bukan anggota aktif
+  Tema.
+
+Backfill satu kali, berurutan:
+
+1. **Aktivitas default.** Satu baris `activities` bertipe `attendance`, status `active`, nama
+   `Absensi`, dibuat untuk setiap Tema yang belum punya Aktivitas Attendance. Produksi punya
+   0 Aktivitas, sehingga tanpa langkah ini setiap scan akan berhenti di "tidak ada Aktivitas".
+2. **Aturan entitlement.** Menyalin pola `0009` untuk setiap Aktivitas Attendance aktif:
+   `allowed` per kategori aktif (atau kategori arsip yang masih punya peserta), tanpa Sesi dan
+   tanpa peserta. Mencegah resolver fail-closed menolak seluruh peserta lama.
+3. **Penugasan Petugas.** Setiap anggota `officer` aktif mendapat penugasan aktif pada setiap
+   Aktivitas Attendance aktif di Temanya dengan `can_manual_check_in = 0`; Q6 yang membuat
+   admin dapat mengaktifkan Manual Check-in per penugasan.
+4. **Penyalinan `attendance` → `transactions`.** `id` lama dipakai ulang; `method = 'qr_scan'`
+   menjadi `source = 'qr_scan'`, selain itu `manual`; Aktivitas tujuan adalah Aktivitas
+   Attendance pertama pada Tema itu (`sort_order`, `created_at`, `id`). Hanya baris yang belum
+   ada di `transactions`.
+5. **Trigger dibuat setelah backfill** agar baris historis tidak ditolak oleh cek lifecycle
+   yang berlaku untuk transaksi baru.
+
+> **Catatan 0011.**
+>
+> 1. **Satu tabel untuk dua tipe transaksi.** `type` dan `status`/`slot_no` dijaga `CHECK`
+>    sehingga Attendance selalu punya status dan Consumption selalu punya `slot_no`. Kuota
+>    konsumsi belum ditegakkan; Q7 menambahkan validasi dan indeks yang dibutuhkan.
+> 2. **Empat partial unique index** karena SQLite menganggap `NULL` berbeda di unique index.
+>    Efektivitas dihitung dari `reversed_at IS NULL AND superseded_at IS NULL`, sehingga
+>    Reversal membebaskan slot dan Adjustment memindahkan versi efektif ke baris baru.
+>    `ON CONFLICT` wajib mengulang predikat indeks; pelanggaran dipetakan ke hasil `DUPLICATE`
+>    atau `409 CONFLICT`, bukan `500`.
+> 3. **Riwayat tidak pernah ditimpa.** Reversal hanya menandai baris asli; Adjustment menandai
+>    `superseded_at` lalu meng-insert versi baru dengan `adjusts_transaction_id`. Tidak ada
+>    `UPDATE` field bisnis pada transaksi lama.
+> 4. **`transaction_corrections` append-only**, satu Reversal per transaksi
+>    (`uq_txc_reversal`), Adjustment boleh berantai. `before_json`/`after_json` hanya memuat
+>    field allowlist (`occurredAt`, `status`, `noteChanged`); teks catatan tidak disimpan.
+> 5. **`attendance` dibekukan, bukan dihapus.** UNIQUE `(event_id, participant_id)` tetap ada
+>    sampai adaptor baca dan ekspor dilepas di Q8; semua penulisan baru hanya ke `transactions`.
+> 6. **Backfill memakai id lama** agar tautan, tes, dan adaptor kompatibilitas tetap stabil.
+>    `recorded_by` boleh `NULL` hanya untuk baris historis ini.
+> 7. **Backfill tidak menulis audit** karena migrasi bukan aksi admin; ini pengecualian yang
+>    sama dengan `0009`/`0010`, bukan pola untuk mutasi runtime.
+
 ---
 
 ## 4. Indeks: alasan dan biaya
@@ -774,6 +957,14 @@ Setiap indeks menambah baris tulis. Indeks di bawah dipilih karena setiap halama
 | `uq_ent_*` (5 partial unique, `0009`) | Satu sel per tingkat; dipakai resolver untuk `SEARCH` per cabang `UNION ALL` |
 | `uq_qr_identity_participant` (`0010`) | Satu identitas per Tema + Peserta; `ON CONFLICT` penerbitan lazy |
 | `uq_qr_identity_hash` (`0010`) | Lookup scan satu `SEARCH`; menjamin hash hanya milik satu identitas |
+| `uq_tx_attendance_*` (`0011`, 2 partial) | Satu transaksi Attendance efektif per peserta per Aktivitas/Sesi |
+| `uq_tx_consumption_*` (`0011`, 2 partial) | Satu transaksi konsumsi efektif per peserta per ruang lingkup dan `slot_no`; disiapkan untuk Q7 |
+| `idx_tx_effective_activity` / `idx_tx_effective_participant` (`0011`, partial) | Rekap, riwayat, dashboard, dan proyeksi Sheets hanya membaca transaksi efektif |
+| `idx_tx_participant_history` (`0011`) | Riwayat termasuk versi yang sudah di-Reversal/supersede |
+| `uq_txc_reversal` (`0011`, partial) | Maksimum satu Reversal per transaksi |
+| `idx_txc_transaction` (`0011`) | Koreksi per transaksi terurut waktu |
+| `uq_assignment_activity` / `uq_assignment_session` (`0011`, partial) | Satu penugasan aktif per petugas per Aktivitas/Sesi |
+| `idx_assignment_user_theme` / `idx_assignment_activity_status` (`0011`) | Cek otorisasi scan dan daftar petugas per Aktivitas |
 
 **Wajib diverifikasi di Fase 0**: jalankan semua query utama dengan `EXPLAIN QUERY PLAN` dan pastikan memakai indeks (`SEARCH ... USING INDEX`), bukan `SCAN`.
 
@@ -783,8 +974,15 @@ Setiap indeks menambah baris tulis. Indeks di bawah dipilih karena setiap halama
 
 | Aturan | Ditegakkan oleh | Tes yang membuktikannya |
 |---|---|---|
-| Absensi ganda mustahil (baseline; **Delta**: target per transaksi efektif per ruang lingkup, AQ-003) | `UNIQUE (event_id, participant_id)` — jangan dilepas sebelum constraint pengganti teruji | `scan.duplicate.test.ts` — dua scan paralel, satu `present` satu `duplicate` |
-| Scan lintas acara ditolak | `qr_identities.theme_id` diperiksa sebelum status peserta (Q4); jalur baseline tetap `WHERE event_id = ?` | `qr-identity.db.test.ts`, `qr-identity.api.test.ts`, `scan.test.ts` |
+| Satu transaksi Attendance efektif per peserta per ruang lingkup | `uq_tx_attendance_activity` / `uq_tx_attendance_session` (`0011`); `UNIQUE (event_id, participant_id)` pada `attendance` tetap ada sampai Q8 | `scan.test.ts` — scan ganda, 50 scan paralel, satu `SUCCESS` sisanya `DUPLICATE` |
+| Reversal membebaskan slot | `reversed_at`/`superseded_at` mengeluarkan baris dari predikat indeks unik | `scan.test.ts` — Reversal lalu scan ulang berhasil |
+| Adjustment tidak menimpa riwayat | Versi lama `superseded_at`, versi baru `adjusts_transaction_id` | `scan.test.ts` — dua baris, versi efektif satu |
+| Koreksi hanya oleh Admin Acara | Route memeriksa `event_admin` Tema; Super Admin dan Petugas ditolak | `scan.test.ts` — 403 untuk Petugas dan Super Admin |
+| Koreksi tidak bisa diubah/dihapus | Trigger `trg_transaction_corrections_no_{update,delete}` | `scan.test.ts`, `db.integration.test.ts` |
+| Catatan bebas tidak masuk audit/koreksi | `transactionSnapshot` + allowlist `transaction` hanya `noteChanged` | `domain/transactions.test.ts`, `scan.test.ts` |
+| Transaksi tidak bisa lintas Tema/Aktivitas/Sesi | `trg_transaction_context_insert` + scope query route | `scan.test.ts` — Aktivitas Tema lain → 404, token Tema lain → `INVALID_QR` |
+| Petugas hanya pada penugasan aktif | `staff_assignments` + `trg_staff_assignment_context_*` | `scan.test.ts` — tanpa penugasan → 403 |
+| Scan lintas acara ditolak | `qr_identities.theme_id` diperiksa sebelum status peserta (Q4); `transactions.theme_id` di trigger Q5 | `qr-identity.db.test.ts`, `qr-identity.api.test.ts`, `scan.test.ts` |
 | Audit tidak bisa diubah | Trigger `RAISE(ABORT)` | `audit.immutable.test.ts` — `UPDATE`/`DELETE` harus error |
 | Satu undangan satu pemakaian | `used_at` + cek dalam transaksi batch | `invite.replay.test.ts` |
 | Import CSV idempoten | `ON CONFLICT (event_id, external_ref) WHERE external_ref IS NOT NULL DO UPDATE` | `participants.import.test.ts` |
@@ -817,9 +1015,9 @@ Setiap indeks menambah baris tulis. Indeks di bawah dipilih karena setiap halama
 | Snapshot audit entitlement tanpa PII | Allowlist `entitlement_rule` (6 field) | `entitlements.api.test.ts` — "stores only rule coordinates and status" |
 | Satu QR Identity per Tema + Peserta | `uq_qr_identity_participant` + `ON CONFLICT DO NOTHING` | `qr-identity.db.test.ts` — insert kedua ditolak; helper balapan `changes = 0` |
 | QR tidak bisa dipakai lintas Tema | `qr_identities.theme_id` diperiksa sebelum status peserta | `qr-identity.db.test.ts`, `qr-identity.api.test.ts`, `packages/shared/src/qr.test.ts` |
-| Token lama mati setelah rotasi | `UPDATE` in-place pada `uq_qr_identity_hash` | `qr-identity.db.test.ts` — hash lama tidak ditemukan; `qr-identity.api.test.ts` — scan `not_found` |
+| Token lama mati setelah rotasi | `UPDATE` in-place pada `uq_qr_identity_hash` | `qr-identity.db.test.ts` — hash lama tidak ditemukan; `qr-identity.api.test.ts` — scan `INVALID_QR` |
 | Rotasi paralel hanya satu yang mendarat | Guard `rotation_count` + audit `WHERE token_hash = ?` | `qr-identity.api.test.ts` — satu `200`, satu `409`, satu audit |
-| Riwayat transaksi tidak berubah karena rotasi | Tidak ada UPDATE/DELETE pada `attendance` | `qr-identity.api.test.ts` — jumlah absensi tetap |
+| Riwayat transaksi tidak berubah karena rotasi | Tidak ada UPDATE/DELETE pada `transactions` | `qr-identity.api.test.ts` — jumlah transaksi tetap |
 | Identitas tidak bisa lintas Tema di level database | Trigger `trg_qr_identity_context_*` | `qr-identity.db.test.ts` — insert lintas Tema error |
 | Metadata/rotasi tidak membocorkan kredensial | Respons & allowlist audit tanpa token/hash/ciphertext/nonce | `qr-identity.api.test.ts`, `audit-allowlist.test.ts` |
 
@@ -937,7 +1135,10 @@ Perkiraan kasar per baris (termasuk overhead indeks):
 | Tabel | Ukuran/baris | 50.000 peserta | Catatan |
 |---|---|---|---|
 | `participants` | ~400 B + 4 indeks | ~120 MB | Indeks: token, event+name, unique ref |
-| `attendance` | ~250 B + 2 indeks | ~60 MB | Satu baris per peserta |
+| `attendance` | ~250 B + 2 indeks | ~60 MB | Legacy; tidak ditulis lagi sejak Q5 |
+| `transactions` | ~300 B + 3 indeks efektif + indeks unik | ~90 MB per 50k transaksi Attendance | Riwayat koreksi menambah baris, bukan menimpa |
+| `transaction_corrections` | ~350 B + 2 indeks | kecil–sedang | Append-only; satu baris per Reversal/Adjustment |
+| `staff_assignments` | ~250 B + 4 indeks | kecil | Satu baris per petugas per Aktivitas/Sesi |
 | `audit_log` | ~600 B + 3 indeks | ~150 MB (250k baris) | **Tumbuh paling cepat** |
 | `outbox` | ~350 B | kecil setelah pruning | `done` dipangkas 7 hari |
 | `entitlement_rules` | ~300 B + 5 indeks parsial | kecil–sedang | Satu baris per sel yang dikonfigurasi; backfill lama = Aktivitas aktif × kategori |
@@ -964,5 +1165,7 @@ Kesimpulan: **satu database 500 MB cukup untuk puluhan ribu peserta**, tetapi `a
 | 4 | Trigger `RAISE(ABORT)` berjalan normal di D1 | `apps/api/src/test/qr.db.test.ts` | ✅ Terverifikasi; UPDATE/DELETE ditolak oleh trigger |
 | 5 | `EXPLAIN QUERY PLAN` menampilkan `SEARCH` untuk semua query utama | Skrip pemeriksaan indeks | ✅ Terverifikasi — `spike.explain.test.ts`, 10/10 query memakai `SEARCH ... USING INDEX` (tabel sekali-pakai) + `app_meta` yang nyata. Query resolver entitlement: 5/5 cabang dengan Sesi dan 3/3 tanpa Sesi `SEARCH`, tanpa `SCAN` (`entitlements.db.test.ts`) |
 | 6 | Ukuran nyata per baris | `SELECT SUM(pgsize) FROM dbstat` bila tersedia, atau `wrangler d1 export` + hitung file | ⬜ **Belum** — `dbstat` tidak tersedia di D1; perlu data nyata + `wrangler d1 export` (Fase 2, setelah import peserta) |
+| 7 | Duplikasi transaksi efektif tetap aman di bawah konkurensi | 50 scan paralel pada D1/workerd asli | ✅ Terverifikasi — `scan.test.ts`, tepat satu `SUCCESS` dan sisanya `DUPLICATE`; indeks parsial dipakai |
+| 8 | Adjustment melepas slot sebelum insert versi baru | `superseded_at` di `db.batch` sebelum `INSERT` | ✅ Terverifikasi — `scan.test.ts` adjustment dan Reversal
 
 Detail angka dan quirk lingkungan ada di `docs/OPERASIONAL.md` §1–§2.

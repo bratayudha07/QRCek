@@ -16,6 +16,7 @@ export type ApiErrorCode =
   | "BUSINESS_RULE"
   | "RATE_LIMITED"
   | "INTERNAL"
+  | "SYSTEM_ERROR"
   | "DB_UNAVAILABLE";
 
 export interface ApiSuccess<T> {

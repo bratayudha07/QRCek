@@ -1,11 +1,12 @@
 import type { AttendanceMethod, AttendanceStatus } from "@absensi/shared";
 
 /**
- * Data access for attendance (DESAIN_DATABASE.md §3).
+ * Compatibility reads for the legacy attendance endpoints (ADR-0022).
  *
- * Duplicate prevention is the `UNIQUE (event_id, participant_id)` constraint,
- * not a SELECT before INSERT. Every write here either relies on `ON CONFLICT
- * DO NOTHING` or on the unique index rejecting the row.
+ * Since Q5 the authoritative source is `transactions`; `attendance` is only a
+ * historical table and is never written by new code. Every query here selects
+ * an **effective Attendance transaction** and aliases it into the old response
+ * shape until Q8 replaces the reporting surface.
  */
 
 export interface AttendanceRow {
@@ -44,17 +45,31 @@ function escapeLike(value: string): string {
 }
 
 export const ATTENDANCE_SELECT = `
-  SELECT a.*,
-         e.name               AS event_name,
-         p.full_name          AS participant_name,
-         p.external_ref       AS participant_external_ref,
-         p.category           AS category,
-         u.display_name       AS recorded_by_name
-    FROM attendance a
-    JOIN events e ON e.id = a.event_id
+  SELECT t.id,
+         t.theme_id         AS event_id,
+         t.participant_id,
+         t.status,
+         t.occurred_at      AS checked_in_at,
+         t.recorded_by,
+         t.source           AS method,
+         t.note,
+         t.created_at,
+         t.updated_at,
+         e.name             AS event_name,
+         p.full_name        AS participant_name,
+         p.external_ref     AS participant_external_ref,
+         p.category         AS category,
+         u.display_name     AS recorded_by_name
+    FROM transactions t
+    JOIN events e ON e.id = t.theme_id
     JOIN participants p
-      ON p.id = a.participant_id AND p.event_id = a.event_id
-    LEFT JOIN users u ON u.id = a.recorded_by`;
+      ON p.id = t.participant_id AND p.event_id = t.theme_id
+    LEFT JOIN users u ON u.id = t.recorded_by`;
+
+const EFFECTIVE_ATTENDANCE = `
+  t.type = 'attendance'
+  AND t.reversed_at IS NULL
+  AND t.superseded_at IS NULL`;
 
 export async function findAttendanceById(
   db: D1Database,
@@ -62,7 +77,10 @@ export async function findAttendanceById(
   attendanceId: string,
 ): Promise<AttendanceJoinedRow | null> {
   return db
-    .prepare(`${ATTENDANCE_SELECT} WHERE a.event_id = ? AND a.id = ?`)
+    .prepare(
+      `${ATTENDANCE_SELECT}
+        WHERE t.theme_id = ? AND t.id = ? AND ${EFFECTIVE_ATTENDANCE}`,
+    )
     .bind(eventId, attendanceId)
     .first<AttendanceJoinedRow>();
 }
@@ -73,7 +91,12 @@ export async function findAttendanceForParticipant(
   participantId: string,
 ): Promise<AttendanceJoinedRow | null> {
   return db
-    .prepare(`${ATTENDANCE_SELECT} WHERE a.event_id = ? AND a.participant_id = ?`)
+    .prepare(
+      `${ATTENDANCE_SELECT}
+        WHERE t.theme_id = ? AND t.participant_id = ? AND ${EFFECTIVE_ATTENDANCE}
+        ORDER BY t.occurred_at DESC, t.id DESC
+        LIMIT 1`,
+    )
     .bind(eventId, participantId)
     .first<AttendanceJoinedRow>();
 }
@@ -85,11 +108,11 @@ export async function listAttendance(
   cursor: AttendanceCursor | null,
   limit: number,
 ): Promise<AttendanceJoinedRow[]> {
-  const clauses = ["a.event_id = ?"];
+  const clauses = ["t.theme_id = ?", EFFECTIVE_ATTENDANCE];
   const bindings: Array<string | number> = [eventId];
 
   if (filters.status !== "all") {
-    clauses.push("a.status = ?");
+    clauses.push("t.status = ?");
     bindings.push(filters.status);
   }
 
@@ -105,7 +128,7 @@ export async function listAttendance(
   }
 
   if (cursor) {
-    clauses.push("(a.checked_in_at < ? OR (a.checked_in_at = ? AND a.id < ?))");
+    clauses.push("(t.occurred_at < ? OR (t.occurred_at = ? AND t.id < ?))");
     bindings.push(cursor.checkedInAt, cursor.checkedInAt, cursor.id);
   }
 
@@ -115,7 +138,7 @@ export async function listAttendance(
     .prepare(
       `${ATTENDANCE_SELECT}
         WHERE ${clauses.join(" AND ")}
-        ORDER BY a.checked_in_at DESC, a.id DESC
+        ORDER BY t.occurred_at DESC, t.id DESC
         LIMIT ?`,
     )
     .bind(...bindings)
@@ -138,18 +161,18 @@ export async function listAttendanceByRecorder(
     limit: number;
   },
 ): Promise<AttendanceJoinedRow[]> {
-  const clauses = ["a.recorded_by = ?"];
+  const clauses = ["t.recorded_by = ?", EFFECTIVE_ATTENDANCE];
   const bindings: Array<string | number> = [input.userId];
 
   if (input.eventId) {
-    clauses.push("a.event_id = ?");
+    clauses.push("t.theme_id = ?");
     bindings.push(input.eventId);
   }
 
   if (!input.isSuperadmin) {
     clauses.push(
       `EXISTS (SELECT 1 FROM event_memberships m
-                WHERE m.event_id = a.event_id
+                WHERE m.event_id = t.theme_id
                   AND m.user_id = ?
                   AND m.status = 'active')`,
     );
@@ -157,7 +180,7 @@ export async function listAttendanceByRecorder(
   }
 
   if (input.cursor) {
-    clauses.push("(a.checked_in_at < ? OR (a.checked_in_at = ? AND a.id < ?))");
+    clauses.push("(t.occurred_at < ? OR (t.occurred_at = ? AND t.id < ?))");
     bindings.push(input.cursor.checkedInAt, input.cursor.checkedInAt, input.cursor.id);
   }
 
@@ -167,88 +190,13 @@ export async function listAttendanceByRecorder(
     .prepare(
       `${ATTENDANCE_SELECT}
         WHERE ${clauses.join(" AND ")}
-        ORDER BY a.checked_in_at DESC, a.id DESC
+        ORDER BY t.occurred_at DESC, t.id DESC
         LIMIT ?`,
     )
     .bind(...bindings)
     .all<AttendanceJoinedRow>();
 
   return results;
-}
-
-export interface AttendanceInsert {
-  id: string;
-  eventId: string;
-  participantId: string;
-  status: AttendanceStatus;
-  checkedInAt: number;
-  recordedBy: string | null;
-  method: AttendanceMethod;
-  note: string | null;
-  now: number;
-}
-
-/**
- * The ONLY insert path for attendance. `DO NOTHING` turns a concurrent scan
- * into zero changed rows instead of a unique-constraint 500; the caller reads
- * `meta.changes` to distinguish `present` from `duplicate`.
- */
-export function insertAttendanceStatement(
-  db: D1Database,
-  input: AttendanceInsert,
-): D1PreparedStatement {
-  return db
-    .prepare(
-      `INSERT INTO attendance
-         (id, event_id, participant_id, status, checked_in_at, recorded_by,
-          method, note, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT (event_id, participant_id) DO NOTHING`,
-    )
-    .bind(
-      input.id,
-      input.eventId,
-      input.participantId,
-      input.status,
-      input.checkedInAt,
-      input.recordedBy,
-      input.method,
-      input.note,
-      input.now,
-      input.now,
-    );
-}
-
-export interface AttendanceUpdate {
-  status: AttendanceStatus;
-  method: AttendanceMethod;
-  expectedUpdatedAt?: number;
-}
-
-/** Optimistic update; `changes = 0` means "gone or changed under us". */
-export function updateAttendanceStatement(
-  db: D1Database,
-  eventId: string,
-  attendanceId: string,
-  update: AttendanceUpdate,
-  now: number,
-): D1PreparedStatement {
-  return db
-    .prepare(
-      `UPDATE attendance
-          SET status = ?, method = ?, updated_at = ?
-        WHERE event_id = ? AND id = ?
-          AND (? IS NULL OR updated_at = ?)`,
-    )
-    .bind(
-      update.status,
-      update.method,
-      now,
-      eventId,
-      attendanceId,
-      update.expectedUpdatedAt ?? null,
-      update.expectedUpdatedAt ?? null,
-    );
 }
 
 export interface AttendanceCounts {
@@ -271,9 +219,10 @@ export async function countAttendance(
               SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) AS late,
               SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END) AS absent,
               SUM(CASE WHEN status = 'excused' THEN 1 ELSE 0 END) AS excused,
-              MAX(checked_in_at) AS last_attendance_at
-         FROM attendance
-        WHERE event_id = ?`,
+              MAX(occurred_at) AS last_attendance_at
+         FROM transactions
+        WHERE theme_id = ? AND type = 'attendance'
+          AND reversed_at IS NULL AND superseded_at IS NULL`,
     )
     .bind(eventId)
     .first<{
@@ -303,8 +252,8 @@ export async function listRecentAttendance(
   const { results } = await db
     .prepare(
       `${ATTENDANCE_SELECT}
-        WHERE a.event_id = ?
-        ORDER BY a.checked_in_at DESC, a.id DESC
+        WHERE t.theme_id = ? AND ${EFFECTIVE_ATTENDANCE}
+        ORDER BY t.occurred_at DESC, t.id DESC
         LIMIT ?`,
     )
     .bind(eventId, limit)

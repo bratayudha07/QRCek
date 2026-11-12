@@ -24,9 +24,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { correctAttendance, listAttendance, scanQr } from "@/lib/attendance";
+import { adjustTransaction, listAttendance, scanQr } from "@/lib/attendance";
 import { getEvent } from "@/lib/events";
-import { SCAN_RESULT_COPY } from "@/lib/scanner";
+import { scanCopy } from "@/lib/scanner";
 import { useSession } from "@/lib/session";
 
 const STATUSES: AttendanceStatus[] = ["present", "late", "absent", "excused"];
@@ -56,7 +56,7 @@ export function EventAttendancePage({ eventId }: { eventId: string }) {
     let cancelled = false;
     getEvent(eventId).then((body) => {
       if (cancelled) return;
-      if (body.ok) setCanCorrect(body.data.event.accessRole === "superadmin" || body.data.event.accessRole === "event_admin");
+      if (body.ok) setCanCorrect(body.data.event.accessRole === "event_admin");
       else setError(body.error.message);
     }).catch(() => { if (!cancelled) setError("Tidak bisa memuat acara"); });
     return () => { cancelled = true; };
@@ -84,17 +84,11 @@ export function EventAttendancePage({ eventId }: { eventId: string }) {
     try {
       const body = await scanQr(eventId, qr);
       if (body.ok) {
-        const copy = SCAN_RESULT_COPY[body.data.result];
+        const copy = scanCopy(body.data);
         setScanNotification({
           tone: copy.tone,
-          title: body.data.result === "present"
-            ? "Berhasil absen"
-            : body.data.result === "duplicate"
-              ? "Peserta sudah diabsen"
-              : copy.title,
-          description: body.data.result === "duplicate"
-            ? "Absensi peserta ini sudah tercatat sebelumnya."
-            : copy.description,
+          title: copy.title,
+          description: body.data.message || copy.description,
           ...(body.data.participant ? { participantName: body.data.participant.fullName } : {}),
         });
         setRefresh((value) => value + 1);
@@ -126,7 +120,7 @@ export function EventAttendancePage({ eventId }: { eventId: string }) {
     setSaving(true);
     setError(null);
     try {
-      const body = await correctAttendance(eventId, selected.id, {
+      const body = await adjustTransaction(eventId, selected.id, {
         status: correctionStatus,
         reason,
         expectedUpdatedAt: selected.updatedAt,

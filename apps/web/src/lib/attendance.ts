@@ -1,6 +1,6 @@
 import type {
+  AdjustmentRequest,
   AuditListPayload,
-  AttendanceCorrectionRequest,
   AttendanceDetailPayload,
   AttendanceListPayload,
   AttendanceManualRequest,
@@ -9,6 +9,7 @@ import type {
   GlobalDashboardPayload,
   OutboxListPayload,
   OutboxRetryPayload,
+  ReversalRequest,
   ScanResultPayload,
   SyncConfigPayload,
   SyncConfigRequest,
@@ -16,6 +17,9 @@ import type {
   SyncRunPayload,
   SyncStatusPayload,
   SyncTestPayload,
+  TransactionDetailPayload,
+  TransactionListPayload,
+  TransactionRecord,
 } from "@absensi/shared";
 
 import { apiRequest } from "./http";
@@ -64,10 +68,14 @@ export function staffAttendancePath(params: StaffAttendanceParams = {}): string 
   return `/api/staff/attendance${suffix ? `?${suffix}` : ""}`;
 }
 
-export function scanQr(eventId: string, qr: string) {
+export function scanQr(
+  eventId: string,
+  qr: string,
+  context: { activityId?: string; sessionId?: string } = {},
+) {
   return apiRequest<ScanResultPayload>(`/api/events/${encodeURIComponent(eventId)}/scan`, {
     method: "POST",
-    body: JSON.stringify({ qr, deviceTs: Date.now() }),
+    body: JSON.stringify({ qr, deviceTs: Date.now(), ...context }),
   });
 }
 
@@ -122,15 +130,54 @@ export function listStaffAttendance(params: StaffAttendanceParams = {}) {
   return apiRequest<AttendanceListPayload>(staffAttendancePath(params));
 }
 
-export function correctAttendance(
+export function listTransactions(
   eventId: string,
-  attendanceId: string,
-  input: AttendanceCorrectionRequest,
+  params: {
+    activityId?: string;
+    sessionId?: string;
+    type?: TransactionRecord["type"];
+    status?: AttendanceStatus | "all";
+    effective?: "true" | "false" | "all";
+    limit?: number;
+    cursor?: string;
+  } = {},
 ) {
-  return apiRequest<AttendanceDetailPayload>(
-    `/api/events/${encodeURIComponent(eventId)}/attendance/${encodeURIComponent(
-      attendanceId,
-    )}/correction`,
+  const search = new URLSearchParams();
+  if (params.activityId) search.set("activityId", params.activityId);
+  if (params.sessionId) search.set("sessionId", params.sessionId);
+  if (params.type) search.set("type", params.type);
+  if (params.status && params.status !== "all") search.set("status", params.status);
+  if (params.effective) search.set("effective", params.effective);
+  if (params.limit !== undefined) search.set("limit", String(params.limit));
+  if (params.cursor) search.set("cursor", params.cursor);
+  const suffix = search.toString();
+  return apiRequest<TransactionListPayload>(
+    `/api/events/${encodeURIComponent(eventId)}/transactions${suffix ? `?${suffix}` : ""}`,
+  );
+}
+
+export function reverseTransaction(
+  eventId: string,
+  transactionId: string,
+  input: ReversalRequest,
+) {
+  return apiRequest<TransactionDetailPayload>(
+    `/api/events/${encodeURIComponent(eventId)}/transactions/${encodeURIComponent(
+      transactionId,
+    )}/reversal`,
+    { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
+export function adjustTransaction(
+  eventId: string,
+  transactionId: string,
+  input: AdjustmentRequest,
+) {
+  return apiRequest<TransactionDetailPayload>(
+    `/api/events/${encodeURIComponent(eventId)}/transactions/${encodeURIComponent(
+      transactionId,
+    )}/adjustment`,
     { method: "POST", body: JSON.stringify(input) },
   );
 }

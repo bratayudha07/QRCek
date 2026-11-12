@@ -70,6 +70,120 @@ export async function addMembership(
     .run();
 }
 
+/** Active Attendance Aktivitas; Q5 scan needs an explicit context. */
+export async function createActivity(
+  eventId: string,
+  options: {
+    id?: string;
+    name?: string;
+    transactionType?: "attendance" | "consumption";
+    status?: "draft" | "active" | "completed" | "archived";
+    sortOrder?: number;
+    createdBy?: string | null;
+  } = {},
+): Promise<string> {
+  const id = options.id ?? newId(TEST_NOW);
+  const status = options.status ?? "active";
+
+  await testEnv.DB.prepare(
+    `INSERT INTO activities
+       (id, theme_id, name, description, transaction_type, status, location,
+        sort_order, created_at, created_by, updated_at, updated_by, archived_at)
+     VALUES (?, ?, ?, NULL, ?, ?, NULL, ?, ?, ?, ?, NULL, ?)`,
+  )
+    .bind(
+      id,
+      eventId,
+      options.name ?? "Absensi",
+      options.transactionType ?? "attendance",
+      status,
+      options.sortOrder ?? 0,
+      TEST_NOW,
+      options.createdBy ?? null,
+      TEST_NOW,
+      status === "archived" ? TEST_NOW : null,
+    )
+    .run();
+
+  return id;
+}
+
+/** Sesi directly in D1; `createSession` above is the auth session. */
+export async function createActivitySession(
+  activityId: string,
+  options: {
+    id?: string;
+    name?: string;
+    status?: "scheduled" | "in_progress" | "completed" | "disabled";
+    archivedAt?: number | null;
+  } = {},
+): Promise<string> {
+  const id = options.id ?? newId(TEST_NOW);
+  const status = options.status ?? "in_progress";
+  const archivedAt = options.archivedAt ?? null;
+
+  await testEnv.DB.prepare(
+    `INSERT INTO activity_sessions
+       (id, activity_id, name, location, starts_at, ends_at, status,
+        archived_at, created_at, created_by, updated_at, updated_by)
+     VALUES (?, ?, ?, NULL, NULL, NULL, ?, ?, ?, NULL, ?, NULL)`,
+  )
+    .bind(
+      id,
+      activityId,
+      options.name ?? "Sesi Uji",
+      status,
+      archivedAt,
+      TEST_NOW,
+      TEST_NOW,
+    )
+    .run();
+
+  return id;
+}
+
+/** Theme-default `allowed`, so a fresh test Tema is not fail-closed. */
+export async function allowThemeDefault(eventId: string): Promise<void> {
+  await testEnv.DB.prepare(
+    `INSERT INTO entitlement_rules
+       (id, theme_id, activity_id, session_id, participant_id, category_id,
+        status, created_at, created_by, updated_at, updated_by)
+     VALUES (?, ?, NULL, NULL, NULL, NULL, 'allowed', ?, NULL, ?, NULL)`,
+  )
+    .bind(newId(TEST_NOW), eventId, TEST_NOW, TEST_NOW)
+    .run();
+}
+
+/** Q5 scanner authority; Q6 adds the management endpoint. */
+export async function addStaffAssignment(
+  eventId: string,
+  activityId: string,
+  userId: string,
+  options: { sessionId?: string | null; canManualCheckIn?: boolean } = {},
+): Promise<string> {
+  const id = newId(TEST_NOW);
+
+  await testEnv.DB.prepare(
+    `INSERT INTO staff_assignments
+       (id, theme_id, activity_id, session_id, user_id, can_manual_check_in,
+        status, created_at, created_by, updated_at, updated_by, revoked_at)
+     VALUES (?, ?, ?, ?, ?, ?, 'active', ?, NULL, ?, NULL, NULL)`,
+  )
+    .bind(
+      id,
+      eventId,
+      activityId,
+      options.sessionId ?? null,
+      userId,
+      options.canManualCheckIn ? 1 : 0,
+      TEST_NOW,
+      TEST_NOW,
+    )
+    .run();
+
+  return id;
+}
+
 export interface SeededInvite {
   inviteId: string;
   token: string;

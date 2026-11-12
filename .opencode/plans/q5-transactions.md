@@ -1,8 +1,17 @@
 # Rencana Q5 — Transaksi Attendance, Manual Entry, Reversal/Adjustment
 
-Status: **DRAFT — tahap belum dibuka.** Dokumen ini rencana eksekusi, bukan bukti implementasi. Tidak ada kode, migrasi, atau keputusan skema yang dibuat sampai AQ-002, AQ-003, AQ-004, AQ-007, dan AQ-008 dijawab lewat ADR yang disetujui pemilik proyek dan Q5 dibuka di [`docs/IMPLEMENTATION_ROADMAP.md`](../../docs/IMPLEMENTATION_ROADMAP.md).
+Status: **DIBUKA 9 November 2026 (API-only).** Dokumen ini rencana eksekusi, bukan bukti implementasi. Lima ADR **diterima** pada tanggal yang sama — [ADR-0018](../../docs/adr/0018-transaction-table-shape.md) (AQ-002), [ADR-0019](../../docs/adr/0019-effective-transaction-constraints.md) (AQ-003), [ADR-0020](../../docs/adr/0020-reversal-adjustment-structure.md) (AQ-004), [ADR-0021](../../docs/adr/0021-staff-assignments-and-permissions.md) (AQ-007), [ADR-0022](../../docs/adr/0022-scan-result-contract.md) (AQ-008) — dan Q5 dibuka di [`docs/IMPLEMENTATION_ROADMAP.md`](../../docs/IMPLEMENTATION_ROADMAP.md). Implementasi mengikuti ADR yang diterima, bukan ilustrasi di §6.
 
-Bagian yang menyebut bentuk tabel/endpoint adalah **ilustrasi untuk menilai opsi**, bukan keputusan. Jangan menyalinnya ke `migrations/` sebelum ADR terkait diterima.
+Bagian yang menyebut bentuk tabel/endpoint di §6 tetap **ilustrasi historis**; sumber keputusan sekarang ADR-0018–0022.
+
+> **Status implementasi 12 November 2026 (API-only).** Migrasi `0011_q5_transactions.sql`,
+> kontrak `packages/shared`, route scan/Manual Entry/Reversal/Adjustment, adaptor baca legacy,
+> dan tes Q5 sudah ada. Verifikasi lokal: `typecheck`, `lint`, `test` (**702 tes di 68 file**),
+> dan `build` PASS. `0011` **sudah diterapkan di remote** (`schema_version = 11`, 12 Aktivitas
+> default, 26 transaksi hasil backfill, 5 penugasan, 32 aturan entitlement, 0 lintas Tema);
+> kode Q5 belum di-push/deploy, dan gate menunggu smoke produksi. Pengukuran statement: scan
+> 15, Reversal 11, Manual Entry 13, Adjustment 12 (`docs/OPERASIONAL.md` §6.4). Scanner/kiosk
+> UI tetap Q6, kuota konsumsi tetap Q7, dan `attendance` hanya dibaca lewat adaptor sampai Q8.
 
 ## 0. Keputusan yang mengikat rencana ini
 
@@ -18,28 +27,38 @@ Bagian yang menyebut bentuk tabel/endpoint adalah **ilustrasi untuk menilai opsi
 | `D-022` [A], `FR-073`, `FR-074`, `BR-034`, `AC-055` | Manual Check-in oleh Petugas berizin atau Admin Acara; pelaku dan source dicatat; izin legacy `attendance:correct` **tidak** boleh dipakai ulang. |
 | `D-023` [A], `FR-080`, `FR-207`, ADR-0008, ADR-0011 | Audit append-only dalam `db.batch()` yang sama; snapshot hanya allowlist, tanpa PII/kredensial. |
 | `D-007` [A], ADR-0010 | Migrasi additive; `0001`–`0010` tidak diedit; perubahan merusak memakai pola expand/contract. |
+| ADR-0018 (Diterima 9 November 2026) | Satu `transactions` + `transaction_corrections`; `slot_no` disiapkan untuk Q7. |
+| ADR-0019 (Diterima 9 November 2026) | Empat partial unique index efektif, `ON CONFLICT DO NOTHING`, trigger konteks/lifecycle. |
+| ADR-0020 (Diterima 9 November 2026) | Reversal menandai baris asli; Adjustment menulis versi baru; field `occurred_at`/`note`/`status`. |
+| ADR-0021 (Diterima 9 November 2026) | `staff_assignments`; izin `attendance:manual` + `transaction:correct`; Super Admin tanpa scan/manual. |
+| ADR-0022 (Diterima 9 November 2026) | Hasil bisnis HTTP 200; `SYSTEM_ERROR` 5xx; pemetaan `reason` stabil. |
 | ADR-0001, ADR-0005 | Satu Worker same-origin; outbox D1 + cron untuk Sheets, tanpa layanan berbayar. |
 | `NG-01`–`NG-06` | Tidak ada mode offline, PDF, atau desain kartu di Q5. |
 
-## 1. Prasyarat — belum terpenuhi
+## 1. Prasyarat — terpenuhi
 
-Q5 **tidak boleh dibuka** sampai kelima pertanyaan arsitektur berikut dijawab ADR yang diterima. Masing-masing memblokir Q5 menurut [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §6 dan [`docs/DECISIONS.md`](../../docs/DECISIONS.md) §4.
+Q5 **dibuka 9 November 2026** setelah kelima pertanyaan arsitektur dijawab ADR yang **diterima** pemilik proyek. Masing-masing memblokir Q5 menurut [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) §6 dan [`docs/DECISIONS.md`](../../docs/DECISIONS.md) §4.
 
-| AQ | Pertanyaan | Memblokir | Status |
+| AQ | Pertanyaan | Memblokir | Status 9 November 2026 |
 |---|---|---|---|
-| AQ-002 | Satu tabel transaksi dengan kolom tipe, atau tabel terpisah per tipe? | Q5, Q6 | **Terbuka** |
-| AQ-003 | Constraint DB untuk transaksi efektif per ruang lingkup (Aktivitas tanpa Sesi vs Sesi). | Q5, Q6 | **Terbuka** |
-| AQ-004 | Struktur Reversal/Adjustment dan field yang boleh di-Adjust. | Q5 | **Terbuka** |
-| AQ-007 | Penugasan Petugas dan matriks izin Manual Check-in. | Q5, Q7 | **Terbuka** |
-| AQ-008 | Pemetaan penolakan ke result code dan HTTP. | Q5, Q7 | **Terbuka** |
+| AQ-002 | Satu tabel transaksi dengan kolom tipe, atau tabel terpisah per tipe? | Q5, Q6 | ADR-0018 — **Diterima** |
+| AQ-003 | Constraint DB untuk transaksi efektif per ruang lingkup (Aktivitas tanpa Sesi vs Sesi). | Q5, Q6 | ADR-0019 — **Diterima** |
+| AQ-004 | Struktur Reversal/Adjustment dan field yang boleh di-Adjust. | Q5 | ADR-0020 — **Diterima** |
+| AQ-007 | Penugasan Petugas dan matriks izin Manual Check-in. | Q5, Q7 | ADR-0021 — **Diterima** |
+| AQ-008 | Pemetaan penolakan ke result code dan HTTP. | Q5, Q7 | ADR-0022 — **Diterima** |
 
 Prasyarat lain:
 
 - Q3 dan Q4 sudah live di remote (`schema_version = 10`); resolver entitlement dan lookup QR siap dipakai.
-- Input produk yang belum selesai dan **wajib** diselesaikan sebelum implementasi:
-  1. Daftar field transaksi yang boleh di-Adjust (AQ-004). Tanpa ini, allowlist audit dan validasi Adjustment tidak bisa ditutup.
-  2. Rekonsiliasi izin Manual Check-in untuk Super Admin (`FR-073`, `BR-034`, `AC-055`). Status saat ini menyatakan belum ditetapkan; jangan menginferensikan `attendance:correct`.
-  3. Konfirmasi apakah Q5 hanya Attendance atau sekalian menyiapkan bentuk tabel untuk Consumption (Q7). Jika AQ-002 memilih satu tabel, bentuknya harus sudah mendukung kuota Q7 tanpa migrasi merusak.
+- Input produk yang **sudah** dijawab pemilik pada 9 November 2026:
+  1. Field transaksi yang boleh di-Adjust: `occurred_at`, `note`, `status`. Identitas, `type`, `source`, `recorded_by`, `slot_no`, dan penanda koreksi tidak boleh (ADR-0020).
+  2. Izin Manual Check-in: Super Admin **tidak** boleh (`OQ-034` [A]); Petugas membutuhkan penugasan + `can_manual_check_in` + `events.allow_manual`; `attendance:correct` tidak dipakai ulang (ADR-0021).
+  3. Bentuk tabel **sudah** menyiapkan `slot_no` untuk Q7; penegakan kuota tetap Q7 (ADR-0018/0019).
+  4. Super Admin **tidak** boleh QR scan transaksional; hanya membaca transaksi/audit lintas Tema (ADR-0021).
+- **Tersisa sebagai tindak lanjut pemilik:** penyuntingan teks `REQUIREMENTS.md` yang masih menulis "belum ditetapkan" (`FR-073`, `BR-034`, `AC-021`, `AC-049`, `AC-055`). Keputusan `OQ-034` [A] sudah final ("tidak"); agent tidak mengubah file itu.
+- Arahan pemilik yang mengikat rencana (9 November 2026):
+  1. **Aktivitas default + backfill:** migrasi Q5 membuat satu Aktivitas default per Tema tanpa Aktivitas, lalu memetakan baris `attendance` lama ke transaksi pada Aktivitas itu. Produksi saat ini memiliki 0 Aktivitas, sehingga tanpa shim ini scan berhenti.
+  2. **Adaptasi web minimal ikut Q5:** halaman scan/koreksi yang ada diperbarui seperlunya agar tetap berfungsi; scanner/kiosk penuh tetap Q6.
 
 ## 2. Tujuan
 
@@ -73,6 +92,8 @@ Prasyarat lain:
 | Audit | `audit_log` append-only dengan trigger; allowlist di `packages/shared/src/audit-allowlist.ts` belum punya entitas transaksi target. |
 
 ## 5. Pertanyaan arsitektur — opsi, belum dipilih
+
+> Pilihan yang berlaku sekarang dicatat di ADR-0018–0022 (status **Diterima**). Bagian di bawah tetap menjadi catatan opsi dan alasan, bukan sumber keputusan. Implementasi mengikuti ADR, bukan teks §6.
 
 ### 5.1 AQ-002 — satu tabel vs per tipe
 
@@ -168,17 +189,17 @@ Hal yang harus tetap benar apa pun opsinya:
 - Adjustment menyimpan before/after hanya untuk field allowlist.
 - Semua waktu UTC ms epoch.
 
-## 7. Kandidat permukaan API
+## 7. Permukaan API (mengikuti ADR-0022)
 
-Nama final menunggu AQ-008 dan `docs/DESAIN_API.md`. Kandidat:
+Nama final mengikuti ADR-0022 dan `docs/DESAIN_API.md`:
 
 | Metode | Path | Izin | Catatan |
 |---|---|---|---|
-| `POST` | `/api/events/:eventId/scan` | `scan` | Body diperluas dengan `activityId`, `sessionId` (wajib sesuai lifecycle). |
-| `POST` | `/api/events/:eventId/attendance/manual` | `scan` + penugasan (AQ-007) | Mencatat `source = manual` dan pelaku. |
+| `POST` | `/api/events/:eventId/scan` | `scan` + penugasan | Body diperluas dengan `activityId`, `sessionId` (wajib sesuai lifecycle). |
+| `POST` | `/api/events/:eventId/attendance/manual` | `attendance:manual` + penugasan + flag + `events.allow_manual` | Mencatat `source = manual` dan pelaku. |
 | `GET` | `/api/events/:eventId/transactions` | `recap:read` | Filter Aktivitas/Sesi/type/status efektif. |
-| `POST` | `/api/events/:eventId/transactions/:id/reversal` | `attendance:correct` (khusus event_admin) | Reason wajib; audit dalam batch. |
-| `POST` | `/api/events/:eventId/transactions/:id/adjustment` | `attendance:correct` (khusus event_admin) | Body field allowlist + reason. |
+| `POST` | `/api/events/:eventId/transactions/:id/reversal` | `transaction:correct` (hanya event_admin; Super Admin ditolak eksplisit) | Reason wajib; audit dalam batch. |
+| `POST` | `/api/events/:eventId/transactions/:id/adjustment` | `transaction:correct` (hanya event_admin; Super Admin ditolak eksplisit) | Body field allowlist + reason. |
 
 Route baseline `POST .../attendance/:id/correction` dihapus/diganti setelah route baru lulus gate. Jangan mempertahankan `UPDATE attendance` sebagai fallback.
 
@@ -229,16 +250,17 @@ Route baseline `POST .../attendance/:id/correction` dihapus/diganti setelah rout
 
 ## 9. Migrasi dan kompatibilitas baseline
 
-1. ADR AQ-002/AQ-003/AQ-004 diterima dan dicatat di `docs/DECISIONS.md`.
+1. ✅ ADR AQ-002/AQ-003/AQ-004/AQ-007/AQ-008 diterima dan dicatat di `docs/DECISIONS.md` (9 November 2026).
 2. Migrasi baru `0011_*` additive. **Jangan mengedit `0001`–`0010`.**
 3. **Pertahankan** `UNIQUE (event_id, participant_id)` pada `attendance` sampai constraint pengganti ada dan tes konkuren lulus (`AGENTS.md`).
 4. Strategi expand/contract:
    - fase 1: tabel/kolom baru + dual-write atau backfill;
    - fase 2: route baru membaca sumber baru;
    - fase 3: hapus constraint lama hanya setelah tes dan verifikasi produksi.
-5. Backfill `attendance` lama bila model baru memakai tabel berbeda:
-   - petakan `event_id` → Tema, pilih Aktivitas default **hanya bila keputusan produk mengizinkan**; jangan mengarang Aktivitas/Sesi.
-   - Jika tidak ada Aktivitas yang bisa dipetakan, jangan backfill diam-diam; catat sebagai data yang tidak dapat dimigrasikan dan minta keputusan pemilik.
+5. Backfill `attendance` lama:
+   - petakan `event_id` → Tema; buat **Aktivitas default** untuk Tema tanpa Aktivitas (arahan pemilik, ADR-0018); jangan mengarang Sesi.
+   - Baris `attendance` lama dipetakan ke transaksi `attendance` pada Aktivitas default itu; `recorded_by` boleh `NULL` hanya untuk baris backfill.
+   - Hitung dan catat jumlah kandidat/backfill sebelum apply; jangan backfill diam-diam.
 6. Urutan rilis: **migrasi dulu, deploy kemudian**, dengan auto-deploy Workers Builds dimatikan sementara atau backup + verifikasi sebelum push (`docs/OPERASIONAL.md` §6.3).
 7. Backup remote dan hitung kandidat sebelum apply; catat jumlahnya.
 8. Rollback: jangan menghapus tabel/kolom baru; rollback kode tidak membatalkan migrasi.
@@ -292,10 +314,10 @@ Mengacu [`docs/RENCANA_PENGUJIAN.md`](../../docs/RENCANA_PENGUJIAN.md) §9. Tamb
 
 Angka aktual wajib dicatat di `docs/OPERASIONAL.md` setelah implementasi, bukan diasumsikan.
 
-## 12. Urutan kerja (hanya setelah Q5 dibuka)
+## 12. Urutan kerja (Q5 dibuka 9 November 2026)
 
-1. Terima ADR AQ-002/AQ-003/AQ-004/AQ-007/AQ-008; perbarui `docs/DECISIONS.md`, `ARCHITECTURE.md`, dan roadmap.
-2. Selesaikan input produk: field Adjustment dan izin Manual Check-in Super Admin (`AC-055`).
+1. ✅ Terima ADR AQ-002/AQ-003/AQ-004/AQ-007/AQ-008; perbarui `docs/DECISIONS.md`, `ARCHITECTURE.md`, dan roadmap (selesai 9 November 2026).
+2. ✅ Selesaikan input produk: field Adjustment, izin Manual Check-in Super Admin (`AC-055`), dan QR scan Super Admin (selesai 9 November 2026).
 3. Tulis migrasi `0011_*` + catatan `docs/DESAIN_DATABASE.md`.
 4. Tulis fungsi murni di `apps/api/src/domain/` + tes tanpa I/O.
 5. Tulis akses DB di `apps/api/src/db/` (SQL hanya di sini).
@@ -356,11 +378,12 @@ npm run test -- -t "menolak scan ganda"
 
 ## 17. Pertanyaan yang harus dijawab pemilik sebelum implementasi
 
-1. Field transaksi apa saja yang boleh di-Adjust, dan field apa yang mutlak tidak boleh?
-2. Apakah Super Admin boleh melakukan Manual Check-in? Jika tidak, tegaskan penolakan.
-3. Apakah Reversal atas Reversal diizinkan? Rekomendasi: tidak.
-4. Apakah Q5 harus menyiapkan kolom kuota untuk Consumption sekarang, atau Q7 boleh menambah migrasi sendiri?
-5. Apakah data `attendance` lama perlu dipetakan ke Aktivitas tertentu, atau boleh dibiarkan sebagai arsip terpisah?
+1. Field transaksi apa saja yang boleh di-Adjust, dan field apa yang mutlak tidak boleh? — **Dijawab (arahan pemilik 9 November 2026):** `occurred_at`, `note`, `status`; identitas/source/`recorded_by`/`slot_no` tidak (ADR-0020).
+2. Apakah Super Admin boleh melakukan Manual Check-in? — **Dijawab:** tidak (`OQ-034` [A]); tegaskan penolakan di route (ADR-0021).
+3. Apakah Reversal atas Reversal diizinkan? — **Dijawab:** tidak; `409` (ADR-0020).
+4. Apakah Q5 harus menyiapkan kolom kuota untuk Consumption sekarang? — **Dijawab:** ya, `slot_no` disiapkan tanpa penegakan; kuota tetap Q7 (ADR-0018/0019).
+5. Apakah data `attendance` lama perlu dipetakan ke Aktivitas tertentu? — **Dijawab (arahan pemilik):** ya, Aktivitas default per Tema tanpa Aktivitas + backfill (ADR-0018).
+6. Apakah Super Admin boleh melakukan QR scan transaksional? — **Dijawab:** tidak; hanya baca transaksi/audit lintas Tema (ADR-0021).
 
 ## 18. Berkas yang diperkirakan berubah (setelah ADR)
 
@@ -380,4 +403,6 @@ npm run test -- -t "menolak scan ganda"
 
 ## 19. Catatan status
 
-Dokumen ini **belum** membuka Q5 dan **belum** memilih jawaban AQ-002–AQ-004/AQ-007/AQ-008. Setelah ADR diterima, perbarui status di bagian atas, isi keputusan di §0, dan baru mulai implementasi sesuai §12. Jangan menyalin §6 ke migrasi sebelum itu.
+Dokumen ini menjadi rencana eksekusi Q5 setelah tahap **dibuka 9 November 2026 (API-only)**. Kelima ADR (0018–0022) **diterima** pada tanggal yang sama; status AQ-002/003/004/007/008 berubah menjadi **Dijawab**. Keputusan pemilik yang tercatat: field Adjustment (`occurred_at`, `note`, `status`), Aktivitas default + backfill `attendance`, adaptasi web minimal, penolakan Manual Check-in Super Admin, dan penolakan QR scan transaksional Super Admin. Tindak lanjut non-blokir: pemilik menyunting teks `REQUIREMENTS.md` yang masih menulis "belum ditetapkan" (`FR-073`, `BR-034`, `AC-021`, `AC-049`, `AC-055`).
+
+Implementasi dimulai dari §12. Jangan mengubah ADR yang sudah diterima; perubahan keputusan harus lewat ADR baru. Jangan menyalin §6 ke migrasi — pakai ADR-0018/0019/0020.

@@ -158,11 +158,18 @@ export async function findProjectionData(
   return db
     .prepare(
       `SELECT p.id AS participant_id, p.external_ref, p.full_name, p.category,
-              a.status AS attendance_status, a.checked_in_at,
-              a.method, a.updated_at AS attendance_updated_at
+              t.status AS attendance_status, t.occurred_at AS checked_in_at,
+              t.source AS method, t.updated_at AS attendance_updated_at
          FROM participants p
-         LEFT JOIN attendance a
-           ON a.event_id = p.event_id AND a.participant_id = p.id
+         LEFT JOIN transactions t
+           ON t.id = (
+             SELECT x.id FROM transactions x
+              WHERE x.theme_id = p.event_id AND x.participant_id = p.id
+                AND x.type = 'attendance'
+                AND x.reversed_at IS NULL AND x.superseded_at IS NULL
+              ORDER BY x.occurred_at DESC, x.id DESC
+              LIMIT 1
+           )
         WHERE p.event_id = ? AND p.id = ?`,
     )
     .bind(eventId, participantId)

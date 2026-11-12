@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { addMembership, createEvent, createParticipant, createSession, createUser, issueParticipantQr } from "../test/fixtures";
+import {
+  addMembership,
+  addStaffAssignment,
+  allowThemeDefault,
+  createActivity,
+  createEvent,
+  createParticipant,
+  createSession,
+  createUser,
+  issueParticipantQr,
+} from "../test/fixtures";
 import { testEnv } from "../test/env";
 import { TEST_NOW, callApi } from "../test/http";
 
@@ -17,13 +27,21 @@ describe("event audit and attendance export", () => {
     await addMembership(eventId, officerId, "officer");
     const officerCookie = (await createSession(officerId)).cookie;
     await testEnv.DB.prepare("UPDATE events SET status = 'active' WHERE id = ?").bind(eventId).run();
-    await callApi(`/api/events/${eventId}/scan`, { method: "POST", body: { qr }, cookie: officerCookie, now: TEST_NOW });
+    const activityId = await createActivity(eventId);
+    await allowThemeDefault(eventId);
+    await addStaffAssignment(eventId, activityId, officerId);
+    await callApi(`/api/events/${eventId}/scan`, {
+      method: "POST",
+      body: { qr, activityId },
+      cookie: officerCookie,
+      now: TEST_NOW,
+    });
 
     const response = await callApi(`/api/events/${eventId}/audit?limit=1`, { cookie: adminCookie });
     expect(response.status).toBe(200);
     expect(response.text).not.toContain("ip_hash");
     expect(response.text).not.toContain("qr_token");
-    expect(response.text).toContain("attendance.recorded");
+    expect(response.text).toContain("transaction.recorded");
 
     const forbidden = await callApi(`/api/events/${eventId}/audit`, { cookie: officerCookie });
     expect(forbidden.status).toBe(403);
@@ -40,7 +58,15 @@ describe("event audit and attendance export", () => {
     await addMembership(eventId, officerId, "officer");
     const officerCookie = (await createSession(officerId)).cookie;
     await testEnv.DB.prepare("UPDATE events SET status = 'active' WHERE id = ?").bind(eventId).run();
-    await callApi(`/api/events/${eventId}/scan`, { method: "POST", body: { qr }, cookie: officerCookie, now: TEST_NOW });
+    const activityId = await createActivity(eventId);
+    await allowThemeDefault(eventId);
+    await addStaffAssignment(eventId, activityId, officerId);
+    await callApi(`/api/events/${eventId}/scan`, {
+      method: "POST",
+      body: { qr, activityId },
+      cookie: officerCookie,
+      now: TEST_NOW,
+    });
 
     const response = await callApi(`/api/events/${eventId}/attendance/export`, { cookie: adminCookie });
     expect(response.status).toBe(200);

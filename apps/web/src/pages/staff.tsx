@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Label, Select } from "@/components/ui/field";
 import { listStaffAttendance, scanQr } from "@/lib/attendance";
 import { formatDateTime } from "@/lib/format";
-import { SCAN_RESULT_COPY } from "@/lib/scanner";
+import { scanCopy } from "@/lib/scanner";
 import { eventOverviewPath, paths } from "@/lib/router";
 import { useSession } from "@/lib/session";
 
@@ -132,11 +132,11 @@ export function StaffScanPage() {
     try {
       const response = await scanQr(eventId, qr);
       if (response.ok) {
-        const copy = SCAN_RESULT_COPY[response.data.result];
+        const copy = scanCopy(response.data);
         setNotification({
           tone: copy.tone,
-          title: response.data.result === "present" ? "Berhasil absen" : copy.title,
-          description: copy.description,
+          title: copy.title,
+          description: response.data.message || copy.description,
           ...(response.data.participant ? { participantName: response.data.participant.fullName } : {}),
         });
       } else {

@@ -2,10 +2,16 @@
 
 Tujuan pengujian di proyek ini **bukan** mengejar angka coverage, tetapi membuktikan bahwa aturan yang mudah dilanggar tetap ditegakkan. Setiap aturan di `AGENTS.md` §"Integritas data" dan §"Keamanan" harus punya tes yang **gagal bila aturannya dihapus** (`NFR-018`, `AC-035`).
 
-> **Cara membaca (3 November 2026).** §1–§8 menjelaskan pengujian **baseline** (model `events` datar, commit acuan `157c330`). §9 adalah daftar tes wajib untuk **model target QRCek** dari [`REQUIREMENTS.md`](./REQUIREMENTS.md); tes di §9 belum ada dan ditulis bersama tahap roadmap terkait ([`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md)). Tes baseline yang dipakai ulang tetap wajib lulus sebagai regression test (`D-007` [A], `FR-175`); tes yang perilakunya sengaja diganti (mis. koreksi via `UPDATE`) diganti tes setara di tahap yang sama, tidak dihapus diam-diam.
+> **Cara membaca (10 November 2026).** §1–§8 menjelaskan pengujian **baseline** (model `events` datar, commit acuan `157c330`). §9 adalah daftar tes wajib untuk **model target QRCek** dari [`REQUIREMENTS.md`](./REQUIREMENTS.md); tes ditulis bersama tahap roadmap terkait ([`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md)), dan status implementasinya dicatat per subbagian (§9.1–§9.5 sudah terisi sampai Q5). Tes baseline yang dipakai ulang tetap wajib lulus sebagai regression test (`D-007` [A], `FR-175`); tes yang perilakunya sengaja diganti (mis. koreksi via `UPDATE`) diganti tes setara di tahap yang sama, tidak dihapus diam-diam.
 
 ## Snapshot verifikasi terkini
 
+- Snapshot 12 November 2026 (Q5 API-only, `0011` **diterapkan remote**): `typecheck` PASS,
+  `lint` PASS, `test` **702 tes di 68 file** lulus, `build` PASS. Remote `schema_version = 11`
+  dengan 12 Aktivitas default, 26 transaksi hasil backfill, 5 penugasan, 32 aturan entitlement,
+  dan 0 transaksi lintas Tema; kode Q5 belum di-push/deploy. Pengukuran Q5: scan **15**
+  statement, Reversal **11**, Manual Entry **13**, Adjustment **12** (batas 50); 50 scan paralel
+  → satu `SUCCESS`. Gate Q5 menunggu smoke produksi. Detail di `OPERASIONAL.md` §6.4.
 - Snapshot 9 November 2026 (Q4 API-only, `0010` diterapkan remote): `typecheck` PASS, `lint`
   PASS, `test` **672 tes di 65 file** lulus, `build` PASS. Produksi `schema_version = 10` dengan 60
   baris `qr_identities` (backfill 60 kandidat, `mismatched = 0`); Workers Builds `ad02903`
@@ -318,7 +324,7 @@ Yang diuji: reklaim item `inflight` macet, housekeeping tidak menghapus data yan
 
 Sumber kebenaran tunggal: `domain/permissions.ts`. Tes mengiterasi matriks ini, sehingga penambahan route baru tanpa aturan akan gagal.
 
-> Matriks ini menggambarkan **baseline**. Dua baris bertentangan dengan target: "Koreksi absensi" untuk superadmin (`D-006` [A] hanya Admin Acara; kewenangan Super Admin menunggu `D-024` [A]) dan "Buat acara" untuk `event_admin` (baseline ADR-0007 mengizinkan lewat peran global; tabel ini belum memuatnya). Matriks target ditulis ulang di Q1/Q5 setelah AQ-007 dijawab. Dua baris `entitlement:*` adalah aksi Q3 yang sudah aktif di `domain/permissions.ts`, bukan baseline.
+> Matriks ini menggambarkan **baseline** dan dipertahankan sebagai catatan historis. Sejak Q5, dua baris **tidak berlaku**: "Scan" untuk `superadmin` dan "Koreksi absensi" untuk `superadmin` (juga `event_admin` kini memakai aksi `transaction:correct`, bukan `attendance:correct`). Tabel target Q5 ada di §5.1.1. "Buat acara" untuk `event_admin` tetap tidak berlaku (ADR-0007: hanya lewat peran global). Dua baris `entitlement:*` adalah aksi Q3 yang sudah aktif di `domain/permissions.ts`, bukan baseline.
 
 | Aksi | superadmin | event_admin | officer | anonim |
 |---|---|---|---|---|
@@ -341,16 +347,34 @@ Sumber kebenaran tunggal: `domain/permissions.ts`. Tes mengiterasi matriks ini, 
 | Ubah aturan entitlement (`entitlement:write`) | ✅ | ✅ (Tema sendiri) | ❌ | ❌ |
 | Pemakaian lintas acara (`/api/admin/usage`) | ✅ | ❌ | ❌ | ❌ |
 
+#### 5.1.1 Matriks transaksi Q5 (berlaku)
+
+`isAllowed` tetap mengizinkan Super Admin melewati matriks, jadi **penolakan Super Admin
+ditegakkan eksplisit di route** untuk ketiga aksi transaksional. Tes parametrik
+`permissions.test.ts` menjaga setiap aksi punya aturan; `scan.test.ts` membuktikan penolakan
+route.
+
+| Aksi | superadmin | event_admin | officer | anonim |
+|---|---|---|---|---|
+| `scan` (QR Scan) | ❌ ditolak route | ✅ Tema sendiri | ✅ hanya penugasan aktif pada Aktivitas/Sesi | ❌ |
+| `attendance:manual` (Manual Check-in) | ❌ ditolak route | ✅ Tema sendiri | ✅ hanya bila `can_manual_check_in = 1` | ❌ |
+| Baca transaksi/rekap | ✅ lintas Tema | ✅ Tema sendiri | ✅ Tema sendiri | ❌ |
+| `transaction:correct` (Reversal/Adjustment) | ❌ ditolak route | ✅ Tema sendiri | ❌ | ❌ |
+
+Aksi legacy `attendance:correct` **tidak ada lagi** di `domain/permissions.ts`; Manual
+Check-in memakai `attendance:manual`, koreksi memakai `transaction:correct` (`AC-055`).
+
 ### 5.2 Skenario serangan yang wajib diuji
 
 | Serangan | Ekspektasi |
 |---|---|
 | Tebak token undangan acak | 401 seragam, tanpa membedakan "tidak ada" vs "kedaluwarsa" |
 | Pakai ulang QR undangan yang sudah di-redeem | 401 |
-| Pakai QR peserta dari acara lain | `wrong_event`, tidak ada penulisan |
-| Pakai QR yang dimodifikasi 1 karakter | `not_found` |
+| Pakai QR peserta dari acara lain | `INVALID_QR`, tidak ada penulisan (audit `attendance.wrong_theme` tanpa identitas) |
+| Pakai QR yang dimodifikasi 1 karakter | `INVALID_QR` |
 | IDOR: ganti `:id` acara di URL | 404 |
-| IDOR: ganti `:id` attendance saat koreksi | 404 |
+| IDOR: ganti `:transactionId` saat Reversal/Adjustment | 404 |
+| Petugas memanggil Reversal/Adjustment | 403, tanpa perubahan data |
 | Cookie sesi dipalsukan / diubah | 401 (hash tidak cocok) |
 | Sesi setelah anggota dicabut | 401 |
 | POST lintas-origin tanpa header CSRF | 403 |
@@ -582,9 +606,9 @@ kredensial, metadata tanpa token, `403`/`404` per peran/Tema). T-064 lewat `labe
 T-065 lewat `qr-labels.statements.test.ts` (**47** statement saat terbit, **8** saat cetak
 ulang, **48** pada jalur lost-race). Rotasi juga diuji menyalin kredensial ke kolom legacy
 `participants.qr_*` agar rollback Worker tidak menghidupkan token lama; retry dengan
-`expectedRotationCount` basi ditolak `409`. Scan target berkonteks Aktivitas/Sesi tetap
-**belum ada** sampai Q5; baseline `scan.test.ts` tetap lulus sebagai regression. Rendering
-PNG/ZIP (AC-018) tetap Q9.
+`expectedRotationCount` basi ditolak `409`. Scan target berkonteks Aktivitas/Sesi dibuktikan
+mulai Q5 (`scan.test.ts`, `transactions.db.test.ts`); baseline `scan.test.ts` tetap lulus
+sebagai regression. Rendering PNG/ZIP (AC-018) tetap Q9.
 
 ### 9.5 Transaksi Attendance dan koreksi (Q5)
 
@@ -603,6 +627,22 @@ PNG/ZIP (AC-018) tetap Q9.
 | T-090 ★ | Izin legacy `attendance:correct` tidak memberi akses Manual Check-in target | `AC-055` | `OQ-034` [A] |
 | T-091 | Result code stabil per kondisi, terpisah dari pesan; hasil pending tidak pernah dilaporkan sukses | `BR-072`, `AC-040` | `D-011` [A] |
 | T-092 | Jumlah statement D1 per scan dihitung dan ≤ ambang yang ditetapkan saat Q5 | `NFR-011` | — |
+
+**Status 10 November 2026 (Q5 API-only).** T-080–T-091 sudah punya tes yang gagal bila
+aturannya dihapus:
+
+| Tes | Bukti |
+|---|---|
+| T-080, T-081, T-082, T-084–T-089, T-091 | `apps/api/src/routes/scan.test.ts` (scan, 50 scan paralel, Sesi berbeda, koreksi hanya Admin, alasan wajib, Reversal membebaskan slot, Adjustment allowlist, Manual Entry, kode hasil stabil) |
+| T-083 | `apps/api/src/test/transactions.db.test.ts` — insert langsung lewat `env.DB` melanggar empat partial unique index ditolak; Reversal/supersede membebaskan slot |
+| T-083 (tambahan) | `transactions.db.test.ts` — trigger konteks menolak Aktivitas/peserta lintas Tema, Sesi wajib, Sesi tidak `in_progress`, Tema tidak aktif; `transaction_corrections` append-only; penugasan lintas Tema/non-anggota ditolak |
+| T-090 | `apps/api/src/test/permissions.test.ts` — aksi `attendance:correct` sudah tidak ada; `attendance:manual` dan `transaction:correct` terpisah |
+| T-092 | `apps/api/src/test/transactions.statements.test.ts` — **scan 15**, **Reversal 11**, **Manual Entry 13**, **Adjustment 12** statement (batas 50) |
+
+T-088 ditutup oleh `D-024` [A]: Super Admin **tidak** berwenang atas koreksi; penolakan
+ditegakkan eksplisit di route karena `isAllowed` mengizinkan Super Admin melewati matriks.
+Yang belum diuji di Q5: scanner/kiosk fisik dan state UI (Q6), serta kuota konsumsi (Q7).
+Baseline `attendance` dipertahankan sebagai regression sampai adaptor baca dilepas di Q8.
 
 ### 9.6 Penugasan Petugas dan scanner (Q6)
 

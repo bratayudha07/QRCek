@@ -37,6 +37,7 @@ describe("D1 integration", () => {
       "0008_q2_categories_custom_fields.sql",
       "0009_entitlement_rules.sql",
       "0010_qr_identities.sql",
+      "0011_q5_transactions.sql",
     ]);
   });
 
@@ -45,7 +46,7 @@ describe("D1 integration", () => {
       .bind("schema_version")
       .first<{ value: string }>();
 
-    expect(row?.value).toBe("10");
+    expect(row?.value).toBe("11");
   });
 
   it("stores and updates a key", async () => {
@@ -87,9 +88,10 @@ describe("D1 integration", () => {
    * Tahap 3 (Fase 2, non-QR) owns participants. Tahap 4 (Fase 2, QR) adds the
    * QR credential columns, `event_label_config`, and `audit_log`. Tahap 5
    * (Fase 3–4) adds attendance, the sync outbox, `sheet_rows`, and `sync_state`.
-   * Q1 adds activities and activity_sessions.
+   * Q1 adds activities and activity_sessions. Q5 adds transactions,
+   * transaction_corrections, and staff_assignments.
    */
-  it("ships every table through Q1 and nothing later", async () => {
+  it("ships every table through Q5 and nothing later", async () => {
     const { results } = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
       .all<{ name: string }>();
 
@@ -112,7 +114,10 @@ describe("D1 integration", () => {
       "recovery_codes",
       "sessions",
       "sheet_rows",
+      "staff_assignments",
       "sync_state",
+      "transaction_corrections",
+      "transactions",
       "users",
     ]) {
       expect(tables).toContain(expected);

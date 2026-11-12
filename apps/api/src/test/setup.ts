@@ -16,6 +16,9 @@ import { testEnv } from "./env";
  * mysteriously green authorization test.
  */
 const TABLES_CHILDREN_FIRST = [
+  "transaction_corrections",
+  "transactions",
+  "staff_assignments",
   "entitlement_rules",
   "activity_sessions",
   "activities",
@@ -45,10 +48,32 @@ const TABLES_CHILDREN_FIRST = [
  * so rows from a previous test cannot change a result.
  */
 
+/**
+ * `transaction_corrections` is append-only in production (ADR-0020), so its
+ * DELETE trigger must be lifted for test cleanup. It is recreated immediately,
+ * from the same shape the migration installs, so every test still runs against
+ * the real guard.
+ */
+const APPEND_ONLY_DELETE_GUARD = `CREATE TRIGGER trg_transaction_corrections_no_delete
+BEFORE DELETE ON transaction_corrections
+BEGIN SELECT RAISE(ABORT, 'transaction_corrections is append-only'); END`;
+
 beforeEach(async () => {
   await applyD1Migrations(testEnv.DB, __MIGRATIONS__);
+
+  await testEnv.DB.prepare(
+    "DROP TRIGGER IF EXISTS trg_transaction_corrections_no_delete",
+  ).run();
+
+  // Adjustment rows reference the version they replaced, so the self-referencing
+  // FK must be cleared before the table can be emptied in one pass.
+  await testEnv.DB.prepare(
+    "UPDATE transactions SET adjusts_transaction_id = NULL",
+  ).run();
 
   for (const table of TABLES_CHILDREN_FIRST) {
     await testEnv.DB.prepare(`DELETE FROM ${table}`).run();
   }
+
+  await testEnv.DB.prepare(APPEND_ONLY_DELETE_GUARD).run();
 });

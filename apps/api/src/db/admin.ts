@@ -26,7 +26,11 @@ export async function readUsage(
     db.prepare("SELECT COUNT(*) AS n FROM users"),
     db.prepare("SELECT COUNT(*) AS n FROM events"),
     db.prepare("SELECT COUNT(*) AS n FROM participants"),
-    db.prepare("SELECT COUNT(*) AS n FROM attendance"),
+    db.prepare(
+      `SELECT COUNT(*) AS n FROM transactions
+        WHERE type = 'attendance'
+          AND reversed_at IS NULL AND superseded_at IS NULL`,
+    ),
     db.prepare("SELECT COUNT(*) AS n FROM audit_log"),
     db
       .prepare(

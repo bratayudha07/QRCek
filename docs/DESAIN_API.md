@@ -4,7 +4,7 @@ Semua endpoint di bawah `/api`. Otentikasi memakai cookie sesi `HttpOnly` (same-
 
 Sumber kebenaran kontrak: skema zod di `packages/shared/src/schemas/`. Dokumen ini menjelaskan **perilaku**, bukan menggantikan skema.
 
-> **Status dokumen (9 November 2026).** Dokumen ini mencatat **API aktual**: baseline `157c330` ditambah Q1 (Aktivitas/Sesi), Q2 (kategori, custom field, atribut peserta, impor ber-kategori), Q3 (konfigurasi entitlement), dan Q4 (QR Identity per Tema: lookup scan, rotasi, metadata), semuanya API-only; registrasi publik dihapus. Jumlahnya **85 definisi route** dan **231 pola efektif** setelah alias `/api/calendar` dan `/api/themes` (`73` definisi ber-prefix `/api/events` × 3). Rendering PNG/ZIP untuk unduh berada di Q9, bukan di Q4. API target untuk konsumsi, koreksi Reversal/Adjustment, dan scanner berkonteks **belum ada**; bentuk payload-nya diputuskan lewat AQ di [`ARCHITECTURE.md`](./ARCHITECTURE.md) §6 dan ditambahkan ke dokumen ini bersama route-nya. Endpoint yang tercantum di sini bukan bukti bahwa kebutuhan produk terpenuhi (`FR-178`). Bagian yang bertentangan dengan keputusan produk `[A]` ditandai **Delta**.
+> **Status dokumen (10 November 2026).** Dokumen ini mencatat **API aktual**: baseline `157c330` ditambah Q1 (Aktivitas/Sesi), Q2 (kategori, custom field, atribut peserta, impor ber-kategori), Q3 (konfigurasi entitlement), Q4 (QR Identity per Tema), dan Q5 (transaksi Attendance berkonteks, Manual Entry, Reversal/Adjustment), semuanya API-only; registrasi publik dihapus. Jumlahnya **87 definisi route** dan **227 pola efektif** setelah alias `/api/calendar` dan `/api/themes` (`70` definisi ber-prefix `/api/events` × 3). Rendering PNG/ZIP untuk unduh berada di Q9. Scanner/kiosk berkonteks penuh tetap Q6 dan kuota konsumsi tetap Q7; `attendance` hanya dibaca lewat adaptor kompatibilitas sampai Q8. Endpoint yang tercantum di sini bukan bukti bahwa kebutuhan produk terpenuhi (`FR-178`). Bagian yang bertentangan dengan keputusan produk `[A]` ditandai **Delta**.
 
 ---
 
@@ -903,6 +903,9 @@ disaring allowlist ADR-0011 (`packages/shared/src/audit-allowlist.ts`):
 | `qr.identity_issued` (per request, berisi `count`) | `qr_identities` (penerbitan lazy) |
 | `qr.identity_rotated` | `qr_identities` (rotasi in-place) |
 | `qr.labels_exported` | `events` (metadata ekspor label) |
+| `transaction.recorded`, `transaction.manual` | `transactions` (Q5, scan/Manual Entry) |
+| `transaction.reversal`, `transaction.adjustment` | `transactions` (Q5, koreksi) |
+| `attendance.wrong_theme` | `scan_attempt` (token lintas Tema) |
 
 Baris audit hanya ditulis bila mutasi di batch yang sama benar-benar berhasil: helper audit
 memeriksa `updated_at` (Aktivitas/Sesi/aturan entitlement), `status`/keberadaan baris (Tema),
@@ -914,58 +917,84 @@ token, hash, ciphertext, nonce, atau PII (`FR-207`).
 
 ---
 
-## 7. Pemindaian dan absensi
+## 7. Pemindaian, transaksi, dan absensi
 
-> **Target (belum ada):** transaksi berkonteks Aktivitas/Sesi dengan result code `SUCCESS`, `DUPLICATE`, `NOT_ENTITLED`, `INVALID_QR`, `SYSTEM_ERROR` (`FR-088`, `D-011` [A]); pemetaan dari hasil baseline di bawah adalah AQ-008. Halaman scan petugas baseline (`StaffScanPage` di `apps/web/src/pages/staff.tsx`, rute `/staff/scan`) sudah memanggil endpoint ini; `apps/web/src/pages/staff-scan.tsx` adalah file lama yang tidak diimpor di mana pun.
+> **Status Q5 (10 November 2026).** Jalur Absensi sudah memakai `transactions` dengan konteks
+> Tema + Aktivitas + Sesi (`ADR-0018`–`ADR-0022`). `attendance` tidak lagi ditulis; endpoint
+> baca lama memakai adaptor kompatibilitas atas transaksi efektif. Scanner/kiosk berkonteks
+> penuh tetap Q6, dan kuota konsumsi tetap Q7. Endpoint yang ada bukan bukti pemenuhan
+> kebutuhan (`FR-178`).
 
-### `POST /api/calendar/:id/scan`
+### `POST /api/events/:eventId/scan`
 
-Peran: `officer`, `event_admin`, `superadmin` (anggota acara).
+Peran: `officer` yang ditugaskan pada Aktivitas/Sesi, atau `event_admin` Tema.
+**Super Admin selalu ditolak (403)** — aksesnya lintas Tema bersifat baca saja (`ADR-0021`,
+`OQ-034` [A]).
 
 ```jsonc
 // request
-{ "qr": "absensi:v1:<token>", "deviceTs": 1730000000000 }
+{
+  "qr": "absensi:v1:<token>",
+  "activityId": "01J...",   // opsional hanya bila Tema punya tepat satu Aktivitas absensi
+  "sessionId": "01J...",    // wajib bila Aktivitas punya Sesi
+  "deviceTs": 1730000000000
+}
 
-// 200 — selalu 200 untuk hasil bisnis
+// 200 — hasil bisnis selalu 200
 {
   "ok": true,
   "data": {
-    "result": "present",            // present | duplicate | not_found | wrong_event
-                                    // | event_closed | participant_inactive
+    "result": "SUCCESS",           // SUCCESS | DUPLICATE | NOT_ENTITLED | INVALID_QR
+    "reason": null,                // mesin; lihat tabel di bawah
+    "message": "Kehadiran tercatat",
     "participant": { "id": "01J...", "fullName": "Budi", "category": "Kelas 5A" },
-    "attendance": { "status": "present", "checkedInAt": 1730000000123 }
+    "transaction": { "id": "01J...", "activityId": "01J...", "sessionId": null,
+                     "occurredAt": 1730000000123, "status": "present" }
   }
 }
 ```
 
 | `result` | Arti | Data yang dikembalikan |
 |---|---|---|
-| `present` | Absensi baru tercatat | `participant` + `attendance` |
-| `duplicate` | Sudah pernah absen | `participant` + `attendance` **yang sudah ada** |
-| `not_found` | Token tidak dikenal | tidak ada |
-| `wrong_event` | Token milik acara lain | tidak ada; dicatat di audit |
-| `event_closed` | Di luar jendela waktu / status bukan `active` | nama acara |
-| `participant_inactive` | Peserta dinonaktifkan | `participant` |
+| `SUCCESS` | Transaksi efektif baru tercatat | `participant` + `transaction` |
+| `DUPLICATE` | Sudah ada transaksi efektif pada ruang lingkup yang sama | `participant` + `transaction` yang sudah ada |
+| `NOT_ENTITLED` | Peserta/lifecycle/entitlement menolak | `participant` (bila Tema cocok) |
+| `INVALID_QR` | Token tidak dikenal atau milik Tema lain | tidak ada |
 
-Sejak Q4 lookup token memakai satu `SEARCH` pada `qr_identities.token_hash`
-(`uq_qr_identity_hash`) lalu join primary-key ke `participants`; scope Tema diperiksa dari
-`qr_identities.theme_id`, bukan dari `participants.event_id`. Rotasi membuat hash lama tidak
-ditemukan (`not_found`) tanpa mengubah baris `attendance`. Token dari Tema lain tetap
-`wrong_event`, dan status peserta diperiksa setelah scope Tema agar token lintas Tema tidak
-membocorkan status peserta lain. Audit `attendance.wrong_event` memakai
-`entity_type = scan_attempt`, `entity_id = null`, dan snapshot `{ outcome: "wrong_theme" }`;
-ID peserta dan ID Tema asal tidak disimpan karena Admin Acara yang melakukan scan dapat
-membaca audit tersebut.
+`reason` yang mungkin: `duplicate`, `qr_invalid`, `participant_inactive`,
+`entitlement_denied`, `theme_archived`, `theme_not_active`, `activity_not_active`,
+`activity_archived`, `session_required`, `context_mismatch`, `session_not_in_progress`,
+`session_archived`. `SYSTEM_ERROR` adalah kode error 5xx pada envelope, bukan hasil bisnis.
 
-`deviceTs` hanya **dicatat** untuk analisis selisih jam, **tidak dipakai** sebagai waktu absensi. Waktu resmi selalu dari server (UTC).
+Lookup token memakai satu `SEARCH` pada `qr_identities.token_hash` lalu join primary-key ke
+`participants`. Scope Tema diperiksa dari `qr_identities.theme_id`, bukan dari
+`participants.event_id`; rotasi membuat hash lama tidak ditemukan (`INVALID_QR`) tanpa
+mengubah riwayat. Token dari Tema lain juga `INVALID_QR` tanpa detail peserta. Audit
+`attendance.wrong_theme` memakai `entity_type = scan_attempt`, `entity_id = null`, dan
+snapshot `{ outcome: "wrong_theme" }`; ID peserta dan ID Tema asal tidak disimpan.
+
+Konteks diselesaikan di server: `activityId` eksplisit harus milik Tema (jika tidak → 404);
+tanpa `activityId`, Tema harus punya tepat satu Aktivitas absensi non-arsip (jika nol/lebih →
+422 `context_mismatch`). Aktivitas yang punya Sesi mewajibkan `sessionId` valid milik
+Aktivitas itu (422 `session_required`/`context_mismatch`). Sesi tidak pernah disimpulkan dari
+jam. Petugas juga wajib punya penugasan aktif pada Aktivitas/Sesi tersebut (403 bila tidak).
+
+`deviceTs` hanya **dicatat** untuk analisis selisih jam, **tidak dipakai** sebagai waktu
+absensi. Waktu resmi selalu dari server (UTC). Duplikasi dicegah empat partial unique index
+pada transaksi efektif; hasilnya `DUPLICATE`, bukan error 500 (`BR-032`, `ADR-0019`).
 
 Batas laju: 120 scan/menit per sesi, 600/menit per acara. Kelebihan → `429` dengan `Retry-After`.
 
-Biaya query: 1 (sesi+membership) + 1 (peserta) + 1 batch (insert/outbox/audit) + 1 (baca ulang absensi saat `duplicate`) = **≤ 4 statement**, jauh di bawah batas 50 per invokasi.
+Biaya query terukur (`transactions.statements.test.ts`, 10 November 2026): **15 statement**
+untuk scan sukses, **11** untuk Reversal, **13** untuk Manual Entry, dan **12** untuk
+Adjustment — semuanya jauh di bawah batas 50 per invokasi. Angka ini termasuk otentikasi, dua
+rate limit, resolusi konteks, entitlement, penugasan, batch tulis, dan baca ulang.
 
-### `GET /api/calendar/:id/attendance`
+### `GET /api/events/:eventId/attendance`
 
-Query: `?status=&query=&limit=&cursor=`
+Query: `?status=&query=&limit=&cursor=`. Membaca **transaksi Attendance efektif** dan
+memetakannya ke bentuk `AttendanceRecord` lama (`id` = id transaksi, `checkedInAt` =
+`occurred_at`, `method` = `source`). Kontrak ini dipertahankan sampai Q8.
 
 ```jsonc
 { "ok": true, "data": { "items": [
@@ -978,16 +1007,73 @@ Query: `?status=&query=&limit=&cursor=`
 ], "nextCursor": null } }
 ```
 
+### `GET /api/events/:eventId/transactions`
+
+Peran: `officer`, `event_admin`, `superadmin` (anggota Tema). Query: `activityId`,
+`sessionId`, `type`, `status`, `effective` (`true` default | `false` | `all`), `limit`,
+`cursor`.
+
+```jsonc
+{ "ok": true, "data": { "items": [
+  { "id": "01J...", "themeId": "01J...", "activityId": "01J...", "sessionId": null,
+    "participantId": "01J...", "type": "attendance", "source": "qr_scan",
+    "status": "present", "occurredAt": 173..., "recordedBy": "01J...", "note": null,
+    "slotNo": null, "adjustsTransactionId": null, "reversedAt": null,
+    "supersededAt": null, "effective": true, "createdAt": 173..., "updatedAt": 173... }
+], "nextCursor": null } }
+```
+
+### Reversal dan Adjustment
+
+| Method | Path | Peran | Keterangan |
+|---|---|---|---|
+| `POST` | `/api/events/:eventId/transactions/:transactionId/reversal` | `event_admin` Tema | Membatalkan efek transaksi tanpa menghapus baris |
+| `POST` | `/api/events/:eventId/transactions/:transactionId/adjustment` | `event_admin` Tema | Membuat versi transaksi baru dengan before/after |
+
+**Super Admin dan Petugas selalu ditolak (403)**; koreksi milik Admin Acara Tema itu
+(`D-006`, `D-024` [A]). Transaksi dari Tema lain → 404.
+
+```jsonc
+// reversal
+{ "reason": "Salah pindai kartu", "expectedUpdatedAt": 173... }
+
+// adjustment — hanya field ini yang boleh berubah
+{ "status": "excused", "note": "Surat izin", "occurredAt": 173...,
+  "reason": "Surat izin resmi diterima", "expectedUpdatedAt": 173... }
+```
+
+- `reason` wajib 3–500 karakter. Paling sedikit satu field adjustment harus diisi.
+- Reversal menandai `reversed_at`/`reversed_by` dan menulis `transaction_corrections`
+  beroperasi `reversal`; Adjustment menandai versi lama `superseded_at` lalu meng-insert
+  versi baru dengan `adjusts_transaction_id`. Keduanya atomik dengan outbox dan audit.
+- Transaksi yang sudah di-Reversal atau di-supersede → `409 CONFLICT`. `expectedUpdatedAt`
+  yang basi juga `409`, agar koreksi bersamaan tidak saling menimpa.
+- Catatan bebas **tidak pernah** disimpan di audit/correction JSON; hanya `noteChanged`.
+
+### `POST /api/events/:eventId/attendance/manual`
+
+Peran: `officer` berpenugasan dengan `can_manual_check_in = 1`, atau `event_admin` Tema.
+**Super Admin ditolak (403)** (`OQ-034` [A]). Hanya jika `events.allow_manual = 1`.
+
+```jsonc
+{ "participantId": "01J...", "activityId": "01J...", "sessionId": "01J...",
+  "status": "present", "note": null }
+```
+
+Manual Entry adalah Transaction Source `manual`, bukan koreksi (`AC-055`). Kontrak konteks,
+lifecycle, dan entitlement sama dengan scan. Duplikat pada ruang lingkup yang sama → `409`.
+
 ### Rekap dashboard
 
 | Method | Path | Peran | Keterangan |
 |---|---|---|---|
 | `GET` | `/api/dashboard` | semua pengguna terautentikasi | Ringkasan acara yang dapat diakses pengguna |
-| `GET` | `/api/calendar/:eventId/dashboard` | anggota acara | Hitungan peserta, kehadiran per status, persentase, kehadiran terbaru |
-| `GET` | `/api/staff/attendance` | petugas/admin | Riwayat scan milik pengguna, opsional difilter per acara |
+| `GET` | `/api/events/:eventId/dashboard` | anggota acara | Hitungan peserta, kehadiran per status, persentase, kehadiran terbaru |
+| `GET` | `/api/staff/attendance` | petugas/admin | Riwayat transaksi milik pengguna, opsional difilter per acara |
 
-Endpoint data rekap dipakai oleh dashboard dan halaman Laporan. Riwayat petugas hanya memuat
-scan yang dicatat oleh pengguna tersebut.
+Endpoint data rekap dipakai oleh dashboard dan halaman Laporan. Semua agregat kehadiran
+menghitung transaksi Attendance efektif. Riwayat petugas hanya memuat transaksi yang dicatat
+oleh pengguna tersebut.
 
 ### Ekspor kehadiran CSV
 
@@ -998,32 +1084,6 @@ scan yang dicatat oleh pengguna tersebut.
 Kolom CSV: nama peserta, referensi, kategori, status, waktu UTC, metode, petugas, dan catatan.
 Nilai CSV diloloskan dengan helper CSV bersama. Jika hasil lebih dari 5.000 baris, Worker
 meminta pengguna mempersempit filter.
-
-### `POST /api/calendar/:eventId/attendance/:attendanceId/correction`
-
-Peran: `event_admin`, `superadmin`. **`officer` selalu ditolak.**
-
-> **Delta (`D-006` [A]):** endpoint ini menimpa baris `attendance` dengan `UPDATE`. Target mewajibkan Reversal (transaksi asli tetap ada, efek dibatalkan) dan Adjustment (before/after field allowlist) tanpa menimpa riwayat, oleh Admin Acara saja. Jangan meniru pola ini untuk endpoint baru; jalur ini diganti di roadmap Q5.
-
-```jsonc
-// request
-{ "status": "excused", "reason": "Surat izin dokter diterima panitia" }
-
-// 200
-{ "ok": true, "data": { "attendanceId": "01J...", "status": "excused", "updatedAt": 173... } }
-```
-
-- `reason` wajib, 10–500 karakter.
-- Satu `db.batch()`: `UPDATE attendance`, `INSERT audit_log` (`attendance.corrected` dengan `before`/`after`), upsert `outbox`.
-- Jika baris berubah bersamaan (optimistic check via `updated_at`), kembalikan `409 CONFLICT` agar admin memuat ulang — lebih baik gagal terang-terangan daripada menimpa koreksi orang lain.
-
-### `POST /api/calendar/:id/attendance/manual`
-
-Peran: `event_admin`, `superadmin`. Hanya jika `events.allow_manual = 1`.
-
-Dipakai sebagai fallback saat HP petugas tidak bisa memindai (mis. QR rusak). Tetap memakai constraint unik yang sama.
-
-> **Delta:** otorisasi baseline memakai aksi `attendance:correct`. Pada model target, izin ini **tidak boleh** dianggap sebagai otorisasi Manual Check-in (`AC-055`). Manual Entry target adalah Transaction Source, bukan koreksi; Petugas berizin disetujui `D-022` [A]; izin Super Admin tidak diizinkan (`OQ-034` [A]).
 
 ---
 

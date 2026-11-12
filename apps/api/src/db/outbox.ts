@@ -46,13 +46,13 @@ const COALESCE = `ON CONFLICT (event_id, participant_id)
     last_error = NULL,
     updated_at = excluded.updated_at`;
 
-export function enqueueAttendanceStatement(
+export function enqueueTransactionStatement(
   db: D1Database,
   input: {
     id: string;
     eventId: string;
     participantId: string;
-    attendanceId: string;
+    transactionId: string;
     now: number;
   },
 ): D1PreparedStatement {
@@ -62,7 +62,10 @@ export function enqueueAttendanceStatement(
          (id, event_id, participant_id, kind, status, attempts,
           next_attempt_at, created_at, updated_at)
        SELECT ?, ?, ?, 'attendance', 'pending', 0, ?, ?, ?
-        WHERE EXISTS (SELECT 1 FROM attendance WHERE id = ?)
+        WHERE EXISTS (
+          SELECT 1 FROM transactions
+           WHERE id = ? AND reversed_at IS NULL AND superseded_at IS NULL
+        )
        ${COALESCE}`,
     )
     .bind(
@@ -72,12 +75,12 @@ export function enqueueAttendanceStatement(
       input.now,
       input.now,
       input.now,
-      input.attendanceId,
+      input.transactionId,
     );
 }
 
 /**
- * Correction enqueue. The `updated_at` guard means a failed optimistic update
+ * Correction enqueue. The `updated_at` guard means a failed guarded update
  * (0 changed rows) cannot enqueue a sync that has nothing to send.
  */
 export function enqueueCorrectionStatement(
@@ -86,7 +89,7 @@ export function enqueueCorrectionStatement(
     id: string;
     eventId: string;
     participantId: string;
-    attendanceId: string;
+    transactionId: string;
     updatedAt: number;
     now: number;
   },
@@ -98,8 +101,8 @@ export function enqueueCorrectionStatement(
           next_attempt_at, created_at, updated_at)
        SELECT ?, ?, ?, 'attendance', 'pending', 0, ?, ?, ?
         WHERE EXISTS (
-          SELECT 1 FROM attendance
-           WHERE id = ? AND event_id = ? AND updated_at = ?
+          SELECT 1 FROM transactions
+           WHERE id = ? AND theme_id = ? AND updated_at = ?
         )
        ${COALESCE}`,
     )
@@ -110,7 +113,7 @@ export function enqueueCorrectionStatement(
       input.now,
       input.now,
       input.now,
-      input.attendanceId,
+      input.transactionId,
       input.eventId,
       input.updatedAt,
     );

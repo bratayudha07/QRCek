@@ -3,6 +3,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   addMembership,
+  addStaffAssignment,
+  allowThemeDefault,
+  createActivity,
   createEvent,
   createParticipant,
   createSession,
@@ -49,14 +52,18 @@ async function setup() {
     .bind(eventId)
     .run();
 
+  const activityId = await createActivity(eventId);
+  await allowThemeDefault(eventId);
+
   const officerId = await createUser({ role: "officer" });
   await addMembership(eventId, officerId, "officer");
+  await addStaffAssignment(eventId, activityId, officerId);
   const cookie = (await createSession(officerId)).cookie;
 
   const participant = await createParticipant(eventId, { fullName: "Budi Sync" });
   const qr = await issueParticipantQr(eventId, participant.id);
 
-  return { eventId, participant, cookie, qr };
+  return { eventId, activityId, participant, cookie, qr };
 }
 
 async function enableSync(eventId: string): Promise<void> {
@@ -69,14 +76,19 @@ async function enableSync(eventId: string): Promise<void> {
     .run();
 }
 
-async function scanOnce(cookie: string, eventId: string, qr: string): Promise<void> {
+async function scanOnce(
+  cookie: string,
+  eventId: string,
+  qr: string,
+  activityId: string,
+): Promise<void> {
   const response = await callApi(`/api/events/${eventId}/scan`, {
     method: "POST",
-    body: { qr },
+    body: { qr, activityId },
     cookie,
   });
   const body = response.json<ScanResultPayload>();
-  expect(body.ok && body.data.result).toBe("present");
+  expect(body.ok && body.data.result).toBe("SUCCESS");
 }
 
 async function outboxRow(eventId: string) {
@@ -90,7 +102,7 @@ async function outboxRow(eventId: string) {
 describe("processOutbox", () => {
   it("leaves items pending when the event has no destination", async () => {
     const s = await setup();
-    await scanOnce(s.cookie, s.eventId, s.qr);
+    await scanOnce(s.cookie, s.eventId, s.qr, s.activityId);
 
     const result = await processOutbox(testEnv, {
       now: TEST_NOW,
@@ -104,7 +116,7 @@ describe("processOutbox", () => {
   it("writes one deterministic row and marks the item done", async () => {
     const s = await setup();
     await enableSync(s.eventId);
-    await scanOnce(s.cookie, s.eventId, s.qr);
+    await scanOnce(s.cookie, s.eventId, s.qr, s.activityId);
 
     const gateway = new FakeGateway();
     const result = await processOutbox(testEnv, {
@@ -132,7 +144,7 @@ describe("processOutbox", () => {
   it("retries the same row after a transient failure", async () => {
     const s = await setup();
     await enableSync(s.eventId);
-    await scanOnce(s.cookie, s.eventId, s.qr);
+    await scanOnce(s.cookie, s.eventId, s.qr, s.activityId);
 
     const failing = new FakeGateway();
     failing.failure = { status: 500, reason: "backendError" };
@@ -178,7 +190,7 @@ describe("processOutbox", () => {
   it("marks permanent Google errors dead instead of retrying forever", async () => {
     const s = await setup();
     await enableSync(s.eventId);
-    await scanOnce(s.cookie, s.eventId, s.qr);
+    await scanOnce(s.cookie, s.eventId, s.qr, s.activityId);
 
     const gateway = new FakeGateway();
     gateway.failure = { status: 404, reason: "notFound" };
@@ -198,7 +210,7 @@ describe("processOutbox", () => {
   it("never loses attendance when Sheets fails", async () => {
     const s = await setup();
     await enableSync(s.eventId);
-    await scanOnce(s.cookie, s.eventId, s.qr);
+    await scanOnce(s.cookie, s.eventId, s.qr, s.activityId);
 
     const gateway = new FakeGateway();
     gateway.failure = { status: 500 };
@@ -206,7 +218,7 @@ describe("processOutbox", () => {
     await processOutbox(testEnv, { now: TEST_NOW, gateway });
 
     const attendance = await testEnv.DB.prepare(
-      "SELECT COUNT(*) AS n FROM attendance WHERE event_id = ?",
+      "SELECT COUNT(*) AS n FROM transactions WHERE theme_id = ?",
     )
       .bind(s.eventId)
       .first<{ n: number }>();
@@ -218,8 +230,8 @@ describe("processOutbox", () => {
     const b = await setup();
     await enableSync(a.eventId);
     await enableSync(b.eventId);
-    await scanOnce(a.cookie, a.eventId, a.qr);
-    await scanOnce(b.cookie, b.eventId, b.qr);
+    await scanOnce(a.cookie, a.eventId, a.qr, a.activityId);
+    await scanOnce(b.cookie, b.eventId, b.qr, b.activityId);
 
     const result = await processOutbox(testEnv, {
       now: TEST_NOW,

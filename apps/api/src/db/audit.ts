@@ -180,6 +180,106 @@ export function insertAuditAfterAttendanceUpdateStatement(
     );
 }
 
+/** Audit only when the transaction insert from the same batch landed. */
+export function insertAuditAfterTransactionStatement(
+  db: D1Database,
+  entry: AuditEntry,
+  transactionId: string,
+): D1PreparedStatement {
+  return db
+    .prepare(
+      `INSERT INTO audit_log
+         (id, event_id, actor_user_id, action, entity_type, entity_id,
+          before_json, after_json, reason, request_id, ip_hash, created_at)
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        WHERE EXISTS (SELECT 1 FROM transactions WHERE id = ?)`,
+    )
+    .bind(
+      entry.id,
+      entry.eventId,
+      entry.actorUserId,
+      entry.action,
+      entry.entityType,
+      entry.entityId ?? null,
+      jsonOrNull(entry.before),
+      jsonOrNull(entry.after),
+      entry.reason ?? null,
+      entry.requestId ?? null,
+      entry.ipHash ?? null,
+      entry.createdAt,
+      transactionId,
+    );
+}
+
+/** Audit only when the guarded Reversal update actually landed. */
+export function insertAuditAfterReversalStatement(
+  db: D1Database,
+  entry: AuditEntry,
+  transactionId: string,
+  reversedAt: number,
+): D1PreparedStatement {
+  return db
+    .prepare(
+      `INSERT INTO audit_log
+         (id, event_id, actor_user_id, action, entity_type, entity_id,
+          before_json, after_json, reason, request_id, ip_hash, created_at)
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        WHERE EXISTS (
+          SELECT 1 FROM transactions WHERE id = ? AND reversed_at = ?
+        )`,
+    )
+    .bind(
+      entry.id,
+      entry.eventId,
+      entry.actorUserId,
+      entry.action,
+      entry.entityType,
+      entry.entityId ?? null,
+      jsonOrNull(entry.before),
+      jsonOrNull(entry.after),
+      entry.reason ?? null,
+      entry.requestId ?? null,
+      entry.ipHash ?? null,
+      entry.createdAt,
+      transactionId,
+      reversedAt,
+    );
+}
+
+/** Audit only when the Adjustment replacement row exists in the same batch. */
+export function insertAuditAfterAdjustmentStatement(
+  db: D1Database,
+  entry: AuditEntry,
+  replacementId: string,
+): D1PreparedStatement {
+  return db
+    .prepare(
+      `INSERT INTO audit_log
+         (id, event_id, actor_user_id, action, entity_type, entity_id,
+          before_json, after_json, reason, request_id, ip_hash, created_at)
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        WHERE EXISTS (
+          SELECT 1 FROM transactions
+           WHERE id = ? AND adjusts_transaction_id IS NOT NULL
+        )`,
+    )
+    .bind(
+      entry.id,
+      entry.eventId,
+      entry.actorUserId,
+      entry.action,
+      entry.entityType,
+      entry.entityId ?? null,
+      jsonOrNull(entry.before),
+      jsonOrNull(entry.after),
+      entry.reason ?? null,
+      entry.requestId ?? null,
+      entry.ipHash ?? null,
+      entry.createdAt,
+      replacementId,
+    );
+}
+
 /** Tables that carry an `updated_at` version column usable as an audit guard. */
 type VersionedAuditTable =
   | "activities"

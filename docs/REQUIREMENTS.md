@@ -18,13 +18,14 @@
 |---|---|
 | Nama dokumen | Product Requirements |
 | Produk | QRCek |
-| Versi | 0.3.3 |
+| Versi | 0.3.4 |
 | Status | Draft — Pending Product Owner Review |
 | Pemilik keputusan produk | Product owner QRCek |
 | Tanggal dibuat | 3 November 2026 |
 | Tanggal revisi v0.3.1 | 3 November 2026 |
 | Tanggal revisi v0.3.2 | 3 November 2026 |
 | Tanggal revisi v0.3.3 | 6 November 2026 |
+| Tanggal revisi v0.3.4 | 12 November 2026 |
 | Commit repository yang diverifikasi | `5951361` (Q1); baseline `157c330` (§7.1) |
 | Metode verifikasi | Pembacaan source code, migrations, schema, route, dan test; eksekusi `npm run test` |
 | Hasil verifikasi | 53 file test, 525 test lulus (baseline `157c330`: 48 file, 458 test) |
@@ -372,7 +373,7 @@ Semua hal tersebut harus diputuskan di `docs/ARCHITECTURE.md`, `docs/DECISIONS.m
 | `FR-070` | Backend harus menjadi sumber kebenaran transaksi. | PRD §6.2 |
 | `FR-071` | Keberhasilan hanya boleh ditampilkan setelah backend mengonfirmasi transaksi. | PRD §6.2 |
 | `FR-072` | Sistem harus memisahkan Transaction Source (QR Scan atau Manual Entry) dari Correction Operation (Reversal atau Adjustment). Koreksi bukan Transaction Source. | PRD §6.3; `D-011` [A] |
-| `FR-073` | Manual Check-in hanya boleh dilakukan oleh Petugas yang ditugaskan pada Aktivitas/Sesi tersebut apabila Admin Acara mengaktifkan kemampuan ini, atau oleh Admin Acara yang berwenang. Izin Manual Check-in untuk Super Admin belum ditetapkan (`OQ-034` [A]); legacy permission `attendance:correct` tidak boleh diinferensikan sebagai otorisasi target. | PRD §6.3; `D-022` [A], `OQ-034` [A] |
+| `FR-073` | Manual Check-in hanya boleh dilakukan oleh Petugas yang ditugaskan pada Aktivitas/Sesi tersebut apabila Admin Acara mengaktifkan kemampuan ini, atau oleh Admin Acara yang berwenang. Super Admin **tidak berwenang** melakukan Manual Check-in (`OQ-034` [A]); legacy permission `attendance:correct` tidak boleh diinferensikan sebagai otorisasi target. | PRD §6.3; `D-022` [A], `OQ-034` [A] |
 | `FR-074` | Transaksi Manual Entry harus mencatat akun pelaku dan source Manual Entry. | PRD §6.3; `D-022` [A] |
 | `FR-075` | Pencegahan duplikasi harus dilakukan di backend dan database, bukan hanya melalui frontend. | PRD §6.4 |
 | `FR-076` | Reversal harus membatalkan efek transaksi tanpa menghapus transaksi asli. | PRD §6.5; `D-006` [A] |
@@ -635,7 +636,7 @@ Business rule di bawah adalah invariant yang harus tetap benar terlepas dari pil
 | `BR-031` | Syarat kehadiran: peserta aktif, QR valid, memiliki entitlement, dan konteks Aktivitas/Sesi valid. | PRD §6.2; `D-003` [A] |
 | `BR-032` | Duplikasi dihitung berdasarkan transaksi efektif pada ruang lingkup yang sama: Aktivitas tanpa Sesi atau Sesi tertentu. Sesi berbeda dapat diterima bila berhak. | PRD §6.4; `D-006` [A] |
 | `BR-033` | Pencegahan duplikasi ditegakkan di backend dan database, bukan hanya di frontend. | PRD §6.4 |
-| `BR-034` | Manual Check-in hanya oleh Petugas yang ditugaskan dan diaktifkan Admin Acara, atau Admin Acara berwenang; pelaku dan source harus dicatat. Izin Manual Check-in untuk Super Admin belum ditetapkan (`OQ-034` [A]); legacy permission `attendance:correct` tidak boleh dianggap sebagai otorisasi target. | PRD §6.3; `D-022` [A], `OQ-034` [A] |
+| `BR-034` | Manual Check-in hanya oleh Petugas yang ditugaskan dan diaktifkan Admin Acara, atau Admin Acara berwenang; pelaku dan source harus dicatat. Super Admin **tidak berwenang** melakukan Manual Check-in (`OQ-034` [A]); legacy permission `attendance:correct` tidak boleh dianggap sebagai otorisasi target. | PRD §6.3; `D-022` [A], `OQ-034` [A] |
 | `BR-035` | Keberhasilan transaksi hanya ditampilkan setelah backend mengonfirmasi. | PRD §6.2 |
 | `BR-036` | Reversal dan Adjustment hanya boleh dilakukan oleh Admin Acara. Petugas dan Super Admin tidak memiliki kewenangan koreksi. | PRD §6.5; koreksi product owner 3 Nov 2026; `D-006` [A], `D-024` [A] |
 | `BR-037` | Reversal dan Adjustment wajib memiliki alasan. | PRD §6.5; `D-006` [A] |
@@ -790,6 +791,12 @@ Business rule di bawah adalah invariant yang harus tetap benar terlepas dari pil
 
 ### 7.2 Baseline per area
 
+> **Catatan 12 November 2026.** Tabel ini tetap potret commit `157c330`; ia **bukan** kondisi
+> terkini. Setelah Q1–Q5, Aktivitas/Sesi, kategori, entitlement, QR Identity per Tema,
+> `transactions`, `staff_assignments`, dan koreksi Reversal/Adjustment sudah ada. Khusus hasil
+> scan Q5: `SUCCESS`, `DUPLICATE`, `NOT_ENTITLED`, `INVALID_QR` (bukan nilai baseline), dengan
+> `SYSTEM_ERROR` hanya pada envelope 5xx. Kondisi aktual ada di `docs/DESAIN_API.md` §7.
+
 | Area | Kondisi aktual | Bukti |
 |---|---|---|
 | Autentikasi | Passwordless berbasis token, aktivasi undangan, kode pemulihan, sesi cookie, revoke sesi, rate limit. | `apps/api/src/routes/auth.ts`, `apps/api/src/test/auth.*.test.ts`, `migrations/0002_auth.sql` |
@@ -803,7 +810,7 @@ Business rule di bawah adalah invariant yang harus tetap benar terlepas dari pil
 | Aktivitas dan sesi | Tidak ada tabel aktivitas atau sesi. | `migrations/` hanya memiliki `events` |
 | QR Identity | Token opaque `absensi:v1:<token>`, hash HMAC untuk lookup, ciphertext AES-256-GCM, rotasi, audit ekspor. | `apps/api/src/domain/qr-token.ts`, `migrations/0004_qr.sql`, `apps/api/src/test/qr-token.test.ts`, `apps/api/src/test/qr.db.test.ts` |
 | Label QR | Konfigurasi field per acara, preview dan cetak A4/sticker melalui `window.print()`. Belum ada unduhan PNG individual atau ZIP. | `apps/api/src/routes/labels.ts`, `apps/web/src/components/label-sheet.tsx`, `apps/web/src/lib/qr-labels.ts` |
-| Scan | Endpoint `POST /api/events/:eventId/scan`; hasil `present`, `duplicate`, `not_found`, `wrong_event`, `event_closed`, `participant_inactive`. | `apps/api/src/routes/scan.ts`, `packages/shared/src/attendance.ts`, `apps/api/src/routes/scan.test.ts` |
+| Scan | Baseline `157c330`: hasil `present`, `duplicate`, `not_found`, `wrong_event`, `event_closed`, `participant_inactive`. Sejak Q5 (12 November 2026): `SUCCESS`, `DUPLICATE`, `NOT_ENTITLED`, `INVALID_QR`; `SYSTEM_ERROR` pada envelope 5xx; konteks Aktivitas/Sesi wajib dan `attendance` tidak lagi ditulis. | `apps/api/src/routes/scan.ts`, `packages/shared/src/attendance.ts`, `apps/api/src/routes/scan.test.ts` |
 | Kehadiran | Satu baris per peserta per acara; `UNIQUE (event_id, participant_id)`. Status `present/late/absent/excused`; metode `qr_scan/manual/correction`. | `migrations/0005_attendance_sync.sql` baris 31, `apps/api/src/routes/attendance.ts` |
 | Manual check-in | Tersedia bila `events.allow_manual = 1`; otorisasi memakai aksi `attendance:correct` sehingga hanya admin acara/superadmin. | `apps/api/src/routes/attendance.ts`, `apps/api/src/domain/permissions.ts` |
 | Koreksi | Menimpa baris `attendance` dengan `UPDATE`, menyimpan snapshot before/after di audit. Alasan wajib. | `apps/api/src/db/attendance.ts` baris 238, `apps/api/src/routes/attendance.ts` |
@@ -918,7 +925,7 @@ Business rule di bawah adalah invariant yang harus tetap benar terlepas dari pil
 | `AC-018` | Ekspor QR | PNG individual dan ZIP dapat diunduh; backend mengotorisasi; browser menghasilkan PNG/packaging; setiap file teridentifikasi dengan peserta yang benar; batas batch/memory diterapkan. | `D-016` [A] |
 | `AC-019` | Attendance | Scan valid mencatat Attendance pada Aktivitas/Sesi yang benar. | `D-003` [A] |
 | `AC-020` | Duplikat Attendance | Scan ulang pada ruang lingkup efektif yang sama ditolak; Sesi berbeda dapat diterima bila berhak; transaksi yang di-reversal tidak menghalangi check-in baru. | `D-006` [A] |
-| `AC-021` | Manual check-in | Hanya aktor berizin; pelaku dan source tercatat; validasi backend dan duplikasi tetap berjalan. Izin Manual Check-in untuk Super Admin belum ditetapkan; legacy permission `attendance:correct` tidak bukti otorisasi target. | `D-022` [A], `OQ-034` [A] |
+| `AC-021` | Manual check-in | Hanya aktor berizin; pelaku dan source tercatat; validasi backend dan duplikasi tetap berjalan. Super Admin **tidak berwenang**; legacy permission `attendance:correct` bukan bukti otorisasi target. | `D-022` [A], `OQ-034` [A] |
 | `AC-022` | Reversal | Hanya Admin Acara; alasan wajib; transaksi asli tetap ada; efek dibatalkan; audit tercatat. | `D-006` [A] |
 | `AC-023` | Koreksi dan peran | Petugas tidak dapat melakukan Reversal/Adjustment; Super Admin masih proposed dan belum final. | `D-006` [A], `D-024` [A] |
 | `AC-024` | Konsumsi | Setiap jenis distribusi independen; kuota default Aktivitas, override kategori/individual; penukaran ganda berdasarkan transaksi efektif ditolak. | `D-014` [A] |
@@ -946,13 +953,13 @@ Business rule di bawah adalah invariant yang harus tetap benar terlepas dari pil
 | `AC-046` | Kuota setelah Reversal | Reversal pada transaksi Consumption mengembalikan kuota yang sebelumnya terpakai. Perilaku ini proposed dan belum final. | `D-014` [A] |
 | `AC-047` | Privasi audit | Audit tidak memuat token QR plaintext, password, atau secret; nilai before/after untuk field sensitif tidak disimpan, hanya status perubahannya; PII diminimalkan/dimask. | `D-023` [A], `FR-207` |
 | `AC-048` | Pending bukan sukses | Respons backend yang masih pending tidak pernah ditampilkan sebagai sukses; scanner mengunci pemrosesan selama feedback. | `D-012` [A] |
-| `AC-049` | Manual source | Manual Check-in adalah Transaction Source, bukan Correction Operation; Petugas tidak dapat melakukan Reversal/Adjustment. Izin Manual Check-in untuk Super Admin belum ditetapkan (`OQ-034` [A]). | `D-022` [A], `OQ-034` [A] |
+| `AC-049` | Manual source | Manual Check-in adalah Transaction Source, bukan Correction Operation; Petugas tidak dapat melakukan Reversal/Adjustment. Super Admin **tidak berwenang** melakukan Manual Check-in (`OQ-034` [A]). | `D-022` [A], `OQ-034` [A] |
 | `AC-050` | Registrasi Admin | Admin Acara hanya dapat mendaftar melalui undangan; self-registration publik nonaktif; pencabutan akses berfungsi. | `D-018` [A] |
 | `AC-051` | Google Sheets | Integrasi opsional; kegagalan sync tidak memblokir transaksi inti; belum diklaim production-ready sebelum diuji dengan akun nyata. | `D-017` [A] |
 | `AC-052` | Identifier teknis | Identifier lama dipertahankan kecuali ada alasan teknis terbukti; nama produk QRCek. | `D-019` [A] |
 | `AC-053` | Aksesibilitas UI | Status tidak hanya warna; teks/ikon tersedia; scanner usable tanpa audio; aset font lokal/tanpa runtime CDN. | `D-013` [A], `D-021` [A] |
 | `AC-054` | Impor field kosong | Field CSV kosong tidak menghapus data peserta yang sudah ada; perubahan hanya terjadi bila admin mengonfirmasi. | `D-008` [A] |
-| `AC-055` | Izin Manual Check-in | Legacy permission `attendance:correct` tidak boleh otomatis dianggap sebagai otorisasi Manual Check-in pada model target; otorisasi harus direkonsiliasi sebelum implementasi. | `OQ-034` [A] |
+| `AC-055` | Izin Manual Check-in | Legacy permission `attendance:correct` tidak boleh otomatis dianggap sebagai otorisasi Manual Check-in pada model target. Izin target dipisahkan menjadi `attendance:manual` dan `transaction:correct`; Super Admin **tidak berwenang** melakukan Manual Check-in maupun koreksi (`OQ-034` [A], `D-024` [A]). | `OQ-034` [A], `D-024` [A] |
 
 ---
 
@@ -1256,4 +1263,5 @@ Semua keputusan produk D-001 s.d D-024 sudah disepakati product owner dan dicata
 | 0.3.1 | 3 November 2026 | Koreksi konsistensi: (1) pisahkan status operasional Sesi dari state arsip (FR-091, FR-093, FR-186, FR-206, BR-007, BR-071, BR-078, OQ-033); arsip Sesi menolak transaksi baru tetapi histori transaksi tetap utuh, dan kapan arsip boleh dilakukan belum ditetapkan; (2) audit field allowlist agar before/after tidak menyimpan PII dan kredensial (FR-136, FR-195, FR-207, BR-074, BR-079, NFR-006, AC-031, AC-047); (3) pisahkan prinsip Reversal/Adjustment yang disepakati (D-006 [A]) dari perilaku kuota Consumption yang proposed (D-014 [P], BR-073, AC-046); pemulihan kuota setelah Reversal Consumption tetap proposed; (4) selesaikan perilaku impor CSV tanpa External Reference (FR-052, D-008, BR-063, AC-009, AC-054): baris tanpa External Reference dianggap peserta baru dengan warning duplikat untuk review manual, tanpa merge otomatis; (5) izin Manual Check-in Super Admin tidak ditetapkan (FR-073, BR-034, AC-021, AC-049, AC-055, OQ-034); legacy permission `attendance:correct` tidak diinferensikan sebagai otorisasi target. |
 | 0.3.2 | 4 November 2026 | Disetujui oleh product owner: semua keputusan proposed `D-008`–`D-024` diubah menjadi `[A]`; semua open question produk `OQ-008`–`OQ-034` ditutup; `D-024` dikoreksi dari `[P]` menjadi `[A]` (konsisten dengan `FR-077`, `FR-097`, dan §2.2); `OQ-027` ditutup (lokasi `COSTS_AND_LIMITS.md` tetap di root); `OQ-033` ditutup (arsip Sesi hanya dari Selesai/Dinonaktifkan, hanya Admin Acara); `OQ-034` ditutup (Super Admin tidak boleh Manual Check-in); NFR marker `NFR-021`/`NFR-022`/`NFR-023` diubah `[P]` → `[A]`. |
 | 0.3.3 | 6 November 2026 | Penyelarasan fakta implementasi, tanpa perubahan kebutuhan maupun status keputusan: hitungan verifikasi menjadi 53 file test/525 tes, 61 definisi route/159 pola efektif (alias `/api/calendar` dan `/api/themes`), dan 7 migrasi (`0001`–`0007`); status dokumen turunan di §0.3 dan §13.3 diperbarui (Q1 selesai, rencana Q1 tersedia, ADR-0001–0015 tercatat). Kebutuhan produk, keputusan `D-xxx`, `OQ-xxx`, `FR`, `BR`, `NFR`, dan `AC` tidak diubah. |
+| 0.3.4 | 12 November 2026 | Penyelarasan teks dengan keputusan yang sudah berlaku, tanpa mengubah status keputusan: `FR-073`, `BR-034`, `AC-021`, `AC-049`, dan `AC-055` menegaskan Super Admin **tidak berwenang** Manual Check-in (`OQ-034` [A]); §7.2 diberi catatan bahwa tabel tetap potret `157c330` dan baris Scan mencantumkan result code Q5 (`SUCCESS`/`DUPLICATE`/`NOT_ENTITLED`/`INVALID_QR`). Tidak ada kebutuhan atau status `[A]`/`[P]`/`[O]` yang berubah. |
 

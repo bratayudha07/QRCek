@@ -2,9 +2,9 @@
 
 Dokumen ini mencatat hasil pengukuran, instruksi operasi, status deployment, dan quirk lingkungan yang tidak terlihat dari kode.
 
-> **Konteks (9 November 2026).** Semua pengukuran dan prosedur di sini berlaku untuk baseline (model `events` datar, commit acuan `157c330`) ditambah fondasi Q1 (Aktivitas/Sesi), Q2 (kategori, custom field, atribut peserta), Q3 (konfigurasi entitlement), dan Q4 (QR Identity per Tema) — semuanya API-only. Model target QRCek ([`REQUIREMENTS.md`](./REQUIREMENTS.md)) akan menambah tabel, indeks, dan jalur transaksi baru; angka CPU/statement/baris di bawah **tidak** otomatis berlaku untuk model itu dan harus diukur ulang di tahap roadmap terkait ([`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md) Q5 dan Q11). Uji perangkat fisik scanner, akun Google Sheets nyata, dan CPU produksi belum pernah dilakukan (`REQUIREMENTS.md` §7.3). Rujukan "ADR-00N" di dokumen ini = `docs/adr/000N-*.md`.
+> **Konteks (10 November 2026).** Semua pengukuran dan prosedur di sini berlaku untuk baseline (model `events` datar, commit acuan `157c330`) ditambah Q1 (Aktivitas/Sesi), Q2 (kategori, custom field, atribut peserta), Q3 (konfigurasi entitlement), Q4 (QR Identity per Tema), dan Q5 (transaksi Attendance berkonteks, Reversal/Adjustment) — semuanya API-only. Angka CPU/statement/baris **tidak** otomatis berlaku untuk tahap berikutnya dan harus diukur ulang di tahap terkait ([`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md) Q6–Q11). Uji perangkat fisik scanner, akun Google Sheets nyata, dan CPU produksi belum pernah dilakukan (`REQUIREMENTS.md` §7.3). Rujukan "ADR-00N" di dokumen ini = `docs/adr/000N-*.md`.
 
-## Status operasi saat ini (9 November 2026)
+## Status operasi saat ini (10 November 2026)
 
 - Worker produksi berjalan di `https://qrcek.hamdirobbi5.workers.dev` dan di-deploy lewat
   **Cloudflare Workers Builds** (Git integration): push/merge ke `main` memicu build lalu
@@ -57,6 +57,12 @@ Dokumen ini mencatat hasil pengukuran, instruksi operasi, status deployment, dan
   `qr_identities = 60`, `mismatched = 0`. Perbaikan yang ikut rilis: mirror kredensial rotasi
   ke `participants.qr_*`, urutan rilis migrasi-dulu, `expectedRotationCount`, audit
   `wrong_event` tanpa ID lintas Tema, dan batas label 38.
+- **Q5 (12 November 2026): migrasi `0011` sudah diterapkan di remote.** Backup pra-migrasi
+  `/tmp/opencode/qrcek-backup-2026-11-12-pre-0011.sql` (187 KB). Hasil: `schema_version = 11`,
+  **12** Aktivitas Attendance default, **26** transaksi hasil salinan 26 `attendance`, **5**
+  penugasan Petugas, **32** aturan entitlement, 13 index baru, 5 trigger baru, dan **0**
+  transaksi lintas Tema. Kode Q5 belum di-push/deploy; Workers Builds akan men-deploy setelah
+  push pemilik. Gate Q5 masih menunggu smoke produksi dengan sesi nyata (§6.4).
 - Pendaftaran mandiri publik sudah dihapus (ADR-0013). `POST /api/auth/register` → 404, dan
   tidak ada lagi `TURNSTILE_SECRET_KEY` maupun `VITE_TURNSTILE_SITE_KEY` yang perlu diatur.
   Akun Admin Acara hanya dibuat lewat undangan Super Admin. Saat deploy pertama setelah
@@ -88,7 +94,7 @@ Tanggal pengukuran: 30 Oktober 2026.
 | 2 | `RETURNING` pada `INSERT ... ON CONFLICT` | ✅ **terverifikasi** | Didukung, termasuk di dalam `db.batch()` |
 | 3 | Partial unique index | ✅ **terverifikasi** | Didukung dan ditegakkan |
 | 4 | `EXPLAIN QUERY PLAN` query panas | ✅ **terverifikasi** | 10/10 query memakai `SEARCH ... USING INDEX` |
-| 5 | Migrasi D1 pada database kosong | ✅ **terverifikasi** | Migrasi `0001`–`0007`; auth, peserta, QR, attendance, sync, self-signup, activities/activity_sessions |
+| 5 | Migrasi D1 pada database kosong | ✅ **terverifikasi** | Migrasi `0001`–`0011`; auth, peserta, QR, attendance, sync, self-signup, activities/activity_sessions, entitlement, qr_identities, transactions/koreksi/penugasan |
 | 6 | `Set-Cookie` lewat Static Assets | ✅ **terverifikasi pada penggunaan** | Auth/session produksi bekerja dengan cookie |
 | 7 | CPU p95 ≤ 5 ms | ⚠️ **hanya proksi** | Wall-clock lokal terukur; CPU platform butuh `wrangler tail` pada Worker ter-deploy |
 
@@ -260,7 +266,7 @@ Konsekuensi yang disengaja:
 
 ```bash
 npm run db:reset:local    # hapus apps/api/.wrangler/state
-npm run db:migrate:local  # terapkan semua migrasi yang belum diterapkan (0001–0010)
+npm run db:migrate:local  # terapkan semua migrasi yang belum diterapkan (0001–0011)
 npm run db:migrate:local  # "✅ No migrations to apply!" (idempoten)
 ```
 
@@ -278,6 +284,8 @@ melalui migrasi `0004`–`0007`.
 | `0007_q1_activities_sessions.sql` | `activities`, `activity_sessions`, indeks Q1 |
 | `0008_q2_categories_custom_fields.sql` | `categories`, `custom_fields`, `participants.category_id` + `attributes_json`, trigger kategori |
 | `0009_entitlement_rules.sql` | `entitlement_rules`, 5 partial unique index, 2 trigger konteks, backfill Aktivitas aktif |
+| `0010_qr_identities.sql` | `qr_identities`, 2 unique index, 2 trigger konteks, backfill kredensial legacy |
+| `0011_q5_transactions.sql` | `transactions`, `transaction_corrections`, `staff_assignments`, 4 partial unique index transaksi, trigger konteks/lifecycle, Aktivitas default + backfill entitlement/penugasan/attendance |
 
 > `participants` kini memiliki kolom kredensial QR dari `0004_qr.sql`. Migrasi yang sudah
 > diterapkan tidak boleh diedit.
@@ -370,6 +378,76 @@ build masih berjalan" seperti pada rilis `0010`.
   identik (`mismatched = 0`).
 - **Belum dijalankan:** smoke dengan sesi produksi (cetak → scan → rotasi → token lama
   ditolak). Butuh kredensial pemilik; dicatat di §8.
+
+### 6.4 Pengukuran dan prosedur rilis Q5 (`0011`)
+
+Diukur 10 November 2026 di `workerd` lokal (D1 uji). Bukan CPU produksi; lihat §2.
+
+| Metrik | Hasil | Cara |
+|---|---|---|
+| Statement scan sukses | **15** dari batas 50 | `transactions.statements.test.ts` menghitung `prepare()` pada env yang di-proxy |
+| Statement Reversal | **11** | sama |
+| Statement Manual Entry | **13** | sama |
+| Statement Adjustment | **12** | sama |
+| Scan paralel | **50** request, tepat satu `SUCCESS` sisanya `DUPLICATE` | `scan.test.ts`; constraint parsial, bukan cek baca-lalu-tulis |
+| Backfill `0011` pada DB lokal kosong | **0 baris** | `npm run db:reset:local && npm run db:migrate:local` |
+| Backfill `0011` pada fixture representatif | **Belum diukur sebagai backfill**; tes membuat Aktivitas, entitlement, dan penugasan secara eksplisit | `scan.test.ts`, `transactions.db.test.ts` |
+
+`0011` **sudah diterapkan di remote pada 12 November 2026**. Backfill membuat **satu
+Aktivitas Attendance `Absensi`** untuk setiap Tema yang belum punya (**12** Tema), menyalin
+aturan entitlement dari pola `0009` (**32** baris), memberi setiap Petugas aktif penugasan pada
+Aktivitas Attendance aktif (**5** baris, `can_manual_check_in = 0`), lalu menyalin setiap baris
+`attendance` ke `transactions` dengan `id` yang sama (**26** baris). Verifikasi lintas Tema: 0.
+
+**Yang benar-benar terjadi pada 12 November 2026:**
+
+- Backup: `/tmp/opencode/qrcek-backup-2026-11-12-pre-0011.sql` (187 KB).
+- Kandidat sebelum apply: `schema_version = 10`, 12 Tema, 26 `attendance`, 0 Aktivitas,
+  80 peserta, 12 Tema tanpa Aktivitas Attendance.
+- Apply remote: `0011_q5_transactions.sql` → ✅, 27 command, `schema_version = 11`.
+- Hasil: 12 Aktivitas, 26 transaksi, 26 `attendance` (tetap), 0 koreksi, 5 penugasan,
+  32 aturan entitlement, 13 index baru, 5 trigger baru.
+- **Belum dijalankan:** push/deploy kode Q5 dan smoke dengan sesi produksi. Keduanya dicatat
+  di §8.
+
+**Urutan rilis wajib: migrasi dulu, deploy kemudian.** Kode Q5 menulis ke `transactions`;
+deploy sebelum `0011` membuat setiap scan gagal karena tabel belum ada. Ini sama seperti
+§6.3, tetapi lebih ketat: `attendance` tidak lagi ditulis, jadi tidak ada fallback.
+
+1. Backup remote:
+   `npx wrangler d1 export absensi-db --remote --output /tmp/opencode/qrcek-backup-$(date -u +%Y-%m-%d)-pre-0011.sql`.
+2. Hitung kandidat sebelum apply:
+   `SELECT COUNT(*) FROM events;`
+   `SELECT COUNT(*) FROM attendance;`
+   `SELECT COUNT(*) FROM events e WHERE NOT EXISTS (SELECT 1 FROM activities a WHERE a.theme_id = e.id AND a.transaction_type = 'attendance');`
+3. Setelah konfirmasi eksplisit pemilik: `npm run db:migrate:remote`.
+4. Verifikasi: `app_meta.schema_version = 11`; tabel `transactions`, `transaction_corrections`,
+   `staff_assignments` ada; empat `uq_tx_*`, `uq_txc_reversal`, dan `uq_assignment_*` ada;
+   trigger `trg_transaction_context_insert`, `trg_transaction_corrections_no_*`, dan
+   `trg_staff_assignment_context_*` ada; `COUNT(transactions) = COUNT(attendance)` untuk baris
+   historis; setiap Tema punya Aktivitas Attendance.
+5. Baru deploy/push kode Q5.
+6. Smoke dengan sesi produksi: scan Petugas pada Aktivitas default, scan kedua → `DUPLICATE`,
+   Reversal oleh Admin, Adjustment, dan Manual Entry hanya bila `allow_manual = 1` serta
+   penugasan `can_manual_check_in = 1` (Q6 belum menyediakan UI untuk mengaktifkannya).
+
+Quirk yang akan mengganggu:
+
+- **Trigger dibuat setelah backfill.** Baris `attendance` historis boleh memiliki
+  `recorded_by = NULL` dan Tema yang kini `closed`; trigger lifecycle hanya berlaku untuk
+  transaksi baru (`adjusts_transaction_id IS NULL`). Jangan memindahkan blok trigger ke atas
+  backfill.
+- **`transactions.adjusts_transaction_id` adalah self-FK.** Saat membersihkan data uji,
+  null-kan kolom itu sebelum `DELETE FROM transactions`, atau truncate dengan urutan yang benar.
+- **`transaction_corrections` append-only.** `apps/api/src/test/setup.ts` men-drop
+  `trg_transaction_corrections_no_delete` sementara di sekitar pembersihan, lalu membuatnya
+  kembali. Jangan melonggarkan trigger produksi untuk kenyamanan tes.
+- **`attendance` tetap ada.** UNIQUE `(event_id, participant_id)` masih berlaku untuk tabel
+  legacy, tetapi tidak ada jalur aplikasi yang menulisnya. Jangan memakai tabel itu untuk
+  verifikasi Q5; hitung `transactions`.
+- **`slot_no` belum divalidasi.** Kolom ada dan `CHECK type = 'consumption'` mewajibkannya,
+  tetapi kuota konsumsi baru ditegakkan di Q7. Jangan menganggap `uq_tx_consumption_*` sebagai
+  penegakan kuota; indeks itu hanya mencegah baris efektif ganda.
 
 ---
 
@@ -556,9 +634,12 @@ lama, dan itu akan terlihat sebagai `500` pada cetak ulang (bukan kerusakan data
 | Rotasi kunci QR | Sebelum rotasi produksi pertama | Uji prosedur §7.5 di database salinan; pastikan QR lama tetap identik |
 | Penerapan `0009` dan jumlah backfill produksi | Selesai (dokumentasi 8 November 2026) | Backup (`/tmp/opencode/qrcek-backup-2026-11-08-post-0008.sql`), hitung kandidat backfill (0), apply remote, verifikasi `schema_version = 9` dan jumlah baris (0) |
 | Penerapan `0010` dan jumlah backfill produksi | **Selesai 9 November 2026** | Backup pre-0010 (149 KB), kandidat 60, apply remote, verifikasi `schema_version = 10` dan 60 baris (§6.3) |
-| Smoke produksi Q4 dengan sesi nyata | **Belum; menunggu pemilik** | Cetak label, scan, rotasi, scan token lama (`not_found`), periksa audit `qr.identity_rotated` tanpa token (§6.3 langkah 6) |
+| Smoke produksi Q4 dengan sesi nyata | **Belum; menunggu pemilik** | Cetak label, scan, rotasi, scan token lama (`INVALID_QR`), periksa audit `qr.identity_rotated` tanpa token (§6.3 langkah 6) |
+| Penerapan `0011` dan jumlah backfill produksi | **Selesai 12 November 2026** | Backup pre-0011 (187 KB), kandidat 12 Tema/26 attendance, apply remote, verifikasi `schema_version = 11`, 26 transaksi, 12 Aktivitas default, 5 penugasan, 32 aturan entitlement (§6.4) |
+| Smoke produksi Q5 dengan sesi nyata | **Belum; menunggu deploy kode Q5 + sesi pemilik** | Scan Petugas, scan kedua → `DUPLICATE`, Reversal/Adjustment Admin, Manual Entry hanya bila `allow_manual = 1` dan penugasan mengizinkan; periksa `attendance` tidak bertambah (§6.4 langkah 6) |
 | CPU produksi route entitlement | Setelah deploy Q3 | `wrangler tail`; matriks/batch 15 baris adalah kandidat terberat |
 | CPU produksi rotasi/QR label | Setelah deploy Q4 | `wrangler tail` saat cetak 38 label dan rotasi; lokal 47 statement / 45 ms adalah proksi |
+| CPU produksi scan/koreksi Q5 | Setelah deploy Q5 | `wrangler tail`; lokal 15 statement scan / 11–12 koreksi adalah proksi, bukan CPU tertagih |
 
 Repo ini tidak memakai GitHub Actions. Workers Builds hanya menjalankan build dan deploy, bukan
 test suite, jadi verifikasi wajib dijalankan lokal sebelum merge/deploy; jangan menyimpulkan

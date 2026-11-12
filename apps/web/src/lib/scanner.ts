@@ -1,10 +1,11 @@
-import type { ScanResult } from "@absensi/shared";
+import type { ScanReason, ScanResult, ScanResultPayload } from "@absensi/shared";
 
 /**
  * Scanner copy and pure helpers.
  *
- * Result wording is centralized so the camera screen, tests, and future screens
- * cannot drift into different meanings for `not_found` vs `wrong_event`.
+ * `result` is the stable machine code (ADR-0022); `reason` refines it for the
+ * user. The Worker already returns a ready-to-display `message`, so screens use
+ * that text and these strings are only a fallback for an older response.
  */
 
 export type ScanTone = "success" | "warning" | "error";
@@ -18,37 +19,49 @@ export interface ScanCopy {
 const QR_SCAN_PREFIX = "absensi:v1:";
 
 export const SCAN_RESULT_COPY: Record<ScanResult, ScanCopy> = {
-  present: {
+  SUCCESS: {
     tone: "success",
     title: "Kehadiran tercatat",
     description: "Peserta berhasil dicatat hadir.",
   },
-  duplicate: {
+  DUPLICATE: {
     tone: "warning",
     title: "Sudah pernah absen",
     description: "Peserta ini sudah tercatat. Waktu absen pertama ditampilkan di bawah.",
   },
-  not_found: {
+  NOT_ENTITLED: {
+    tone: "warning",
+    title: "Peserta belum berhak",
+    description: "Peserta tidak memenuhi syarat untuk Aktivitas/Sesi ini.",
+  },
+  INVALID_QR: {
     tone: "error",
     title: "QR tidak dikenali",
-    description: "Kode ini bukan kartu peserta yang terdaftar. Periksa kartu atau minta admin mencetak ulang.",
-  },
-  wrong_event: {
-    tone: "error",
-    title: "QR milik acara lain",
-    description: "Kartu ini tidak terdaftar untuk acara yang sedang Anda pindai.",
-  },
-  event_closed: {
-    tone: "warning",
-    title: "Acara belum/sudah tidak menerima absensi",
-    description: "Acara harus berstatus aktif dan berada di dalam jendela waktu yang ditentukan.",
-  },
-  participant_inactive: {
-    tone: "warning",
-    title: "Peserta tidak aktif",
-    description: "Peserta ini dinonaktifkan oleh admin. Hubungi admin acara untuk tindak lanjut.",
+    description:
+      "Kode ini bukan kartu peserta yang terdaftar. Periksa kartu atau minta admin mencetak ulang.",
   },
 };
+
+const REASON_TITLE: Partial<Record<ScanReason, string>> = {
+  qr_invalid: "QR tidak dikenali",
+  participant_inactive: "Peserta tidak aktif",
+  entitlement_denied: "Peserta belum berhak",
+  theme_archived: "Acara sudah diarsipkan",
+  theme_not_active: "Acara belum/sudah tidak menerima absensi",
+  activity_not_active: "Aktivitas belum/sudah tidak menerima absensi",
+  activity_archived: "Aktivitas sudah diarsipkan",
+  session_required: "Sesi belum dipilih",
+  context_mismatch: "Konteks absensi tidak cocok",
+  session_not_in_progress: "Sesi belum/sudah tidak berlangsung",
+  session_archived: "Sesi sudah diarsipkan",
+};
+
+/** Title is refined by `reason` when present; the tone always follows `result`. */
+export function scanCopy(payload: Pick<ScanResultPayload, "result" | "reason">): ScanCopy {
+  const base = SCAN_RESULT_COPY[payload.result];
+  const title = payload.reason ? (REASON_TITLE[payload.reason] ?? base.title) : base.title;
+  return { ...base, title };
+}
 
 export type CameraState =
   | { status: "idle" }

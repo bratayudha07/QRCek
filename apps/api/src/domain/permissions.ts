@@ -27,7 +27,8 @@ export type Action =
   | "qr:rotate"
   | "scan"
   | "recap:read"
-  | "attendance:correct"
+  | "attendance:manual"
+  | "transaction:correct"
   | "audit:read"
   | "sync:configure"
   | "admin:usage";
@@ -63,7 +64,13 @@ const MIN_MEMBERSHIP: Record<Action, EventRole | null> = {
   "qr:rotate": "event_admin",
   scan: "officer",
   "recap:read": "officer",
-  "attendance:correct": "event_admin",
+  // Manual Check-in is a separate authority from QR scan and from corrections
+  // (ADR-0021, AC-055). The route still checks assignment, the flag, and
+  // `events.allow_manual`; Super Admin is rejected explicitly there.
+  "attendance:manual": "officer",
+  // Reversal/Adjustment: event_admin of that Tema only. Super Admin is rejected
+  // explicitly in the route because `isAllowed` otherwise lets it pass (D-024).
+  "transaction:correct": "event_admin",
   "audit:read": "event_admin",
   "sync:configure": "event_admin",
   // Cross-tenant counters: no membership can grant them.
