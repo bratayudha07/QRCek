@@ -39,7 +39,7 @@
 | Q3 | Entitlement | **Selesai (API-only) — kode + migrasi `0009` live 8 November 2026, gate ditutup 9 November 2026** | AQ-005 dijawab ADR-0016 (Diterima 8 November 2026) |
 | Q4 | QR Identity per Tema, rotasi, ekspor PNG/ZIP | **Ditutup 9 November 2026 (API-only)**; smoke sesi produksi menunggu pemilik, AC-018 (PNG/ZIP) tetap Q9 | AQ-009 dijawab ADR-0017 (Diterima 9 November 2026); `D-016` [A] |
 | Q5 | Transaksi Attendance, Manual Entry, Reversal/Adjustment | **Selesai (API-only) — kode live + smoke produksi 14 November 2026, gate ditutup**; Manual Entry belum diuji (UI/penugasan di Q6) | AQ-002–AQ-004, AQ-007, AQ-008 dijawab ADR-0018–0022 (Diterima 9 November 2026); `D-010`, `D-011`, `D-022`, `D-024` [A]; `OQ-034` [A] |
-| Q6 | Penugasan Petugas & Scanner/Kiosk | Belum dibuka | AQ-007, AQ-008, AQ-012; `D-012`, `D-013` [A] |
+| Q6 | Penugasan Petugas & Scanner/Kiosk | **Dibuka 14 November 2026 (UI + API)**; konfigurasi pesan per Tema menunggu AQ-012 | AQ-007, AQ-012; `D-012`, `D-013` [A] |
 | Q7 | Distribusi konsumsi | Belum dibuka | AQ-002, AQ-003; `D-009`, `D-014` [A] |
 | Q8 | Audit lengkap, dashboard, navigasi, laporan & ekspor | Belum dibuka | AQ-013, AQ-014; `D-015`, `D-023` [A] |
 | Q9 | Design system & UI | Belum dibuka | `D-021` [A] |
@@ -283,6 +283,19 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 
 **Tujuan:** Petugas memindai di HP/kiosk dalam konteks yang ditugaskan, dengan feedback jelas dan tanpa keberhasilan palsu.
 
+**Status:** **dibuka 14 November 2026 (UI + API)** oleh pemilik proyek, setelah gate Q5 ditutup. Rencana eksekusi ada di [`.opencode/plans/q6-scanner.md`](../.opencode/plans/q6-scanner.md). Kewenangan kelola penugasan mengikuti [ADR-0021](./adr/0021-staff-assignments-and-permissions.md) (Super Admin dan Admin Acara; Petugas tidak).
+
+**Keputusan cakupan Q6:**
+
+- **Pengelolaan penugasan ikut Q6** (endpoint + UI), bukan hanya scanner. Tanpa itu Petugas baru selalu `403` karena `staff_assignments` hanya terisi backfill dan tidak punya jalur tulis. Ini prasyarat `FR-099`–`FR-102` dan uji perangkat.
+- **Arah desain UI**: Minimalism & Swiss Style — grid rapi, hirarki tipografi tegas, permukaan monokrom, aksen status fungsional, tanpa animasi dekoratif. Token warna/tipografi proyek dipertahankan; ikon Lucide. Pattern landing/“immersive” dan palet gelap dari panduan desain ditolak karena tidak cocok untuk alat operasional lapangan.
+- **`pages/staff-scan.tsx` dihapus** (kode mati, tidak diimpor) dengan persetujuan pemilik.
+- **Manual Entry UI tidak termasuk gate Q6.** Ia tetap gap Q5 yang terbuka; backend Manual Entry sudah ada dan hanya diuji lewat API.
+
+**Ditunda karena keputusan terbuka:**
+
+- Konfigurasi pesan/feedback per Tema (`FR-120`, `FR-121`, dan bagian konfigurasi `FR-192`) menunggu **AQ-012**. Q6 memakai pesan bawaan yang deterministik; tidak ada editor pesan per Tema.
+
 **Cakupan:**
 
 - Penugasan & peran: `FR-099`–`FR-105`; `BR-050`–`BR-053`.
@@ -427,3 +440,4 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 | Draft v1.13 | 9 November 2026 | **ADR-0018–0022 Diterima** (AQ-002, AQ-003, AQ-004, AQ-007, AQ-008 dijawab): satu `transactions` + `transaction_corrections`, partial unique index efektif + trigger, Reversal/Adjustment non-destruktif, `staff_assignments` + izin baru, kontrak hasil scan HTTP 200/5xx. Super Admin diputuskan **tidak** boleh QR scan transaksional maupun Manual Check-in. **Q5 dibuka (API-only)**; implementasi mengikuti `.opencode/plans/q5-transactions.md`. |
 | Draft v1.14 | 12 November 2026 | **Q5 implementasi API-only selesai secara kode**: migrasi `0011`, transaksi berkonteks, Manual Entry, Reversal/Adjustment, `staff_assignments`, adaptor baca legacy, dan web minimal. Verifikasi lokal `typecheck`/`lint`/`test` (**702 tes / 68 file**)/`build` hijau; statement scan 15, koreksi 11–13. Migrasi `0011` **diterapkan remote** (`schema_version = 11`, backup 187 KB, 12 Aktivitas default, 26 transaksi hasil backfill, 5 penugasan, 32 aturan entitlement). Kode belum di-push/deploy; gate Q5 menunggu smoke produksi. |
 | Draft v1.15 | 14 November 2026 | **Gate Q5 ditutup (API-only).** Commit `4e9e7cb` live lewat Workers Builds (deployment `a20ecebb`, 12 November 2026 06:31 UTC). Smoke produksi di Tema `percobaan`: scan `SUCCESS` → `DUPLICATE`, Adjustment + Reversal oleh Admin Acara, scan ulang `SUCCESS`. `attendance` tetap 26; `transactions` 26 → 29; transaksi efektif 26 → 27; `transaction_corrections` 0 → 2; audit `transaction.recorded` ×2, `transaction.adjustment`, `transaction.reversal`. Super Admin ditolak untuk scan/koreksi. Manual Entry belum diuji (`allow_manual = 0`, UI penugasan di Q6). `SESSION_PEPPER` dirotasi 14 November 2026 (10 sesi revoke, 22 recovery code invalid); QR peserta uji dirotasi. Detail: `docs/OPERASIONAL.md` §6.4, `docs/RENCANA_PENGUJIAN.md` §9.5. |
+| Draft v1.16 | 14 November 2026 | **Q6 dibuka (UI + API).** Cakupan ditambah **pengelolaan penugasan** (endpoint + UI) sebagai prasyarat scanner, karena `staff_assignments` belum punya jalur tulis dan Petugas baru selalu `403`. Arah desain ditetapkan Minimalism & Swiss Style dengan token proyek dan Lucide. Konfigurasi pesan/feedback per Tema (`FR-120`, `FR-121`, `FR-192`) **ditunda** menunggu AQ-012. `pages/staff-scan.tsx` dihapus. Manual Entry UI tetap gap Q5, bukan gate Q6. Rencana: `.opencode/plans/q6-scanner.md`. |

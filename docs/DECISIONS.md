@@ -46,9 +46,9 @@
 | `D-009` | Satu tipe transaksi utama per Aktivitas | `[A]` | `OQ-010`, `OQ-013` | AQ-002 | Q1, Q5, Q6 |
 | `D-010` | Validasi lifecycle Aktivitas/Sesi | `[A]` | `OQ-011` | — | Q1 |
 | `D-011` | Type/Source/Correction terpisah; result code stabil | `[A]` | `OQ-012`, `OQ-013` | AQ-002, AQ-004, AQ-008 | Q5 |
-| `D-012` | Feedback & konteks scanner berbasis penugasan | `[A]` | `OQ-014`, `OQ-016`, `OQ-018` | AQ-007, AQ-012 | Q7 |
-| `D-013` | Feedback audio/visual, mute lokal, tidak hanya warna | `[A]` | `OQ-015` | AQ-012 | Q7 |
-| `D-014` | Kuota konsumsi dapat dikonfigurasi; pemulihan kuota setelah Reversal | `[A]` | `OQ-017` | AQ-003 | Q6 |
+| `D-012` | Feedback & konteks scanner berbasis penugasan | `[A]` | `OQ-014`, `OQ-016`, `OQ-018` | AQ-007, AQ-012 | Q6 |
+| `D-013` | Feedback audio/visual, mute lokal, tidak hanya warna | `[A]` | `OQ-015` | AQ-012 | Q6 |
+| `D-014` | Kuota konsumsi dapat dikonfigurasi; pemulihan kuota setelah Reversal | `[A]` | `OQ-017` | AQ-003 | Q7 |
 | `D-015` | CSV dulu, XLSX tahap berikutnya | `[A]` | `OQ-019` | AQ-013 | Q8 |
 | `D-016` | PNG/ZIP QR dirakit di browser | `[A]` | `OQ-020` | ADR-0006 | Q4 |
 | `D-017` | Google Sheets opsional per Tema | `[A]` | `OQ-021` | ADR-0004, ADR-0005, AQ-011 | Q10 |
