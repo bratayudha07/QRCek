@@ -108,6 +108,7 @@ export interface EventTabItem {
 
 export const EVENT_TABS: readonly EventTabItem[] = [
   { key: "overview", label: "Ringkasan" },
+  { key: "activities", label: "Aktivitas" },
   { key: "participants", label: "Peserta" },
   { key: "staff", label: "Petugas" },
   { key: "attendance", label: "Absensi" },

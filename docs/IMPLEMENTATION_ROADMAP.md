@@ -34,7 +34,7 @@
 | Tahap | Fokus | Status | Prasyarat keputusan utama |
 |---|---|---|---|
 | Q0 | Penyelarasan dokumen & keputusan | **Berjalan** | `D-001`, `D-002` [A] |
-| Q1 | Fondasi Tema → Aktivitas → Sesi, lifecycle, mekanisme audit | **Selesai (API-only)** | AQ-001, AQ-010, AQ-014 (ADR-0009–0011, Diterima); ADR-0012 (lifecycle), ADR-0013 (registrasi), keduanya Diterima; `D-009`, `D-010`, `D-023` [A]; `OQ-033` [A] untuk aksi arsip Sesi |
+| Q1 | Fondasi Tema → Aktivitas → Sesi, lifecycle, mekanisme audit | **Selesai (API-only)**; **delta UI: CRUD Aktivitas & Sesi — implementasi selesai 14 November 2026, E2E produksi belum dijalankan** | AQ-001, AQ-010, AQ-014 (ADR-0009–0011, Diterima); ADR-0012 (lifecycle), ADR-0013 (registrasi), keduanya Diterima; `D-009`, `D-010`, `D-023` [A]; `OQ-033` [A] untuk aksi arsip Sesi |
 | Q2 | Peserta, kategori, custom field, impor CSV | **Selesai (API-only) — kode + migrasi `0008` live 8 November 2026**; **delta UI: CRUD Kategori — commit `0d9c242`, live 14 November 2026** | AQ-006 dijawab ADR-0014 (Diterima 6 November 2026); `D-008`, `D-020` [A] |
 | Q3 | Entitlement | **Selesai (API-only) — kode + migrasi `0009` live 8 November 2026, gate ditutup 9 November 2026**; **delta UI: konfigurasi hak peserta — implementasi selesai 14 November 2026, E2E produksi belum dijalankan** | AQ-005 dijawab ADR-0016 (Diterima 8 November 2026) |
 | Q4 | QR Identity per Tema, rotasi, ekspor PNG/ZIP | **Ditutup 9 November 2026 (API-only)**; smoke sesi produksi menunggu pemilik, AC-018 (PNG/ZIP) tetap Q9; **delta UI: rotasi QR** | AQ-009 dijawab ADR-0017 (Diterima 9 November 2026); `D-016` [A] |
@@ -142,8 +142,9 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 - Lifecycle di `packages/shared/src/lifecycle.ts` (ADR-0012); audit allowlist di `packages/shared/src/audit-allowlist.ts` (ADR-0011).
 - Tes: `packages/shared/src/lifecycle.test.ts`, `audit-allowlist.test.ts`, `apps/api/src/test/activities.api.test.ts`, `activity-sessions.api.test.ts`, `themes-alias.test.ts`, `register.closed.test.ts`.
 - **Penguatan 5 November 2026:** uji mutasi pada tiga guard inti menemukan satu celah (audit bisa tertulis walau mutasi gagal); ditutup oleh `apps/api/src/test/audit.guarded-write.test.ts`. Daftar Aktivitas/Sesi diputuskan tanpa paginasi pada Q1 (additive nanti) — lihat `DESAIN_API.md` §6. Rincian penyimpangan rencana ada di `.opencode/plans/q1-tema-aktivitas-sesi.md` §16.
-- **Ditunda:** UI Aktivitas/Sesi (Q6/Q8/Q9), shim "satu Aktivitas default" untuk Tema lama (Q5), dan seluruh perilaku transaksi (`AC-004` bagian transaksi, `AC-005` bagian riwayat transaksi).
-- Gate di atas **ditutup 6 November 2026**: pemilik proyek menyetujui hasil Q1, `REQUIREMENTS.md` §0.3/§13.3 diperbarui (v0.3.3), dan migrasi `0007` diterapkan di remote sebelum kode masuk `main`. Sisa cakupan (UI, transaksi, shim Aktivitas default) tetap menjadi pekerjaan tahap lanjut seperti tercantum di atas.
+- **Ditunda:** UI Aktivitas/Sesi (sekarang delta UI di bawah), shim "satu Aktivitas default" untuk Tema lama (Q5), dan seluruh perilaku transaksi (`AC-004` bagian transaksi, `AC-005` bagian riwayat transaksi).
+- Gate di atas **ditutup 6 November 2026**: pemilik proyek menyetujui hasil Q1, `REQUIREMENTS.md` §0.3/§13.3 diperbarui (v0.3.3), dan migrasi `0007` diterapkan di remote sebelum kode masuk `main`.
+- **Delta UI (14 November 2026):** tab **Aktivitas** setelah Ringkasan, dengan tabel Aktivitas (buat/ubah/transisi status), panel Sesi (buat/ubah/transisi/duplikat/arsip), dan konversi waktu `datetime-local` memakai zona waktu Tema. Petugas dan Tema arsip baca-saja. Implementasi lulus `typecheck`, `lint`, `test` (**809 tes / 78 file**), dan `build`; tes logika di `apps/web/src/lib/{activities,activity-sessions,activity-time}.test.ts`. **E2E produksi belum dijalankan.**
 
 ---
 

@@ -13,6 +13,7 @@ import {
 } from "./navigation";
 
 const overview: AppRoute = { name: "event", eventId: "EVT", tab: "overview" };
+const activities: AppRoute = { name: "event", eventId: "EVT", tab: "activities" };
 const participants: AppRoute = { name: "event", eventId: "EVT", tab: "participants" };
 const participant: AppRoute = {
   name: "participant",
@@ -108,6 +109,7 @@ describe("event context", () => {
 
   it("maps the current tab, counting sub-pages as Peserta", () => {
     expect(eventTabForRoute(overview)).toBe("overview");
+    expect(eventTabForRoute(activities)).toBe("activities");
     expect(eventTabForRoute(participants)).toBe("participants");
     expect(eventTabForRoute(participant)).toBe("participants");
     expect(eventTabForRoute(importRoute)).toBe("participants");
@@ -115,9 +117,10 @@ describe("event context", () => {
     expect(eventTabForRoute({ name: "events" })).toBeNull();
   });
 
-  it("keeps the six event tabs in the agreed order", () => {
+  it("keeps the seven event tabs in the agreed order", () => {
     expect(EVENT_TABS.map((tab) => tab.label)).toEqual([
       "Ringkasan",
+      "Aktivitas",
       "Peserta",
       "Petugas",
       "Absensi",

@@ -6,6 +6,10 @@ Tujuan pengujian di proyek ini **bukan** mengejar angka coverage, tetapi membukt
 
 ## Snapshot verifikasi terkini
 
+- Snapshot 14 November 2026 (delta UI Q1, **implementasi selesai; E2E produksi belum**):
+  tab **Aktivitas** dengan tabel Aktivitas, panel Sesi, transisi status, duplikat, dan arsip.
+  Verifikasi lokal `typecheck`/`lint`/`test` **809 tes di 78 file**/`build` hijau. Prosedur
+  manual `OPERASIONAL.md` §12.3 dan checklist §8 butir 27–28 **belum dijalankan**.
 - Snapshot 14 November 2026 (delta UI Q3, **implementasi selesai; E2E produksi belum**):
   tab **Hak** ditambahkan ke workspace Tema, beserta `apps/web/src/lib/entitlements.ts` dan
   tes logikanya. Verifikasi lokal `typecheck`/`lint`/`test` **783 tes di 75 file**/`build`
@@ -477,10 +481,11 @@ Checklist singkat yang dijalankan pada staging sebelum deploy produksi:
 10. Event switcher: pindah acara dari sidebar (desktop) dan strip atas (mobile) → URL memuat id
     acara baru dan tidak ada data acara sebelumnya yang tersisa di layar. Pindah acara saat berada
     di tab Peserta tetap berada di tab Peserta.
-11. Event tabs: indikator geser mengikuti tab aktif (bergerak, bukan melompat), keenam tab tetap
-    terbaca pada lebar 320 px (scroll horizontal, bukan teks mengecil), dan bisa dioperasikan
-    dengan Tab + Enter. Buka `/admin/events/<id>/reports` langsung di layar 320 px → tab aktif
-    sudah terlihat tanpa menggeser, dan fade muncul di sisi yang masih punya tab lain.
+11. Event tabs: indikator geser mengikuti tab aktif (bergerak, bukan melompat), ketujuh tab
+    tetap terbaca pada lebar 320 px (scroll horizontal, bukan teks mengecil), dan bisa
+    dioperasikan dengan Tab + Enter. Buka `/admin/events/<id>/reports` langsung di layar
+    320 px → tab aktif sudah terlihat tanpa menggeser, dan fade muncul di sisi yang masih
+    punya tab lain.
     Aktifkan tab dengan Enter → fokus tetap di link tab itu (bukan pindah ke konten), sedangkan
     isi halaman kembali ke atas.
 12. Reduced motion: aktifkan preferensi sistem → transisi halaman dan indikator tab berhenti.
@@ -527,6 +532,14 @@ Checklist singkat yang dijalankan pada staging sebelum deploy produksi:
     scan pada Sesi yang ditolak gagal, scan pada Sesi lain tetap sesuai aturan Aktivitas. Buka
     tab Hak sebagai Petugas dan pada Tema arsip → kontrol tulis tidak muncul; percobaan tulis
     langsung lewat API tetap ditolak Worker.
+27. Aktivitas (Q1): Tema baru tanpa Aktivitas → tab **Aktivitas** menampilkan empty state; buat
+    Aktivitas **Absensi** dan **Konsumsi**. Jenis transaksi tidak bisa diubah saat mengubah
+    Aktivitas. Transisi status hanya menampilkan opsi yang sah: Draf → Aktifkan/Arsipkan,
+    Aktif → Selesaikan, Selesai → Arsipkan. Aktivitas arsip tetap terlihat tanpa tombol tulis.
+28. Sesi (Q1): buat Sesi dengan waktu mulai/selesai pada zona waktu Tema (bukan perangkat) →
+    waktu tampil benar setelah reload. Ubah Sesi, **Mulai**, **Selesaikan**, lalu **Arsipkan**;
+    coba **Arsipkan** saat masih Terjadwal → tombol tidak muncul. **Duplikat** menghasilkan Sesi
+    baru berstatus Terjadwal tanpa transaksi. Petugas dan Tema arsip → panel baca-saja.
 
 ---
 
@@ -549,6 +562,11 @@ Semua keputusan produk D-001…D-024 sudah disetujui `[A]`; AQ arsitektur ditang
 > `completed`/`disabled` **tertangkap**, guard audit `updated_at` **tidak tertangkap**.
 > Celah ketiga ditutup oleh `apps/api/src/test/audit.guarded-write.test.ts`; mutasi yang sama
 > kini membuat 2 tes gagal. Rincian di `.opencode/plans/q1-tema-aktivitas-sesi.md` §16.
+>
+> **Delta UI 14 November 2026.** Tabel transisi, label status, aksi arsip Sesi, dan konversi
+> waktu `datetime-local` ↔ epoch (termasuk DST dan zona waktu Tema) diuji murni di
+> `apps/web/src/lib/{activities,activity-sessions,activity-time}.test.ts`. Halaman
+> `event-activities.tsx` hanya memanggil route Worker; tidak ada aturan lifecycle di komponen.
 
 ### 9.1 Konteks, hierarki, dan lifecycle (Q1, penegakan di Q5)
 

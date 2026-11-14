@@ -81,4 +81,7 @@ Tidak ada migrasi baru dan tidak ada dependency baru untuk kelima delta ini.
   menunggu pemilik.
 - Delta #2 (Q3 Hak Peserta): **implementasi selesai** 14 November 2026; verifikasi lokal
   `typecheck`/`lint`/**783 tes**/`build` hijau. E2E produksi belum dijalankan.
-- Delta #3 (Q1 Aktivitas & Sesi): berikutnya.
+- Delta #3 (Q1 Aktivitas & Sesi): **implementasi selesai** 14 November 2026; verifikasi lokal
+  `typecheck`/`lint`/**809 tes**/`build` hijau. E2E produksi belum dijalankan.
+- Delta #4 (Q5 Manual Entry): berikutnya setelah Q1.
+- Delta #5 (Q4 Rotasi QR): terakhir.

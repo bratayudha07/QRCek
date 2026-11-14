@@ -968,3 +968,24 @@ kategorinya lebih dulu, lalu samakan ejaan di CSV.
    eksplisit.
 7. Petugas hanya bisa melihat tab ini; kontrol tulis tidak dirender dan Worker tetap menolak
    `entitlement:write` dari Petugas. Tema arsip juga baca-saja.
+
+### 12.3 Aktivitas dan Sesi
+
+1. Buka Tema → tab **Aktivitas**. Tema baru belum punya Aktivitas sama sekali.
+2. **Tambah Aktivitas**: pilih jenis transaksi **Absensi** atau **Konsumsi**. Jenis tidak bisa
+   diubah setelah dibuat; bila salah, buat Aktivitas baru.
+3. Aktivitas baru berstatus **Draf**. Tekan **Aktifkan** untuk memakai scanner. Aktivasi ditolak
+   bila kategori aktif belum punya aturan hak peserta — atur dulu di tab **Hak**.
+4. Transisi yang tersedia mengikuti lifecycle: Draf → Aktif/Arsip, Aktif → Selesai,
+   Selesai → Arsip. Aktivitas arsip tetap tampil untuk riwayat, tanpa aksi tulis.
+5. Pilih Aktivitas lewat tombol **Sesi** untuk membuka panel Sesi. **Tambah Sesi** menerima nama,
+   lokasi, dan waktu mulai/selesai opsional. Waktu diisi dalam **zona waktu Tema**, bukan zona
+   perangkat.
+6. Status Sesi diubah lewat tombol, bukan dari jam: Terjadwal → Mulai/Nonaktifkan, Berlangsung →
+   Selesaikan/Nonaktifkan. Sesi hanya bisa **Diarsipkan** setelah Selesai atau Dinonaktifkan.
+   **Duplikat** membuat Sesi baru berstatus Terjadwal tanpa menyalin transaksi.
+7. Petugas hanya bisa melihat tab ini; Tema arsip juga baca-saja. Worker tetap menolak tulis dari
+   Petugas.
+
+Prosedur 12.1–12.3 belum dijalankan end-to-end di produksi per 14 November 2026; hasil uji
+pemilik harus dicatat di sini.

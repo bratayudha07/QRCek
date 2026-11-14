@@ -41,8 +41,10 @@ describe("parseRoute", () => {
     });
   });
 
-  it("exposes the six event tabs including Hak", () => {
-    expect(EVENT_TAB_KEYS).toHaveLength(6);
+  it("exposes the seven event tabs, with Aktivitas right after Ringkasan", () => {
+    expect(EVENT_TAB_KEYS).toHaveLength(7);
+    expect(EVENT_TAB_KEYS[0]).toBe("overview");
+    expect(EVENT_TAB_KEYS[1]).toBe("activities");
     expect(EVENT_TAB_KEYS).toContain("entitlements");
   });
 

@@ -6,7 +6,7 @@
  *
  *   /admin/dashboard
  *   /admin/events
- *   /admin/events/:eventId/{overview,participants,staff,attendance,reports,entitlements}
+ *   /admin/events/:eventId/{overview,activities,participants,staff,attendance,reports,entitlements}
  *   /admin/events/:eventId/participants/import
  *   /admin/events/:eventId/participants/:participantId
  *   /admin/activity
@@ -23,6 +23,7 @@
 
 export const EVENT_TAB_KEYS = [
   "overview",
+  "activities",
   "participants",
   "staff",
   "attendance",
