@@ -1,4 +1,4 @@
-import type { EventSummary, ParticipantSummary } from "@absensi/shared";
+import type { CategorySummary, EventSummary, ParticipantSummary } from "@absensi/shared";
 import { ArchiveRestore, Pencil, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -10,6 +10,7 @@ import {
 } from "@/components/participant-form";
 import { ParticipantStatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
+import { listCategories } from "@/lib/categories";
 import { getEvent } from "@/lib/events";
 import { formatDateTime } from "@/lib/format";
 import { PARTICIPANT_STATUS_LABEL } from "@/lib/labels";
@@ -40,6 +41,37 @@ export function ParticipantDetailPage({
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const [categories, setCategories] = useState<CategorySummary[]>([]);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
+  const [categoryKey, setCategoryKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    setCategoriesError(null);
+
+    // The form needs every category, archived ones included: a participant may
+    // still point at an archived category and editing must not force a move.
+    listCategories(eventId, "all")
+      .then((body) => {
+        if (cancelled) return;
+
+        if (!body.ok) {
+          setCategoriesError(body.error.message);
+          return;
+        }
+
+        setCategories(body.data.categories);
+      })
+      .catch(() => {
+        if (!cancelled) setCategoriesError("Tidak bisa menghubungi server");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, categoryKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -111,7 +143,7 @@ export function ParticipantDetailPage({
         fullName: values.fullName,
         phone: values.phone === "" ? null : values.phone,
         email: values.email === "" ? null : values.email,
-        category: values.category === "" ? null : values.category,
+        categoryId: values.categoryId,
         note: values.note === "" ? null : values.note,
       });
 
@@ -196,17 +228,26 @@ export function ParticipantDetailPage({
       )}
 
       {showEdit && canWrite ? (
-        <ParticipantForm
-          mode="edit"
-          initial={participant}
-          submitting={submitting}
-          error={formError}
-          onSubmit={submitEdit}
-          onCancel={() => {
-            setShowEdit(false);
-            setFormError(null);
-          }}
-        />
+        <>
+          {categoriesError && (
+            <ErrorState
+              message={categoriesError}
+              onRetry={() => setCategoryKey((key) => key + 1)}
+            />
+          )}
+          <ParticipantForm
+            mode="edit"
+            initial={participant}
+            categories={categories}
+            submitting={submitting}
+            error={formError}
+            onSubmit={submitEdit}
+            onCancel={() => {
+              setShowEdit(false);
+              setFormError(null);
+            }}
+          />
+        </>
       ) : (
         <section className="rounded-lg border p-4">
           <dl className="grid gap-3 text-sm sm:grid-cols-2">

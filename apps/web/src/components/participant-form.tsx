@@ -1,25 +1,32 @@
-import type { ParticipantSummary } from "@absensi/shared";
+import type { CategorySummary, ParticipantSummary } from "@absensi/shared";
 import { LoaderCircle } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Field, Input, Textarea } from "@/components/ui/field";
+import { Field, Input, Select, Textarea } from "@/components/ui/field";
+import { categorySelectOptions } from "@/lib/categories";
 
-/** Create/edit form for one participant. Validation stays server-side. */
+/**
+ * Create/edit form for one participant. Validation stays server-side.
+ *
+ * Categories come from the managed list, never from free text: a typed name
+ * used to create a category silently on the server (Q2 delta).
+ */
 
 export interface ParticipantFormValues {
   externalRef: string;
   fullName: string;
   phone: string;
   email: string;
-  category: string;
+  categoryId: string;
   note: string;
 }
 
 export function ParticipantForm({
   mode,
   initial,
+  categories,
   submitting,
   error,
   onSubmit,
@@ -27,6 +34,7 @@ export function ParticipantForm({
 }: {
   mode: "create" | "edit";
   initial?: ParticipantSummary;
+  categories: readonly CategorySummary[];
   submitting: boolean;
   error: string | null;
   onSubmit: (values: ParticipantFormValues) => void;
@@ -36,9 +44,13 @@ export function ParticipantForm({
   const [fullName, setFullName] = useState(initial?.fullName ?? "");
   const [phone, setPhone] = useState(initial?.phone ?? "");
   const [email, setEmail] = useState(initial?.email ?? "");
-  const [category, setCategory] = useState(initial?.category ?? "");
+  const [categoryId, setCategoryId] = useState(initial?.categoryId ?? "");
   const [note, setNote] = useState(initial?.note ?? "");
   const [localError, setLocalError] = useState<string | null>(null);
+
+  // Active categories only, plus the participant's own archived one so an edit
+  // never forces a move to another category.
+  const categoryOptions = categorySelectOptions(categories, initial?.categoryId);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -49,7 +61,7 @@ export function ParticipantForm({
       return;
     }
 
-    if (category.trim() === "") {
+    if (categoryId.trim() === "") {
       setLocalError("Kategori wajib diisi");
       return;
     }
@@ -59,7 +71,7 @@ export function ParticipantForm({
       fullName: fullName.trim(),
       phone: phone.trim(),
       email: email.trim(),
-      category: category.trim(),
+      categoryId: categoryId.trim(),
       note: note.trim(),
     });
   }
@@ -118,16 +130,27 @@ export function ParticipantForm({
         <Field
           label="Kategori"
           htmlFor="participant-category"
-          hint="Wajib. Contoh: Kelas 5A, Wali murid."
+          hint={
+            categoryOptions.length === 0
+              ? "Belum ada kategori aktif. Buka “Kelola kategori” untuk membuat kategori baru."
+              : undefined
+          }
           required
         >
-          <Input
+          <Select
             id="participant-category"
-            value={category}
-            onChange={(event) => setCategory(event.target.value)}
-            maxLength={60}
+            value={categoryId}
+            onChange={(event) => setCategoryId(event.target.value)}
+            disabled={categoryOptions.length === 0}
             required
-          />
+          >
+            <option value="">Pilih kategori</option>
+            {categoryOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
         </Field>
       </div>
 
@@ -147,7 +170,7 @@ export function ParticipantForm({
       )}
 
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" disabled={submitting}>
+        <Button type="submit" disabled={submitting || categoryOptions.length === 0}>
           {submitting && <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />}
           {mode === "create" ? "Tambah peserta" : "Simpan perubahan"}
         </Button>

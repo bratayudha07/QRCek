@@ -1,14 +1,16 @@
-import type { EventSummary, ParticipantSummary } from "@absensi/shared";
-import { ChevronRight, Download, FileDown, FileUp, LoaderCircle, Plus, QrCode as QrCodeIcon, Search } from "lucide-react";
+import type { CategorySummary, EventSummary, ParticipantSummary } from "@absensi/shared";
+import { ChevronRight, Download, FileDown, FileUp, LoaderCircle, Plus, QrCode as QrCodeIcon, Search, Tags } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { AppLink } from "@/components/app-link";
 import { AppShell } from "@/components/app-shell";
+import { CategoryManager } from "@/components/category-manager";
 import { EmptyState, ErrorState, LoadingState, Notice } from "@/components/page-state";
 import { ParticipantForm, type ParticipantFormValues } from "@/components/participant-form";
 import { ParticipantStatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/field";
+import { categorySelectOptions, listCategories } from "@/lib/categories";
 import { getEvent } from "@/lib/events";
 import { formatCount } from "@/lib/format";
 import {
@@ -53,6 +55,12 @@ export function EventParticipantsPage({ eventId }: { eventId: string }) {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+
+  const [categories, setCategories] = useState<CategorySummary[]>([]);
+  const [categoriesState, setCategoriesState] = useState<"loading" | "ready" | "error">("loading");
+  const [categoriesError, setCategoriesError] = useState("");
+  const [categoryKey, setCategoryKey] = useState(0);
+  const [showCategories, setShowCategories] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -127,6 +135,38 @@ export function EventParticipantsPage({ eventId }: { eventId: string }) {
     };
   }, [eventId, appliedQuery, statusFilter, listKey]);
 
+  // Categories drive the participant form; the manager mutates them, so this
+  // list is reloaded whenever `categoryKey` changes.
+  useEffect(() => {
+    let cancelled = false;
+
+    setCategoriesState("loading");
+    setCategoriesError("");
+
+    listCategories(eventId, "all")
+      .then((body) => {
+        if (cancelled) return;
+
+        if (body.ok) {
+          setCategories(body.data.categories);
+          setCategoriesState("ready");
+        } else {
+          setCategoriesError(body.error.message);
+          setCategoriesState("error");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCategoriesError("Tidak bisa menghubungi server");
+          setCategoriesState("error");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, categoryKey]);
+
   async function loadMore() {
     if (!nextCursor) return;
 
@@ -164,7 +204,7 @@ export function EventParticipantsPage({ eventId }: { eventId: string }) {
         ...(values.externalRef ? { externalRef: values.externalRef } : {}),
         ...(values.phone ? { phone: values.phone } : {}),
         ...(values.email ? { email: values.email } : {}),
-        ...(values.category ? { category: values.category } : {}),
+        categoryId: values.categoryId,
         ...(values.note ? { note: values.note } : {}),
       });
 
@@ -172,6 +212,7 @@ export function EventParticipantsPage({ eventId }: { eventId: string }) {
         setShowAdd(false);
         setActionNotice(`Peserta ${body.data.participant.fullName} ditambahkan.`);
         setListKey((key) => key + 1);
+        setCategoryKey((key) => key + 1);
         return;
       }
 
@@ -202,6 +243,9 @@ export function EventParticipantsPage({ eventId }: { eventId: string }) {
   const { event } = eventState;
   const canWrite = event.accessRole !== "officer";
   const isArchived = event.status === "archived";
+  const canManageCategories = canWrite && !isArchived;
+  const hasActiveCategory = categorySelectOptions(categories).length > 0;
+  const canAddParticipant = categoriesState === "ready" && hasActiveCategory;
   const exportHref = participantExportUrl(eventId, {
     query: appliedQuery,
     status: statusFilter,
@@ -221,6 +265,28 @@ export function EventParticipantsPage({ eventId }: { eventId: string }) {
         <Notice>Anda adalah petugas pada acara ini. Data hanya dapat dilihat.</Notice>
       )}
 
+      {categoriesState === "error" && (
+        <ErrorState
+          message={categoriesError}
+          onRetry={() => setCategoryKey((key) => key + 1)}
+        />
+      )}
+
+      {canManageCategories && categoriesState === "ready" && !hasActiveCategory && (
+        <Notice tone="warning">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span>
+              Belum ada kategori aktif. Tambah peserta membutuhkan kategori, jadi buat kategori
+              terlebih dahulu.
+            </span>
+            <Button type="button" variant="outline" size="sm" onClick={() => setShowCategories(true)}>
+              <Tags aria-hidden="true" className="size-4" />
+              Kelola kategori
+            </Button>
+          </div>
+        </Notice>
+      )}
+
       <section className="space-y-3">
         {canWrite && (
           <div className="flex flex-wrap gap-2">
@@ -231,6 +297,12 @@ export function EventParticipantsPage({ eventId }: { eventId: string }) {
               <QrCodeIcon aria-hidden="true" className="size-4" />
               Label QR
             </AppLink>
+            {canManageCategories && (
+              <Button variant="outline" size="sm" onClick={() => setShowCategories(true)}>
+                <Tags aria-hidden="true" className="size-4" />
+                Kelola kategori
+              </Button>
+            )}
           </div>
         )}
 
@@ -313,7 +385,12 @@ export function EventParticipantsPage({ eventId }: { eventId: string }) {
         {canWrite && !isArchived && (
           <div className="flex flex-wrap gap-2">
             {!showAdd ? (
-              <Button variant="outline" size="sm" onClick={() => setShowAdd(true)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAdd(true)}
+                disabled={!canAddParticipant}
+              >
                 <Plus aria-hidden="true" className="size-4" />
                 Tambah peserta
               </Button>
@@ -335,6 +412,7 @@ export function EventParticipantsPage({ eventId }: { eventId: string }) {
         {showAdd && canWrite && !isArchived && (
           <ParticipantForm
             mode="create"
+            categories={categories}
             submitting={submitting}
             error={formError}
             onSubmit={submitAdd}
@@ -407,6 +485,19 @@ export function EventParticipantsPage({ eventId }: { eventId: string }) {
           <p className="text-center text-xs text-muted-foreground">
             Menampilkan {formatCount(items.length)} peserta pada halaman ini.
           </p>
+        )}
+
+        {canManageCategories && (
+          <CategoryManager
+            eventId={eventId}
+            open={showCategories}
+            onClose={() => setShowCategories(false)}
+            onChanged={() => {
+              // A rename must show up in the list; counts feed the form select.
+              setCategoryKey((key) => key + 1);
+              setListKey((key) => key + 1);
+            }}
+          />
         )}
       </section>
     </AppShell>
