@@ -987,5 +987,19 @@ kategorinya lebih dulu, lalu samakan ejaan di CSV.
 7. Petugas hanya bisa melihat tab ini; Tema arsip juga baca-saja. Worker tetap menolak tulis dari
    Petugas.
 
-Prosedur 12.1–12.3 belum dijalankan end-to-end di produksi per 14 November 2026; hasil uji
+### 12.4 Manual Entry (Petugas)
+
+1. Pastikan Tema mengizinkan Manual Check-in dan penugasan Petugas punya flag **Manual
+   Check-in** (diatur Admin Acara di tab Petugas).
+2. Petugas membuka `/staff/scan` dan memilih konteks Aktivitas/Sesi yang aktif.
+3. Tombol **Input manual** hanya muncul bila konteks siap dan penugasan mengizinkan. Bila tidak
+   muncul, periksa flag penugasan dan status Aktivitas/Sesi.
+4. Cari peserta (nama/NIK/email), pilih status, isi catatan bila perlu, lalu **Simpan
+   kehadiran**. Dialog tetap terbuka sampai Worker menjawab `ok`.
+5. Pesan penolakan (Tema mematikan Manual Check-in, peserta sudah tercatat, kuota, entitlement)
+   ditampilkan apa adanya. Jangan mengulang dengan konteks lain untuk menghindari catatan ganda.
+6. Setelah sukses, notice menyebut nama peserta dan status. Scan QR peserta yang sama akan
+   menghasilkan `DUPLICATE` pada ruang lingkup yang sama.
+
+Prosedur 12.1–12.4 belum dijalankan end-to-end di produksi per 14 November 2026; hasil uji
 pemilik harus dicatat di sini.

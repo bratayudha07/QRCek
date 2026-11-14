@@ -5,6 +5,7 @@ import {
 } from "@absensi/shared";
 import {
   History,
+  PenLine,
   ScanLine,
   SwitchCamera,
   Volume2,
@@ -16,6 +17,7 @@ import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import { AppLink } from "@/components/app-link";
 import { AppShell } from "@/components/app-shell";
+import { ManualEntryDialog } from "@/components/manual-entry-dialog";
 import { QrScanner, type CameraFacing } from "@/components/qr-scanner";
 import { ScanFeedback } from "@/components/scan-feedback";
 import { EmptyState, ErrorState, LoadingState, Notice } from "@/components/page-state";
@@ -25,6 +27,7 @@ import { Label, Select } from "@/components/ui/field";
 import { listMyStaffContexts } from "@/lib/assignments";
 import { listStaffAttendance, scanQr } from "@/lib/attendance";
 import { formatDateTime } from "@/lib/format";
+import { canUseManualEntry, manualEntrySuccessMessage } from "@/lib/manual-entry";
 import {
   isScannerMuted,
   playScanTone,
@@ -150,6 +153,8 @@ export function StaffScanPage() {
   const [refreshToken, setRefreshToken] = useState(0);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [manualEntryOpen, setManualEntryOpen] = useState(false);
+  const [manualNotice, setManualNotice] = useState<string | null>(null);
   const [deepLinkRejected, setDeepLinkRejected] = useState(false);
   const [blocked, setBlocked] = useState<"assignment" | "session" | null>(null);
   const [facing, setFacing] = useState<CameraFacing>("environment");
@@ -221,6 +226,8 @@ export function StaffScanPage() {
 
   // A new context never inherits a result from the previous one (FR-191).
   useEffect(() => {
+    setManualEntryOpen(false);
+    setManualNotice(null);
     dispatch({ type: "reset" });
   }, [selectedKey]);
 
@@ -328,6 +335,8 @@ export function StaffScanPage() {
     }
 
     inFlight.current = true;
+    // A QR result replaces the previous manual-entry confirmation.
+    setManualNotice(null);
     dispatch({ type: "detected", at: Date.now() });
 
     try {
@@ -408,6 +417,21 @@ export function StaffScanPage() {
                 )}
                 {online ? "Online" : "Offline"}
               </Badge>
+              {canUseManualEntry(selected) && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={locked}
+                  onClick={() => {
+                    setManualNotice(null);
+                    setManualEntryOpen(true);
+                  }}
+                >
+                  <PenLine aria-hidden="true" className="size-4" />
+                  Input manual
+                </Button>
+              )}
               {contexts && contexts.length > 1 && (
                 <Button
                   type="button"
@@ -552,6 +576,8 @@ export function StaffScanPage() {
         </Notice>
       )}
 
+      {manualNotice && <Notice tone="success">{manualNotice}</Notice>}
+
       {cameraReady && (
         <>
           <ScanFeedback feedback={scanner.feedback} />
@@ -594,6 +620,15 @@ export function StaffScanPage() {
             </Button>
           </div>
         </>
+      )}
+
+      {selected && (
+        <ManualEntryDialog
+          context={selected}
+          open={manualEntryOpen}
+          onClose={() => setManualEntryOpen(false)}
+          onRecorded={(record) => setManualNotice(manualEntrySuccessMessage(record))}
+        />
       )}
     </AppShell>
   );

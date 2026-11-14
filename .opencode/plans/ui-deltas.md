@@ -83,5 +83,6 @@ Tidak ada migrasi baru dan tidak ada dependency baru untuk kelima delta ini.
   `typecheck`/`lint`/**783 tes**/`build` hijau. E2E produksi belum dijalankan.
 - Delta #3 (Q1 Aktivitas & Sesi): **implementasi selesai** 14 November 2026; verifikasi lokal
   `typecheck`/`lint`/**809 tes**/`build` hijau. E2E produksi belum dijalankan.
-- Delta #4 (Q5 Manual Entry): berikutnya setelah Q1.
-- Delta #5 (Q4 Rotasi QR): terakhir.
+- Delta #4 (Q5 Manual Entry): **implementasi selesai** 14 November 2026; verifikasi lokal
+  `typecheck`/`lint`/**819 tes**/`build` hijau. E2E produksi belum dijalankan.
+- Delta #5 (Q4 Rotasi QR): berikutnya.

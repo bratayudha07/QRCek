@@ -6,6 +6,10 @@ Tujuan pengujian di proyek ini **bukan** mengejar angka coverage, tetapi membukt
 
 ## Snapshot verifikasi terkini
 
+- Snapshot 14 November 2026 (delta UI Q5 Manual Entry, **implementasi selesai; E2E produksi
+  belum**): tombol **Input manual** di `/staff/scan`, dialog pencarian peserta, status, dan
+  catatan. Verifikasi lokal `typecheck`/`lint`/`test` **819 tes di 79 file**/`build` hijau.
+  Prosedur `OPERASIONAL.md` §12.4 dan checklist §8 butir 29 **belum dijalankan**.
 - Snapshot 14 November 2026 (delta UI Q1, **implementasi selesai; E2E produksi belum**):
   tab **Aktivitas** dengan tabel Aktivitas, panel Sesi, transisi status, duplikat, dan arsip.
   Verifikasi lokal `typecheck`/`lint`/`test` **809 tes di 78 file**/`build` hijau. Prosedur
@@ -540,6 +544,11 @@ Checklist singkat yang dijalankan pada staging sebelum deploy produksi:
     waktu tampil benar setelah reload. Ubah Sesi, **Mulai**, **Selesaikan**, lalu **Arsipkan**;
     coba **Arsipkan** saat masih Terjadwal → tombol tidak muncul. **Duplikat** menghasilkan Sesi
     baru berstatus Terjadwal tanpa transaksi. Petugas dan Tema arsip → panel baca-saja.
+29. Manual Entry (Q5): Petugas dengan flag Manual Check-in dan konteks siap melihat **Input
+    manual**; Petugas tanpa flag tidak melihatnya. Cari peserta, pilih **Hadir**, simpan →
+    notice sukses menyebut nama peserta; scan QR peserta yang sama → `DUPLICATE`. Coba pada
+    Tema dengan `allow_manual = 0` → pesan penolakan Worker tampil di dialog dan tidak ada
+    sukses palsu. Catatan kosong tidak mengirim `note`.
 
 ---
 
@@ -697,6 +706,13 @@ T-088 ditutup oleh `D-024` [A]: Super Admin **tidak** berwenang atas koreksi; pe
 ditegakkan eksplisit di route karena `isAllowed` mengizinkan Super Admin melewati matriks.
 Yang belum diuji di Q5: scanner/kiosk fisik dan state UI (Q6), serta kuota konsumsi (Q7).
 Baseline `attendance` dipertahankan sebagai regression sampai adaptor baca dilepas di Q8.
+
+> **Delta UI 14 November 2026.** Aturan tampilan Manual Entry (daftar status + label, syarat
+> tombol `canManualCheckIn` + konteks siap, bentuk request dengan Aktivitas/Sesi dari konteks,
+> catatan kosong yang tidak dikirim, dan pesan sukses) diuji murni di
+> `apps/web/src/lib/manual-entry.test.ts` (15 tes). Dialog dan halaman Petugas tidak memuat
+> aturan transaksi; penolakan `allow_manual`, duplikasi, kuota, dan entitlement tetap datang
+> dari Worker.
 
 **Bukti smoke produksi 14 November 2026 (gate Q5 ditutup).** Dengan sesi Admin Acara
 (`01M6DFY0GV84RY8YVZ0Y2QKAX7`) dan Petugas (`01M6Z6HZT23ZAV7Q10BXGARD5D`) pada Tema

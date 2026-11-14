@@ -38,7 +38,7 @@
 | Q2 | Peserta, kategori, custom field, impor CSV | **Selesai (API-only) — kode + migrasi `0008` live 8 November 2026**; **delta UI: CRUD Kategori — commit `0d9c242`, live 14 November 2026** | AQ-006 dijawab ADR-0014 (Diterima 6 November 2026); `D-008`, `D-020` [A] |
 | Q3 | Entitlement | **Selesai (API-only) — kode + migrasi `0009` live 8 November 2026, gate ditutup 9 November 2026**; **delta UI: konfigurasi hak peserta — implementasi selesai 14 November 2026, E2E produksi belum dijalankan** | AQ-005 dijawab ADR-0016 (Diterima 8 November 2026) |
 | Q4 | QR Identity per Tema, rotasi, ekspor PNG/ZIP | **Ditutup 9 November 2026 (API-only)**; smoke sesi produksi menunggu pemilik, AC-018 (PNG/ZIP) tetap Q9; **delta UI: rotasi QR** | AQ-009 dijawab ADR-0017 (Diterima 9 November 2026); `D-016` [A] |
-| Q5 | Transaksi Attendance, Manual Entry, Reversal/Adjustment | **Selesai (API-only) — kode live + smoke produksi 14 November 2026, gate ditutup**; **delta UI: Manual Entry** | AQ-002–AQ-004, AQ-007, AQ-008 dijawab ADR-0018–0022 (Diterima 9 November 2026); `D-010`, `D-011`, `D-022`, `D-024` [A]; `OQ-034` [A] |
+| Q5 | Transaksi Attendance, Manual Entry, Reversal/Adjustment | **Selesai (API-only) — kode live + smoke produksi 14 November 2026, gate ditutup**; **delta UI: Manual Entry — implementasi selesai 14 November 2026, E2E produksi belum dijalankan** | AQ-002–AQ-004, AQ-007, AQ-008 dijawab ADR-0018–0022 (Diterima 9 November 2026); `D-010`, `D-011`, `D-022`, `D-024` [A]; `OQ-034` [A] |
 | Q6 | Penugasan Petugas & Scanner/Kiosk | **Ditutup 14 November 2026 (UI + API) — commit `c693be4`, live di Workers Builds**; checklist Android lolos, iPhone Safari dipindah ke Q11 | AQ-007, AQ-012; `D-012`, `D-013` [A] |
 | Q7 | Distribusi konsumsi | Belum dibuka | AQ-002, AQ-003; `D-009`, `D-014` [A] |
 | Q8 | Audit lengkap, dashboard, navigasi, laporan & ekspor | Belum dibuka | AQ-013, AQ-014; `D-015`, `D-023` [A] |
@@ -258,6 +258,8 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 
 **Status implementasi 14 November 2026 — gate Q5 ditutup (API-only).** Kode Q5 di-push sebagai commit `4e9e7cb` dan live di produksi lewat Workers Builds (deployment `a20ecebb`, 12 November 2026 06:31 UTC). Smoke dengan sesi produksi nyata di Tema `percobaan`: scan Petugas → `SUCCESS`, scan ulang → `DUPLICATE`; Adjustment oleh Admin Acara membuat transaksi pengganti tanpa menimpa aslinya (`01M7BW5H…` → `01M7BW88…`); Reversal atas transaksi pengganti membebaskan slot; scan berikutnya → `SUCCESS` (`01M7BWDB…`). `attendance` tetap **26** baris, `transactions` 26 → **29**, transaksi efektif 26 → **27**, `transaction_corrections` 0 → **2**, dan audit mencatat `transaction.recorded` ×2, `transaction.adjustment`, `transaction.reversal`. Super Admin ditolak untuk scan maupun koreksi. Manual Entry belum diuji: `allow_manual = 0` dan UI penugasan baru ada di Q6. Setelah smoke, `SESSION_PEPPER` dirotasi (10 sesi lama di-revoke, 22 recovery code lama tidak berlaku) dan QR peserta uji dirotasi. Seluruh bukti dan ID ada di `docs/RENCANA_PENGUJIAN.md` §9.5 dan `docs/OPERASIONAL.md` §6.4.
 
+**Delta UI Manual Entry (14 November 2026).** Tombol **Input manual** muncul di `/staff/scan` hanya bila konteks aktif siap dan penugasan mengizinkan `canManualCheckIn`; dialog mencari peserta aktif di Tema konteks, memilih status, dan mengirim `activityId`/`sessionId` konteks. Tema yang mematikan Manual Check-in, duplikasi, kuota, dan penolakan entitlement tetap diputuskan Worker dan pesannya ditampilkan apa adanya. Implementasi lulus `typecheck`, `lint`, `test` (**819 tes / 79 file**), dan `build`; tes logika di `apps/web/src/lib/manual-entry.test.ts`. **E2E produksi belum dijalankan.**
+
 **Prasyarat keputusan:** AQ-002/AQ-003/AQ-004/AQ-007/AQ-008 **dijawab** ADR-0018–0022 (Diterima 9 November 2026). Arahan pemilik yang mengikat: (1) migrasi Q5 membuat **satu Aktivitas default** per Tema tanpa Aktivitas lalu mem-backfill `attendance` lama; (2) **adaptasi web minimal** ikut Q5 agar scan/koreksi tetap berfungsi, scanner/kiosk penuh tetap Q6. Teks `REQUIREMENTS.md` yang masih menulis "belum ditetapkan" untuk izin Manual Check-in Super Admin (`FR-073`, `BR-034`, `AC-021`, `AC-049`, `AC-055`) tidak mengubah keputusan `OQ-034` [A] ("tidak"); penyuntingan teks itu dilakukan pemilik karena `REQUIREMENTS.md` bukan milik agent.
 
 **Cakupan:**
@@ -295,7 +297,8 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 - **Pengelolaan penugasan ikut Q6** (endpoint + UI), bukan hanya scanner. Tanpa itu Petugas baru selalu `403` karena `staff_assignments` hanya terisi backfill dan tidak punya jalur tulis. Ini prasyarat `FR-099`–`FR-102` dan uji perangkat.
 - **Arah desain UI**: Minimalism & Swiss Style — grid rapi, hirarki tipografi tegas, permukaan monokrom, aksen status fungsional, tanpa animasi dekoratif. Token warna/tipografi proyek dipertahankan; ikon Lucide. Pattern landing/“immersive” dan palet gelap dari panduan desain ditolak karena tidak cocok untuk alat operasional lapangan.
 - **`pages/staff-scan.tsx` dihapus** (kode mati, tidak diimpor) dengan persetujuan pemilik.
-- **Manual Entry UI tidak termasuk gate Q6.** Ia tetap gap Q5 yang terbuka; backend Manual Entry sudah ada dan hanya diuji lewat API.
+- **Manual Entry UI tidak termasuk gate Q6.** Backend Manual Entry sudah ada dan hanya diuji
+  lewat API; UI-nya menyusul sebagai delta Q5 (14 November 2026, lihat catatan delta di atas).
 
 **Ditunda karena keputusan terbuka:**
 

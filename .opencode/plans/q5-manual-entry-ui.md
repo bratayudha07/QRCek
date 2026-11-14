@@ -1,7 +1,9 @@
 # Delta UI Q5 — Manual Entry
 
 Tanggal: 14 November 2026
-Status: siap dieksekusi (UI-only; API Q5 sudah live dan teruji).
+Status: **implementasi selesai** (UI-only; API Q5 sudah live dan teruji). Verifikasi lokal
+`typecheck`/`lint`/**819 tes di 79 file**/`build` hijau. E2E produksi dan prosedur
+`OPERASIONAL.md` §12.4 belum dijalankan.
 Prasyarat: Q6 penugasan Petugas selesai (flag `can_manual_check_in` sudah bisa diatur dari UI).
 
 ## Tujuan
