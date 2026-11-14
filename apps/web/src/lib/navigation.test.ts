@@ -115,13 +115,14 @@ describe("event context", () => {
     expect(eventTabForRoute({ name: "events" })).toBeNull();
   });
 
-  it("keeps the five event tabs in the agreed order", () => {
+  it("keeps the six event tabs in the agreed order", () => {
     expect(EVENT_TABS.map((tab) => tab.label)).toEqual([
       "Ringkasan",
       "Peserta",
       "Petugas",
       "Absensi",
       "Laporan",
+      "Hak",
     ]);
   });
 });

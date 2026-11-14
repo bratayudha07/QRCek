@@ -6,6 +6,14 @@ Tujuan pengujian di proyek ini **bukan** mengejar angka coverage, tetapi membukt
 
 ## Snapshot verifikasi terkini
 
+- Snapshot 14 November 2026 (delta UI Q3, **implementasi selesai; E2E produksi belum**):
+  tab **Hak** ditambahkan ke workspace Tema, beserta `apps/web/src/lib/entitlements.ts` dan
+  tes logikanya. Verifikasi lokal `typecheck`/`lint`/`test` **783 tes di 75 file**/`build`
+  hijau. Alur manual di `OPERASIONAL.md` §12 dan checklist §8 butir 25–26 **belum dijalankan**
+  di produksi, jadi belum ada klaim bahwa konfigurasi hak peserta sudah teruji end-to-end.
+- Snapshot 14 November 2026 (delta UI Q2, **live**): commit `0d9c242` menambahkan dialog
+  “Kelola kategori” dan mengganti input kategori bebas dengan `categoryId`. Tes logika
+  `apps/web/src/lib/categories.test.ts` (10 tes) lulus; E2E produksi menunggu pemilik.
 - Snapshot 14 November 2026 (Q6, **gate ditutup dengan pengecualian**): commit `c693be4`
   live di Workers Builds. Verifikasi lokal `typecheck`/`lint`/`test` **750 tes di 73 file**/
   `build` hijau. Checklist perangkat `OPERASIONAL.md` §11 dijalankan pada **Android Chrome**:
@@ -469,7 +477,7 @@ Checklist singkat yang dijalankan pada staging sebelum deploy produksi:
 10. Event switcher: pindah acara dari sidebar (desktop) dan strip atas (mobile) → URL memuat id
     acara baru dan tidak ada data acara sebelumnya yang tersisa di layar. Pindah acara saat berada
     di tab Peserta tetap berada di tab Peserta.
-11. Event tabs: indikator geser mengikuti tab aktif (bergerak, bukan melompat), kelima tab tetap
+11. Event tabs: indikator geser mengikuti tab aktif (bergerak, bukan melompat), keenam tab tetap
     terbaca pada lebar 320 px (scroll horizontal, bukan teks mengecil), dan bisa dioperasikan
     dengan Tab + Enter. Buka `/admin/events/<id>/reports` langsung di layar 320 px → tab aktif
     sudah terlihat tanpa menggeser, dan fade muncul di sisi yang masih punya tab lain.
@@ -510,6 +518,15 @@ Checklist singkat yang dijalankan pada staging sebelum deploy produksi:
 24. Blok konteks acara: muat ulang halaman acara dengan jaringan lambat → badge status dan
     baris jadwal tidak menggeser toolbar (skeleton mengisi ruangnya). Ubah status acara di tab
     Ringkasan → badge di atas ikut berubah tanpa reload.
+25. Hak peserta (Q3): Tema baru tanpa aturan → tab **Hak** menampilkan “Belum diatur”; tekan
+    **Izinkan semua** pada Fallback Tema → scan Petugas `SUCCESS`. Ubah satu kategori menjadi
+    **Ditolak** → scan peserta kategori itu ditolak; **Ikut bawaan** mengembalikan keputusan ke
+    fallback. Tambah override peserta **Diizinkan** → scan peserta itu diterima meski
+    kategorinya ditolak. Hapus override → aturan kategori berlaku lagi.
+26. Hak peserta per Sesi: buat dua Sesi, atur satu Sesi **Ditolak** dan Sesi lain tanpa aturan →
+    scan pada Sesi yang ditolak gagal, scan pada Sesi lain tetap sesuai aturan Aktivitas. Buka
+    tab Hak sebagai Petugas dan pada Tema arsip → kontrol tulis tidak muncul; percobaan tulis
+    langsung lewat API tetap ditolak Worker.
 
 ---
 
@@ -591,6 +608,11 @@ Semua keputusan produk D-001…D-024 sudah disetujui `[A]`; AQ arsitektur ditang
 > default deny, filter tingkat Sesi, pelestarian override individual, gate kelengkapan
 > `draft → active`, dan trigger konteks Tema/Sesi. **Keenamnya tertangkap** (tes gagal saat
 > aturan dihapus). Rincian di `.opencode/plans/q3-entitlement.md` §16.2.
+>
+> **Delta UI 14 November 2026.** Logika tampilan (path route, label status, daftar ruang
+> lingkup, baris matriks, override dengan fallback id, kategori yang belum beraturan, dan
+> aturan baca-saja) diuji murni di `apps/web/src/lib/entitlements.test.ts` (21 tes). Halaman
+> `event-entitlements.tsx` tidak memuat aturan bisnis; ia hanya memanggil route Worker.
 
 | ID | Tes | Rujukan | Status keputusan |
 |---|---|---|---|

@@ -41,6 +41,11 @@ describe("parseRoute", () => {
     });
   });
 
+  it("exposes the six event tabs including Hak", () => {
+    expect(EVENT_TAB_KEYS).toHaveLength(6);
+    expect(EVENT_TAB_KEYS).toContain("entitlements");
+  });
+
   it("defaults an event URL without a tab to the overview", () => {
     expect(parseRoute("/admin/events/01JEVENT")).toEqual({
       name: "event",

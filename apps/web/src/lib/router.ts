@@ -6,7 +6,7 @@
  *
  *   /admin/dashboard
  *   /admin/events
- *   /admin/events/:eventId/{overview,participants,staff,attendance,reports}
+ *   /admin/events/:eventId/{overview,participants,staff,attendance,reports,entitlements}
  *   /admin/events/:eventId/participants/import
  *   /admin/events/:eventId/participants/:participantId
  *   /admin/activity
@@ -27,6 +27,7 @@ export const EVENT_TAB_KEYS = [
   "staff",
   "attendance",
   "reports",
+  "entitlements",
 ] as const;
 
 export type EventTab = (typeof EVENT_TAB_KEYS)[number];

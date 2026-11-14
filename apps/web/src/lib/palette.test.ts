@@ -27,7 +27,14 @@ describe("paletteActions", () => {
     const actions = paletteActions("");
 
     expect(actions.every((action) => action.kind === "tab")).toBe(true);
-    expect(labels(actions)).toEqual(["Ringkasan", "Peserta", "Petugas", "Absensi", "Laporan"]);
+    expect(labels(actions)).toEqual([
+      "Ringkasan",
+      "Peserta",
+      "Petugas",
+      "Absensi",
+      "Laporan",
+      "Hak",
+    ]);
   });
 
   it("leaves out the tab the user is already on", () => {
@@ -36,6 +43,7 @@ describe("paletteActions", () => {
       "Peserta",
       "Absensi",
       "Laporan",
+      "Hak",
     ]);
   });
 
@@ -57,7 +65,9 @@ describe("paletteActions", () => {
   it("does not invent destinations: every tab action targets an existing tab", () => {
     for (const action of paletteActions("")) {
       expect(action.kind).toBe("tab");
-      expect(action.id).toMatch(/^tab:(overview|participants|staff|attendance|reports)$/);
+      expect(action.id).toMatch(
+        /^tab:(overview|participants|staff|attendance|reports|entitlements)$/,
+      );
     }
   });
 });

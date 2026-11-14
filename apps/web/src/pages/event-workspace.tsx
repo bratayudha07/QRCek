@@ -3,10 +3,11 @@ import { EventStaffPage } from "./event-staff";
 import { EventParticipantsPage } from "./event-participants";
 import { EventAttendancePage } from "./event-attendance";
 import { EventReportsPage } from "./event-reports";
+import { EventEntitlementsPage } from "./event-entitlements";
 import type { EventTab } from "@/lib/router";
 
 /**
- * `/admin/events/:id/:tab` — one workspace, five destinations.
+ * `/admin/events/:id/:tab` — one workspace, six destinations.
  *
  * Event pages share one event-scoped route tree. Worker authorization remains
  * authoritative for each API request.
@@ -26,5 +27,7 @@ export function EventWorkspacePage({ eventId, tab }: { eventId: string; tab: Eve
       return <EventAttendancePage eventId={eventId} />;
     case "reports":
       return <EventReportsPage eventId={eventId} />;
+    case "entitlements":
+      return <EventEntitlementsPage eventId={eventId} />;
   }
 }

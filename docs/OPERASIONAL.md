@@ -929,3 +929,42 @@ dengan Sesi, satu kartu QR peserta yang valid, dan satu QR rusak/kartu acara lai
 dapat dijalankan di Android lolos; verifikasi iPhone Safari wajib diselesaikan pada
 verifikasi lapangan Q11 sebelum rilis. Gate Q6 tidak boleh dikutip sebagai "iPhone sudah
 teruji".
+
+---
+
+## 12. Prosedur admin: kategori dan hak peserta (delta UI Q2/Q3)
+
+Prosedur ini **belum dijalankan end-to-end di produksi** per 14 November 2026; hasilnya harus
+dicatat di sini setelah pemilik menguji. Semua langkah memakai UI, tanpa SQL atau DevTools.
+
+### 12.1 Kategori
+
+1. Buka Tema → tab **Peserta** → **Kelola kategori**.
+2. Buat kategori (nama wajib, deskripsi opsional). Kategori baru berstatus aktif.
+3. Ubah nama/deskripsi lewat tombol **Ubah** pada baris kategori.
+4. **Arsipkan** kategori yang tidak dipakai lagi. Peserta lama tetap menyimpan kategori itu;
+   kategori arsip tidak muncul untuk peserta baru.
+5. Tambah/edit peserta → pilih kategori dari dropdown. Form tidak lagi menerima teks bebas,
+   sehingga typo tidak bisa membuat kategori baru.
+
+Catatan: impor CSV masih menerima **nama** kategori dan tidak membuat kategori otomatis. Buat
+kategorinya lebih dulu, lalu samakan ejaan di CSV.
+
+### 12.2 Hak peserta
+
+1. Buka Tema → tab **Hak**.
+2. Pilih Aktivitas. Bila Aktivitas punya Sesi, pilih ruang lingkup **Aktivitas (semua Sesi)**
+   atau satu **Sesi**.
+3. **Fallback Tema** hanya dipakai bila tidak ada aturan lain. Tanpa fallback dan tanpa aturan,
+   transaksi ditolak (`NOT_ENTITLED`). Untuk Tema baru, “Izinkan semua” adalah langkah tercepat
+   agar scanner tidak gagal.
+4. Aturan kategori: **Ikut bawaan** melanjutkan ke tingkat berikutnya; **Diizinkan** atau
+   **Ditolak** menghentikan rantai. Setiap perubahan langsung disimpan; UI hanya berubah setelah
+   Worker menjawab `ok`.
+5. Override peserta menang atas aturan kategori pada ruang lingkup yang dipilih. Tambah lewat
+   **Tambah override** (cari nama), hapus lewat tombol **Hapus**.
+6. Bila muncul peringatan “Kategori berikut belum punya aturan”, pilih status untuk kategori
+   tersebut di tabel Aturan kategori. Selama belum diatur, kategori itu tidak punya keputusan
+   eksplisit.
+7. Petugas hanya bisa melihat tab ini; kontrol tulis tidak dirender dan Worker tetap menolak
+   `entitlement:write` dari Petugas. Tema arsip juga baca-saja.

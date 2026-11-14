@@ -112,6 +112,7 @@ export const EVENT_TABS: readonly EventTabItem[] = [
   { key: "staff", label: "Petugas" },
   { key: "attendance", label: "Absensi" },
   { key: "reports", label: "Laporan" },
+  { key: "entitlements", label: "Hak" },
 ];
 
 /** Event id carried by a route, or `null` outside an event workspace. */

@@ -2,6 +2,7 @@ import {
   ClipboardCheck,
   FileText,
   LayoutDashboard,
+  ShieldCheck,
   UserCog,
   UsersRound,
   type LucideIcon,
@@ -20,6 +21,7 @@ const ICONS: Record<EventTab, LucideIcon> = {
   staff: UserCog,
   attendance: ClipboardCheck,
   reports: FileText,
+  entitlements: ShieldCheck,
 };
 
 /** Breathing room kept between the active tab and the edge of the scroll box. */
@@ -33,7 +35,7 @@ const EDGE_MARGIN = 8;
  * roving tabindex and the ARIA state; the router remains the source of truth
  * for which tab is active.
  *
- * Below 23rem the control scrolls horizontally instead of shrinking. A deep
+ * Below 27rem the control scrolls horizontally instead of shrinking. A deep
  * link can land on a tab that is scrolled out of view, so the active tab is
  * brought into the box on mount and on change, and a fade marks whichever edge
  * still has content. Both only touch the control's own scroll offset.
@@ -89,8 +91,8 @@ export function EventTabs({ eventId, active }: { eventId: string; active: EventT
         ref={scrollRef}
         className="overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        <Tabs value={active} className="w-full min-w-[23rem]">
-          <TabsList className="grid w-full grid-cols-5 rounded-full p-1 group-data-[orientation=horizontal]/tabs:h-auto">
+        <Tabs value={active} className="w-full min-w-[27rem]">
+          <TabsList className="grid w-full grid-cols-6 rounded-full p-1 group-data-[orientation=horizontal]/tabs:h-auto">
             {EVENT_TABS.map((tab) => {
               const Icon = ICONS[tab.key];
               const isActive = tab.key === active;

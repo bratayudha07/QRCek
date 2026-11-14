@@ -1,7 +1,9 @@
 # Delta UI Q3 — Hak Peserta (Entitlement)
 
 Tanggal: 14 November 2026
-Status: siap dieksekusi (UI-only; API Q3 sudah live dan teruji).
+Status: **implementasi selesai** (UI-only; API Q3 sudah live dan teruji). Verifikasi lokal
+`typecheck`/`lint`/**783 tes di 75 file**/`build` hijau. E2E produksi dan checklist
+`OPERASIONAL.md` §12.2 belum dijalankan.
 Prasyarat: delta Q2 Kategori selesai (kategori terkelola).
 
 ## Tujuan

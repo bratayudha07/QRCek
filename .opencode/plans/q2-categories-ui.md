@@ -1,7 +1,8 @@
 # Delta UI Q2 — Kategori
 
 Tanggal: 14 November 2026
-Status: siap dieksekusi (UI-only, API sudah live).
+Status: **selesai dan live** — commit `0d9c242` (14 November 2026), Workers Builds. E2E
+produksi menunggu pemilik; catatan prosedur ada di `docs/OPERASIONAL.md` §12.1.
 
 ## Tujuan
 

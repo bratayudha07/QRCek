@@ -77,4 +77,8 @@ Tidak ada migrasi baru dan tidak ada dependency baru untuk kelima delta ini.
 
 - Q6: **ditutup dengan pengecualian** 14 November 2026 (Android Chrome lolos; iPhone Safari
   dipindah ke Q11).
-- Delta #1 (Q2 Kategori): plan ditulis, implementasi dimulai.
+- Delta #1 (Q2 Kategori): **selesai dan live** (`0d9c242`, 14 November 2026). E2E produksi
+  menunggu pemilik.
+- Delta #2 (Q3 Hak Peserta): **implementasi selesai** 14 November 2026; verifikasi lokal
+  `typecheck`/`lint`/**783 tes**/`build` hijau. E2E produksi belum dijalankan.
+- Delta #3 (Q1 Aktivitas & Sesi): berikutnya.
