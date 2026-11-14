@@ -465,7 +465,8 @@ deploy sebelum `0011` membuat setiap scan gagal karena tabel belum ada. Ini sama
 5. Baru deploy/push kode Q5.
 6. Smoke dengan sesi produksi: scan Petugas pada Aktivitas default, scan kedua → `DUPLICATE`,
    Reversal oleh Admin, Adjustment, dan Manual Entry hanya bila `allow_manual = 1` serta
-   penugasan `can_manual_check_in = 1` (Q6 belum menyediakan UI untuk mengaktifkannya).
+   penugasan `can_manual_check_in = 1` (flag diatur dari UI penugasan Q6; Manual Entry sendiri
+   belum punya UI dan menjadi delta Q5).
 
 Quirk yang akan mengganggu:
 
@@ -888,7 +889,7 @@ curl -sI "$base/assets/" 2>/dev/null | head -1   # aset ada
 
 ## 11. Uji perangkat scanner (Q6)
 
-Checklist ini **manual** dan belum dijalankan sampai ada laporan hasil. Scanner membutuhkan
+Checklist ini **manual**. Hasil uji 14 November 2026 tercatat di bawah. Scanner membutuhkan
 secure context: `localhost` saat dev, HTTPS di domain nyata. Akses kamera harus dipicu klik
 ("Mulai kamera"), bukan otomatis saat halaman dibuka.
 
@@ -915,5 +916,16 @@ dengan Sesi, satu kartu QR peserta yang valid, dan satu QR rusak/kartu acara lai
 | 16 | Dua Petugas bergantian di satu perangkat | Setiap Petugas logout/login dengan akun sendiri; `recordedBy` sesuai akun |
 | 17 | 20 scan berturut-turut per perangkat tanpa reload | Stabil, tanpa kebocoran memori/stream, hasil tetap akurat; feedback tetap ±2 detik |
 
-Catat perangkat, versi browser, dan hasil tiap nomor. Gate Q6 belum ditutup sampai checklist
-ini dijalankan pada perangkat pemilik dan hasilnya dicatat di sini.
+**Hasil uji 14 November 2026 (produksi, `https://qrcek.hamdirobbi5.workers.dev`):**
+
+- Perangkat: **Android Chrome** (satu perangkat; versi browser tidak dicatat).
+- Lolos: **#1–#3 dan #5–#17**, dilaporkan pemilik setelah checklist dijalankan.
+- **Belum dijalankan: #4 (iPhone Safari).** Tidak ada perangkat iOS saat pengujian. Ini
+  risiko residual yang eksplisit, bukan bukti yang hilang.
+- Catatan: #15 lolos di Android Chrome (jalur `BarcodeDetector`; fallback ZXing tidak
+  diuji terpisah di perangkat), #17 stabil untuk 20 scan berturut-turut.
+
+**Status gate Q6: ditutup dengan pengecualian pada 14 November 2026.** Seluruh butir yang
+dapat dijalankan di Android lolos; verifikasi iPhone Safari wajib diselesaikan pada
+verifikasi lapangan Q11 sebelum rilis. Gate Q6 tidak boleh dikutip sebagai "iPhone sudah
+teruji".

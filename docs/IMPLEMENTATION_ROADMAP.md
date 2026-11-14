@@ -35,11 +35,11 @@
 |---|---|---|---|
 | Q0 | Penyelarasan dokumen & keputusan | **Berjalan** | `D-001`, `D-002` [A] |
 | Q1 | Fondasi Tema → Aktivitas → Sesi, lifecycle, mekanisme audit | **Selesai (API-only)** | AQ-001, AQ-010, AQ-014 (ADR-0009–0011, Diterima); ADR-0012 (lifecycle), ADR-0013 (registrasi), keduanya Diterima; `D-009`, `D-010`, `D-023` [A]; `OQ-033` [A] untuk aksi arsip Sesi |
-| Q2 | Peserta, kategori, custom field, impor CSV | **Selesai (API-only) — kode + migrasi `0008` live 8 November 2026** | AQ-006 dijawab ADR-0014 (Diterima 6 November 2026); `D-008`, `D-020` [A] |
-| Q3 | Entitlement | **Selesai (API-only) — kode + migrasi `0009` live 8 November 2026, gate ditutup 9 November 2026** | AQ-005 dijawab ADR-0016 (Diterima 8 November 2026) |
-| Q4 | QR Identity per Tema, rotasi, ekspor PNG/ZIP | **Ditutup 9 November 2026 (API-only)**; smoke sesi produksi menunggu pemilik, AC-018 (PNG/ZIP) tetap Q9 | AQ-009 dijawab ADR-0017 (Diterima 9 November 2026); `D-016` [A] |
-| Q5 | Transaksi Attendance, Manual Entry, Reversal/Adjustment | **Selesai (API-only) — kode live + smoke produksi 14 November 2026, gate ditutup**; Manual Entry belum diuji (UI/penugasan di Q6) | AQ-002–AQ-004, AQ-007, AQ-008 dijawab ADR-0018–0022 (Diterima 9 November 2026); `D-010`, `D-011`, `D-022`, `D-024` [A]; `OQ-034` [A] |
-| Q6 | Penugasan Petugas & Scanner/Kiosk | **Dibuka 14 November 2026 (UI + API)**; konfigurasi pesan per Tema menunggu AQ-012 | AQ-007, AQ-012; `D-012`, `D-013` [A] |
+| Q2 | Peserta, kategori, custom field, impor CSV | **Selesai (API-only) — kode + migrasi `0008` live 8 November 2026**; **delta UI: CRUD Kategori** | AQ-006 dijawab ADR-0014 (Diterima 6 November 2026); `D-008`, `D-020` [A] |
+| Q3 | Entitlement | **Selesai (API-only) — kode + migrasi `0009` live 8 November 2026, gate ditutup 9 November 2026**; **delta UI: konfigurasi hak peserta (sebelum Q7)** | AQ-005 dijawab ADR-0016 (Diterima 8 November 2026) |
+| Q4 | QR Identity per Tema, rotasi, ekspor PNG/ZIP | **Ditutup 9 November 2026 (API-only)**; smoke sesi produksi menunggu pemilik, AC-018 (PNG/ZIP) tetap Q9; **delta UI: rotasi QR** | AQ-009 dijawab ADR-0017 (Diterima 9 November 2026); `D-016` [A] |
+| Q5 | Transaksi Attendance, Manual Entry, Reversal/Adjustment | **Selesai (API-only) — kode live + smoke produksi 14 November 2026, gate ditutup**; **delta UI: Manual Entry** | AQ-002–AQ-004, AQ-007, AQ-008 dijawab ADR-0018–0022 (Diterima 9 November 2026); `D-010`, `D-011`, `D-022`, `D-024` [A]; `OQ-034` [A] |
+| Q6 | Penugasan Petugas & Scanner/Kiosk | **Ditutup 14 November 2026 (UI + API) — commit `c693be4`, live di Workers Builds**; checklist Android lolos, iPhone Safari dipindah ke Q11 | AQ-007, AQ-012; `D-012`, `D-013` [A] |
 | Q7 | Distribusi konsumsi | Belum dibuka | AQ-002, AQ-003; `D-009`, `D-014` [A] |
 | Q8 | Audit lengkap, dashboard, navigasi, laporan & ekspor | Belum dibuka | AQ-013, AQ-014; `D-015`, `D-023` [A] |
 | Q9 | Design system & UI | Belum dibuka | `D-021` [A] |
@@ -83,6 +83,7 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 | Identifier teknis `absensi` dipertahankan; nama produk QRCek | `FR-196`, `D-019` [A] |
 | Status implementasi dipisah dari kebutuhan | `FR-177`, `FR-178` |
 | Free tier saja; anggaran CPU/query/baris diperhitungkan | `NFR-009`–`NFR-012` |
+| **UI minimum bagian dari gate** bila tahap punya permukaan pengguna; eksekusi boleh dipecah menjadi work package API dan UI, tetapi gate tetap satu | Kebijakan pemilik 14 November 2026; `FR-040`, `AC-012`; Q9 hanya merapikan visual |
 
 ---
 
@@ -283,9 +284,9 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 
 **Tujuan:** Petugas memindai di HP/kiosk dalam konteks yang ditugaskan, dengan feedback jelas dan tanpa keberhasilan palsu.
 
-**Status:** **dibuka 14 November 2026 (UI + API)** oleh pemilik proyek, setelah gate Q5 ditutup. Rencana eksekusi ada di [`.opencode/plans/q6-scanner.md`](../.opencode/plans/q6-scanner.md). Kewenangan kelola penugasan mengikuti [ADR-0021](./adr/0021-staff-assignments-and-permissions.md) (Super Admin dan Admin Acara; Petugas tidak).
+**Status:** **ditutup 14 November 2026 (UI + API)** oleh pemilik proyek, setelah gate Q5 ditutup. Rencana eksekusi ada di [`.opencode/plans/q6-scanner.md`](../.opencode/plans/q6-scanner.md). Kewenangan kelola penugasan mengikuti [ADR-0021](./adr/0021-staff-assignments-and-permissions.md) (Super Admin dan Admin Acara; Petugas tidak).
 
-**Status implementasi (14 November 2026):** route penugasan dan daftar konteks, UI pengelolaan penugasan, scanner berkonteks, serta tes T-100–T-107 sudah ada di working tree dan lulus verifikasi lokal (`typecheck`, `lint`, `test`, `build`). **Gate Q6 belum ditutup**: uji perangkat fisik di `OPERASIONAL.md` §11 belum dijalankan, dan belum ada commit/deploy. Ini status implementasi, bukan pernyataan pemenuhan seluruh kebutuhan.
+**Status implementasi (14 November 2026):** route penugasan dan daftar konteks, UI pengelolaan penugasan, scanner berkonteks, serta tes T-100–T-107 lulus verifikasi lokal (`typecheck`, `lint`, `test` **750 tes / 73 file**, `build`). Kode di-push sebagai commit `c693be4` dan live di produksi lewat Workers Builds; bundle produksi memuat UI penugasan scanner. Checklist perangkat di `OPERASIONAL.md` §11 dijalankan pada **Android Chrome** dan lolos untuk semua butir yang dapat dijalankan; **#4 (iPhone Safari) belum dijalankan** dan dipindah ke verifikasi lapangan Q11. Gate ditutup **dengan pengecualian** yang tercatat — bukan klaim bahwa iPhone sudah teruji.
 
 **Keputusan cakupan Q6:**
 
@@ -309,7 +310,8 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 
 - `AC-026`–`AC-028`, `AC-048`, `AC-053`.
 - Tes: Petugas tanpa penugasan pada Aktivitas/Sesi → ditolak backend walau URL memilih konteks itu; kesalahan jaringan dibedakan dari QR tidak valid; tidak ada antrean offline.
-- **Uji perangkat fisik** (dicatat di `OPERASIONAL.md`): iPhone (fallback ZXing) dan Android (`BarcodeDetector`) masing-masing 20 scan berturut tanpa reload; kamera depan/belakang; portrait/landscape; jaringan dimatikan menampilkan pesan actionable.
+- **Uji perangkat fisik** (dicatat di `OPERASIONAL.md` §11): **Android Chrome lolos** untuk #1–#3 dan #5–#17 (termasuk 20 scan berturut, kamera depan/belakang, portrait/landscape, mode pesawat). **iPhone Safari (#4) belum dijalankan** dan menjadi butir wajib verifikasi lapangan Q11.
+- **Pengecualian gate:** Q6 ditutup tanpa bukti iPhone. Residual risk ini tidak boleh dihapus dari catatan sampai Q11 menyelesaikannya.
 
 ---
 
@@ -372,7 +374,7 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 
 **Cakupan:** verifikasi seluruh `NFR-001`–`NFR-023`; `AC-034`, `AC-036`, `AC-037`, `AC-052`.
 
-**Pekerjaan:** pengukuran CPU produksi (`wrangler tail`), smoke test produksi end-to-end, backup `wrangler d1 export` sebelum migrasi remote, prosedur break-glass diuji, kebijakan retensi audit final (`D-023`), pembaruan `COSTS_AND_LIMITS.md` dengan model transaksi baru, CI hijau tercatat.
+**Pekerjaan:** pengukuran CPU produksi (`wrangler tail`), smoke test produksi end-to-end, backup `wrangler d1 export` sebelum migrasi remote, prosedur break-glass diuji, kebijakan retensi audit final (`D-023`), pembaruan `COSTS_AND_LIMITS.md` dengan model transaksi baru, CI hijau tercatat, dan **verifikasi iPhone Safari** untuk checklist scanner Q6 #4 (fallback ZXing) yang belum dijalankan saat gate Q6 ditutup.
 
 **Gate:** semua butir di atas tercatat di `OPERASIONAL.md` dengan tanggal dan hasil.
 

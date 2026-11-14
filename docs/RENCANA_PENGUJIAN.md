@@ -6,6 +6,11 @@ Tujuan pengujian di proyek ini **bukan** mengejar angka coverage, tetapi membukt
 
 ## Snapshot verifikasi terkini
 
+- Snapshot 14 November 2026 (Q6, **gate ditutup dengan pengecualian**): commit `c693be4`
+  live di Workers Builds. Verifikasi lokal `typecheck`/`lint`/`test` **750 tes di 73 file**/
+  `build` hijau. Checklist perangkat `OPERASIONAL.md` §11 dijalankan pada **Android Chrome**:
+  #1–#3 dan #5–#17 lolos. **iPhone Safari (#4) belum dijalankan** dan wajib diselesaikan di
+  Q11. Tidak ada klaim bahwa iPhone sudah teruji.
 - Snapshot 14 November 2026 (Q5 API-only, **gate ditutup**): verifikasi lokal terakhir tetap
   snapshot 12 November (`typecheck`/`lint`/`test` **702 tes di 68 file**/`build` hijau). Smoke
   produksi dengan sesi nyata lulus di Tema `percobaan`: scan Petugas `SUCCESS` → `DUPLICATE`,
@@ -685,11 +690,12 @@ fisik tetap terbuka untuk Q6.
 | T-106 ★ | Penugasan lintas Tema/Aktivitas/Sesi ditolak; duplikasi aktif → 409; Sesi harus milik Aktivitas | `BR-050`, `FR-099` | `D-012` [A] |
 | T-107 ★ | Flag Manual Check-in per penugasan: Petugas tidak bisa mengubah; flag efektif dipakai Manual Entry | `FR-073`, `BR-034`, `AC-055` | `D-022` [A], `OQ-034` [A] |
 
-Status implementasi per 14 November 2026: tes otomatis T-100–T-107 ada dan lulus
+Status implementasi per 14 November 2026: tes otomatis T-100–T-107 lulus
 (`apps/api/src/routes/staff-assignments.test.ts`, `scan.test.ts`,
-`apps/web/src/lib/scanner.test.ts`). Uji perangkat fisik (kamera depan/belakang, portrait dan
-landscape, audio/mute setelah reload, mode pesawat) masih checklist manual di
-`docs/OPERASIONAL.md` dan **belum dijalankan**; gate Q6 belum ditutup.
+`apps/web/src/lib/scanner.test.ts`; suite penuh **750 tes / 73 file**). Uji perangkat fisik
+dijalankan pada **Android Chrome** dan lolos untuk semua butir yang dapat dijalankan
+(`docs/OPERASIONAL.md` §11). **iPhone Safari (#4) belum dijalankan**; gate Q6 ditutup
+**dengan pengecualian** dan butir itu dipindah ke verifikasi lapangan Q11.
 
 ### 9.7 Konsumsi (Q7)
 

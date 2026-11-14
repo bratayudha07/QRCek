@@ -170,6 +170,8 @@ Aturan tambahan:
 
 Roadmap aktif: `docs/IMPLEMENTATION_ROADMAP.md` (Q0 dokumen & keputusan → Q1 Tema/Aktivitas/Sesi → Q2 peserta/kategori/impor → Q3 entitlement → Q4 QR per Tema → Q5 transaksi & koreksi → Q6 scanner/kiosk → Q7 konsumsi → Q8 audit/dashboard/laporan → Q9 design system → Q10 Google Sheets → Q11 hardening). Gate: jangan lompat. Setiap tahap butuh review manusia sebelum tahap berikutnya.
 
+**UI minimum adalah bagian gate tahap** bila tahap punya permukaan pengguna. Eksekusi boleh dipecah menjadi work package API dan UI, tetapi gate tetap satu dan baru ditutup setelah alur utama diuji lewat UI. Q9 hanya merapikan visual, bukan pertama kali membuat fitur bisa dipakai. Pengecualian harus dicatat eksplisit di roadmap dan dokumen pengujian.
+
 Riwayat Fase 0–6 (fondasi, identitas, peserta & QR, scan, rekap & audit, Sheets, hardening) ada di `IMPLEMENTATION_PLAN.md` dan tidak lagi menjadi rencana aktif.
 
 ## Keputusan yang masih terbuka
