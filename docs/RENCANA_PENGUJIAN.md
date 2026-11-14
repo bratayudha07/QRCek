@@ -6,6 +6,15 @@ Tujuan pengujian di proyek ini **bukan** mengejar angka coverage, tetapi membukt
 
 ## Snapshot verifikasi terkini
 
+- Snapshot 14 November 2026 (Q5 API-only, **gate ditutup**): verifikasi lokal terakhir tetap
+  snapshot 12 November (`typecheck`/`lint`/`test` **702 tes di 68 file**/`build` hijau). Smoke
+  produksi dengan sesi nyata lulus di Tema `percobaan`: scan Petugas `SUCCESS` → `DUPLICATE`,
+  Adjustment lalu Reversal oleh Admin Acara, scan berikutnya `SUCCESS`. `attendance` tetap
+  **26** baris, `transactions` **26 → 29**, transaksi efektif **26 → 27**,
+  `transaction_corrections` **0 → 2**, audit `transaction.recorded` ×2,
+  `transaction.adjustment`, `transaction.reversal`. Super Admin ditolak untuk scan dan koreksi.
+  Manual Entry belum diuji (UI penugasan di Q6). `SESSION_PEPPER` dirotasi 14 November 2026
+  (10 sesi revoke, 22 recovery code invalid). Detail: `OPERASIONAL.md` §6.4.
 - Snapshot 12 November 2026 (Q5 API-only, `0011` **diterapkan remote**): `typecheck` PASS,
   `lint` PASS, `test` **702 tes di 68 file** lulus, `build` PASS. Remote `schema_version = 11`
   dengan 12 Aktivitas default, 26 transaksi hasil backfill, 5 penugasan, 32 aturan entitlement,
@@ -643,6 +652,25 @@ T-088 ditutup oleh `D-024` [A]: Super Admin **tidak** berwenang atas koreksi; pe
 ditegakkan eksplisit di route karena `isAllowed` mengizinkan Super Admin melewati matriks.
 Yang belum diuji di Q5: scanner/kiosk fisik dan state UI (Q6), serta kuota konsumsi (Q7).
 Baseline `attendance` dipertahankan sebagai regression sampai adaptor baca dilepas di Q8.
+
+**Bukti smoke produksi 14 November 2026 (gate Q5 ditutup).** Dengan sesi Admin Acara
+(`01M6DFY0GV84RY8YVZ0Y2QKAX7`) dan Petugas (`01M6Z6HZT23ZAV7Q10BXGARD5D`) pada Tema
+`percobaan`:
+
+| Langkah | Hasil | ID |
+|---|---|---|
+| Scan #1 Petugas | `SUCCESS` | `01M7BW5HWXYS7TG6CRAJ1NE7VX` |
+| Scan #2 Petugas | `DUPLICATE` | — |
+| Adjustment Admin Acara | pengganti dibuat, asli `superseded` | `01M7BW883W1JHG9DN3MMN8Y7X3` |
+| Reversal Admin Acara | pengganti `reversed`, slot bebas | `01M7BW883W1JHG9DN3MMN8Y7X3` |
+| Scan #3 Petugas | `SUCCESS` | `01M7BWDB0KBG17CMW9SMFEQZ1T` |
+
+Verifikasi D1: `attendance` tetap 26, `transactions` 26 → 29, efektif 26 → 27, koreksi 0 → 2,
+audit `transaction.recorded` ×2, `transaction.adjustment`, `transaction.reversal`. Ini bukti
+produksi untuk T-080, T-085, T-086, T-087, dan T-091; tes otomatis tetap penjaga regresinya.
+Manual Entry (T-089) belum dijalankan di produksi karena `allow_manual = 0` dan belum ada UI
+penugasan. Status per 14 November 2026: **gate Q5 ditutup**, dengan T-089 dan uji scanner
+fisik tetap terbuka untuk Q6.
 
 ### 9.6 Penugasan Petugas dan scanner (Q6)
 

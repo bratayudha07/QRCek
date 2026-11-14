@@ -4,7 +4,7 @@ Dokumen ini mencatat hasil pengukuran, instruksi operasi, status deployment, dan
 
 > **Konteks (10 November 2026).** Semua pengukuran dan prosedur di sini berlaku untuk baseline (model `events` datar, commit acuan `157c330`) ditambah Q1 (Aktivitas/Sesi), Q2 (kategori, custom field, atribut peserta), Q3 (konfigurasi entitlement), Q4 (QR Identity per Tema), dan Q5 (transaksi Attendance berkonteks, Reversal/Adjustment) — semuanya API-only. Angka CPU/statement/baris **tidak** otomatis berlaku untuk tahap berikutnya dan harus diukur ulang di tahap terkait ([`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md) Q6–Q11). Uji perangkat fisik scanner, akun Google Sheets nyata, dan CPU produksi belum pernah dilakukan (`REQUIREMENTS.md` §7.3). Rujukan "ADR-00N" di dokumen ini = `docs/adr/000N-*.md`.
 
-## Status operasi saat ini (10 November 2026)
+## Status operasi saat ini (14 November 2026)
 
 - Worker produksi berjalan di `https://qrcek.hamdirobbi5.workers.dev` dan di-deploy lewat
   **Cloudflare Workers Builds** (Git integration): push/merge ke `main` memicu build lalu
@@ -15,7 +15,7 @@ Dokumen ini mencatat hasil pengukuran, instruksi operasi, status deployment, dan
   (`content-security-policy`, `permissions-policy: camera=(self)`, HSTS) ada. Route Q2
   `GET /api/events/x/categories` dan `/custom-fields` → `401 UNAUTHENTICATED` (route ada,
   sesi belum dikirim), bukan `404`.
-- Migrasi remote `0001`–`0010` sudah diterapkan. `0007_q1_activities_sessions.sql`
+- Migrasi remote `0001`–`0011` sudah diterapkan. `0007_q1_activities_sessions.sql`
   diterapkan **6 November 2026** (backup: `/tmp/opencode/qrcek-backup-2026-11-06.sql`,
   122 KB). `0008_q2_categories_custom_fields.sql` diterapkan **8 November 2026 02:28 UTC**
   dari `apps/api`; `app_meta.schema_version = 8`.
@@ -61,8 +61,9 @@ Dokumen ini mencatat hasil pengukuran, instruksi operasi, status deployment, dan
   `/tmp/opencode/qrcek-backup-2026-11-12-pre-0011.sql` (187 KB). Hasil: `schema_version = 11`,
   **12** Aktivitas Attendance default, **26** transaksi hasil salinan 26 `attendance`, **5**
   penugasan Petugas, **32** aturan entitlement, 13 index baru, 5 trigger baru, dan **0**
-  transaksi lintas Tema. Kode Q5 belum di-push/deploy; Workers Builds akan men-deploy setelah
-  push pemilik. Gate Q5 masih menunggu smoke produksi dengan sesi nyata (§6.4).
+  transaksi lintas Tema. Kode Q5 di-push sebagai commit `4e9e7cb` dan live lewat Workers
+  Builds (deployment `a20ecebb`, 12 November 2026 06:31 UTC); smoke produksi dan rotasi
+  `SESSION_PEPPER` pada 14 November 2026 menutup gate Q5 (§6.4).
 - Pendaftaran mandiri publik sudah dihapus (ADR-0013). `POST /api/auth/register` → 404, dan
   tidak ada lagi `TURNSTILE_SECRET_KEY` maupun `VITE_TURNSTILE_SITE_KEY` yang perlu diatur.
   Akun Admin Acara hanya dibuat lewat undangan Super Admin. Saat deploy pertama setelah
@@ -407,8 +408,43 @@ Aktivitas Attendance aktif (**5** baris, `can_manual_check_in = 0`), lalu menyal
 - Apply remote: `0011_q5_transactions.sql` → ✅, 27 command, `schema_version = 11`.
 - Hasil: 12 Aktivitas, 26 transaksi, 26 `attendance` (tetap), 0 koreksi, 5 penugasan,
   32 aturan entitlement, 13 index baru, 5 trigger baru.
-- **Belum dijalankan:** push/deploy kode Q5 dan smoke dengan sesi produksi. Keduanya dicatat
-  di §8.
+- **Belum dijalankan:** Manual Entry (butuh `allow_manual = 1` dan penugasan
+  `can_manual_check_in = 1`, UI-nya baru di Q6). Smoke QR dan koreksi sudah dijalankan; lihat
+  bagian berikut.
+
+**Smoke produksi 14 November 2026 — gate Q5 ditutup.** Sesi nyata: Admin Acara `andi`
+(`01M6DFY0GV84RY8YVZ0Y2QKAX7`) dan Petugas `01M6Z6HZT23ZAV7Q10BXGARD5D` pada Tema
+`percobaan` (`01M6DFZ0X231AYQYCX3Y5HDKPY`), Aktivitas Attendance
+`1286888b484db401b2771db003387e0b`, peserta `Fajar Hidayat`
+(`01M6DFZHPQM8Z0KFC8NM4F2MFA`).
+
+| Langkah | Hasil | ID transaksi |
+|---|---|---|
+| Scan #1 (Petugas) | `SUCCESS` | `01M7BW5HWXYS7TG6CRAJ1NE7VX` |
+| Scan #2 (Petugas) | `DUPLICATE` — tidak ada baris baru | — |
+| Adjustment (Admin Acara) | transaksi pengganti dibuat, transaksi asli `superseded` | `01M7BW883W1JHG9DN3MMN8Y7X3` |
+| Reversal (Admin Acara) | transaksi pengganti `reversed`, slot bebas | `01M7BW883W1JHG9DN3MMN8Y7X3` |
+| Scan #3 (Petugas) | `SUCCESS` | `01M7BWDB0KBG17CMW9SMFEQZ1T` |
+
+Verifikasi D1 sesudah smoke: `attendance` tetap **26** baris; `transactions` **26 → 29**;
+transaksi efektif **26 → 27**; `transaction_corrections` **0 → 2**; audit mencatat
+`transaction.recorded` ×2, `transaction.adjustment`, dan `transaction.reversal`. Yang terbukti:
+scan ganda adalah hasil `DUPLICATE` (bukan error 500), Adjustment tidak menimpa transaksi asli,
+Reversal membebaskan slot sehingga scan berikutnya `SUCCESS`, dan `attendance` tidak lagi
+ditulis. Super Admin ditolak untuk scan maupun koreksi. Manual Entry **belum** diuji:
+`allow_manual = 0` pada Tema uji dan belum ada UI untuk penugasan `can_manual_check_in` (Q6).
+
+**Rotasi `SESSION_PEPPER` 14 November 2026.** Rotasi dilakukan dengan persetujuan pemilik
+setelah akses produksi hilang. Dampak: **10 sesi** aktif lama di-revoke, **22 recovery code**
+lama tidak berlaku, dan setiap pengguna harus aktivasi ulang lewat undangan baru. Undangan QR
+peserta dan kredensial QR tidak terpengaruh karena memakai `QR_PEPPER`/`QR_ENCRYPTION_KEY`.
+Pemulihan akses dilakukan dengan membuat user Super Admin + membership, lalu menerbitkan
+undangan yang diarahkan ke akun Admin Acara/Petugas yang sudah ada (`invites.target_user_id`).
+Deployment pasca-rotasi: `7b8ad6b6-2631-47c1-997a-18365d6a64a7`, versi
+`4adb8c5e-e9b9-41b7-95c8-505c1a4a537c` (14 November 2026 01:42 UTC). Jangan menyisipkan baris
+`sessions` manual kecuali hash-nya dihitung dengan pepper **yang sedang aktif**; hash dari
+pepper lama hanya menghasilkan `401`. QR peserta uji dirotasi setelah payload-nya sempat
+terekspos (`rotationCount = 1`); token lama tidak berlaku.
 
 **Urutan rilis wajib: migrasi dulu, deploy kemudian.** Kode Q5 menulis ke `transactions`;
 deploy sebelum `0011` membuat setiap scan gagal karena tabel belum ada. Ini sama seperti
@@ -636,7 +672,9 @@ lama, dan itu akan terlihat sebagai `500` pada cetak ulang (bukan kerusakan data
 | Penerapan `0010` dan jumlah backfill produksi | **Selesai 9 November 2026** | Backup pre-0010 (149 KB), kandidat 60, apply remote, verifikasi `schema_version = 10` dan 60 baris (§6.3) |
 | Smoke produksi Q4 dengan sesi nyata | **Belum; menunggu pemilik** | Cetak label, scan, rotasi, scan token lama (`INVALID_QR`), periksa audit `qr.identity_rotated` tanpa token (§6.3 langkah 6) |
 | Penerapan `0011` dan jumlah backfill produksi | **Selesai 12 November 2026** | Backup pre-0011 (187 KB), kandidat 12 Tema/26 attendance, apply remote, verifikasi `schema_version = 11`, 26 transaksi, 12 Aktivitas default, 5 penugasan, 32 aturan entitlement (§6.4) |
-| Smoke produksi Q5 dengan sesi nyata | **Belum; menunggu deploy kode Q5 + sesi pemilik** | Scan Petugas, scan kedua → `DUPLICATE`, Reversal/Adjustment Admin, Manual Entry hanya bila `allow_manual = 1` dan penugasan mengizinkan; periksa `attendance` tidak bertambah (§6.4 langkah 6) |
+| Smoke produksi Q5 dengan sesi nyata | **Selesai 14 November 2026** | Scan Petugas `SUCCESS` → `DUPLICATE`, Adjustment + Reversal Admin Acara, scan ulang `SUCCESS`; `attendance` tetap 26, `transactions` 26 → 29, koreksi 0 → 2 (§6.4) |
+| Manual Entry produksi | Setelah Q6 menyediakan UI penugasan | `allow_manual = 1` + `can_manual_check_in = 1`; verifikasi source Manual Entry dan aktor (§6.4) |
+| Rotasi `SESSION_PEPPER` produksi | **Selesai 14 November 2026** | 10 sesi revoke, 22 recovery code invalid, aktivasi ulang lewat undangan; deployment `7b8ad6b6` (§6.4) |
 | CPU produksi route entitlement | Setelah deploy Q3 | `wrangler tail`; matriks/batch 15 baris adalah kandidat terberat |
 | CPU produksi rotasi/QR label | Setelah deploy Q4 | `wrangler tail` saat cetak 38 label dan rotasi; lokal 47 statement / 45 ms adalah proksi |
 | CPU produksi scan/koreksi Q5 | Setelah deploy Q5 | `wrangler tail`; lokal 15 statement scan / 11–12 koreksi adalah proksi, bukan CPU tertagih |
