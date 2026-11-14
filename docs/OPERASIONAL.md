@@ -673,7 +673,8 @@ lama, dan itu akan terlihat sebagai `500` pada cetak ulang (bukan kerusakan data
 | Smoke produksi Q4 dengan sesi nyata | **Belum; menunggu pemilik** | Cetak label, scan, rotasi, scan token lama (`INVALID_QR`), periksa audit `qr.identity_rotated` tanpa token (§6.3 langkah 6) |
 | Penerapan `0011` dan jumlah backfill produksi | **Selesai 12 November 2026** | Backup pre-0011 (187 KB), kandidat 12 Tema/26 attendance, apply remote, verifikasi `schema_version = 11`, 26 transaksi, 12 Aktivitas default, 5 penugasan, 32 aturan entitlement (§6.4) |
 | Smoke produksi Q5 dengan sesi nyata | **Selesai 14 November 2026** | Scan Petugas `SUCCESS` → `DUPLICATE`, Adjustment + Reversal Admin Acara, scan ulang `SUCCESS`; `attendance` tetap 26, `transactions` 26 → 29, koreksi 0 → 2 (§6.4) |
-| Manual Entry produksi | Setelah Q6 menyediakan UI penugasan | `allow_manual = 1` + `can_manual_check_in = 1`; verifikasi source Manual Entry dan aktor (§6.4) |
+| Manual Entry produksi | Setelah UI Manual Entry tersedia (gap Q5; Q6 hanya menambah UI penugasan) | `allow_manual = 1` + `can_manual_check_in = 1`; verifikasi source Manual Entry dan aktor (§6.4) |
+| Uji perangkat scanner Q6 | **Belum; menunggu pemilik** | Checklist §11 (iPhone Safari + Android Chrome, audio/mute, kamera depan/belakang, jaringan mati, penugasan dicabut) |
 | Rotasi `SESSION_PEPPER` produksi | **Selesai 14 November 2026** | 10 sesi revoke, 22 recovery code invalid, aktivasi ulang lewat undangan; deployment `7b8ad6b6` (§6.4) |
 | CPU produksi route entitlement | Setelah deploy Q3 | `wrangler tail`; matriks/batch 15 baris adalah kandidat terberat |
 | CPU produksi rotasi/QR label | Setelah deploy Q4 | `wrangler tail` saat cetak 38 label dan rotasi; lokal 47 statement / 45 ms adalah proksi |
@@ -882,3 +883,37 @@ curl -sI "$base/assets/" 2>/dev/null | head -1   # aset ada
   roll-forward, jalankan promosi untuk setiap peserta yang menerima kartu baru selama
   rollback, lalu scan ulang kartu tersebut. Jangan mengandalkan `qr_identities` yang lebih
   tua sebagai sumber kebenaran untuk kredensial rollback.
+
+---
+
+## 11. Uji perangkat scanner (Q6)
+
+Checklist ini **manual** dan belum dijalankan sampai ada laporan hasil. Scanner membutuhkan
+secure context: `localhost` saat dev, HTTPS di domain nyata. Akses kamera harus dipicu klik
+("Mulai kamera"), bukan otomatis saat halaman dibuka.
+
+Prasyarat: akun Petugas aktif, penugasan pada satu Aktivitas tanpa Sesi dan satu Aktivitas
+dengan Sesi, satu kartu QR peserta yang valid, dan satu QR rusak/kartu acara lain.
+
+| # | Uji | Hasil yang diharapkan |
+|---|---|---|
+| 1 | Buka `/staff/scan` tanpa penugasan | Empty state "belum ditugaskan"; tidak ada request scan |
+| 2 | Buka deep link `?eventId=&activityId=&sessionId=` milik Petugas lain | Penolakan teks; konteks tidak terpilih otomatis |
+| 3 | Pilih konteks Aktivitas dengan Sesi | Select Sesi wajib; konteks tanpa Sesi berlabel "Semua sesi" |
+| 4 | Mulai kamera di iPhone Safari | Prompt izin muncul setelah gesture; kamera belakang aktif |
+| 5 | Tukar kamera depan/belakang saat standby | Stream restart; tidak ada error; tombol nonaktif selama feedback |
+| 6 | Scan QR valid | Panel hijau + ikon + nama peserta; nada sukses; kembali standby ±2 detik |
+| 7 | Scan QR yang sama saat feedback | Deteksi diabaikan; tidak ada request kedua |
+| 8 | Scan QR yang sama setelah standby | `DUPLICATE` (bukan sukses palsu), waktu absen pertama tampil |
+| 9 | Scan QR rusak | Panel merah "QR tidak dikenali"; bukan sukses |
+| 10 | Matikan jaringan (mode pesawat) lalu scan | Indikator Offline; pesan "belum tercatat"; tidak ada antrean; setelah online bisa scan ulang |
+| 11 | Server 5xx / Worker dimatikan | Pesan server bermasalah, bukan sukses; scan ulang setelah pulih |
+| 12 | Cabut penugasan dari akun admin saat halaman terbuka, lalu scan | Panel "Penugasan berubah"; pemindaian berhenti; tombol "Muat ulang konteks" memperbarui daftar |
+| 13 | Aktifkan mute, reload halaman | Preferensi mute bertahan; teks/ikon tetap menjadi indikator utama |
+| 14 | Portrait dan landscape | Kamera `aspect-[3/4]` / `aspect-video`, tidak melampaui viewport, kontrol tetap terjangkau |
+| 15 | Android Chrome (BarcodeDetector) | Perilaku sama dengan Safari; fallback ZXing tidak error |
+| 16 | Dua Petugas bergantian di satu perangkat | Setiap Petugas logout/login dengan akun sendiri; `recordedBy` sesuai akun |
+| 17 | 20 scan berturut-turut per perangkat tanpa reload | Stabil, tanpa kebocoran memori/stream, hasil tetap akurat; feedback tetap ±2 detik |
+
+Catat perangkat, versi browser, dan hasil tiap nomor. Gate Q6 belum ditutup sampai checklist
+ini dijalankan pada perangkat pemilik dan hasilnya dicatat di sini.

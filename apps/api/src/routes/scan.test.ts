@@ -310,15 +310,23 @@ describe("POST /api/events/:eventId/scan", () => {
 
   it("requires assignment for Petugas but not for the Tema Admin", async () => {
     const s = await scenario();
+    const sessionId = await createActivitySession(s.activityId);
 
     const officerId = await createUser({ role: "officer", displayName: "Tanpa Tugas" });
     await addMembership(s.eventId, officerId, "officer");
     const officerCookie = (await createSession(officerId)).cookie;
 
-    const unassigned = await scan(officerCookie, s.eventId, s.qr);
+    // URL parameters only preselect a context: they never grant access (FR-190).
+    const unassigned = await scan(officerCookie, s.eventId, s.qr, {
+      activityId: s.activityId,
+      sessionId,
+    });
     expect(unassigned.status).toBe(403);
 
-    const admin = await scan(s.adminCookie, s.eventId, s.qr);
+    const admin = await scan(s.adminCookie, s.eventId, s.qr, {
+      activityId: s.activityId,
+      sessionId,
+    });
     const body = admin.json<ScanResultPayload>();
     expect(body.ok && body.data.result).toBe("SUCCESS");
   });

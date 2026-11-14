@@ -1,13 +1,59 @@
-import type { InviteCreatedPayload, InviteSummary, MemberSummary } from "@absensi/shared";
-import { Copy, QrCode as QrCodeIcon, Share2, UserCog, UserMinus, UserPlus } from "lucide-react";
+import type {
+  Activity,
+  ActivitySession,
+  InviteCreatedPayload,
+  InviteSummary,
+  MemberSummary,
+  StaffAssignment,
+} from "@absensi/shared";
+import {
+  Copy,
+  ListChecks,
+  Plus,
+  QrCode as QrCodeIcon,
+  Share2,
+  UserCog,
+  UserMinus,
+  UserPlus,
+} from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { QrCode } from "@/components/qr-code";
 import { EmptyState, ErrorState, LoadingState, Notice } from "@/components/page-state";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Field, Input, Select } from "@/components/ui/field";
-import { createEventInvite, deleteEventInvite, listEventInvites, listEventMembers, revokeEventMember } from "@/lib/event-admin";
+import {
+  Dialog,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Checkbox, Field, Input, Select } from "@/components/ui/field";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { listActivities, listActivitySessions } from "@/lib/activities";
+import {
+  createAssignment,
+  listEventAssignments,
+  revokeAssignment,
+  updateAssignmentManualFlag,
+  type AssignmentStatusFilter,
+} from "@/lib/assignments";
+import {
+  createEventInvite,
+  deleteEventInvite,
+  listEventInvites,
+  listEventMembers,
+  revokeEventMember,
+} from "@/lib/event-admin";
 import { formatDateTime } from "@/lib/format";
 import { useSession } from "@/lib/session";
 
@@ -145,9 +191,12 @@ export function EventStaffPage({ eventId }: { eventId: string }) {
   }
 
   return (
-    <AppShell variant="embedded" title="Petugas" subtitle="Kelola anggota dan undangan acara">
+    <AppShell variant="embedded" title="Petugas" subtitle="Kelola anggota, undangan, dan penugasan scanner">
       {error && <ErrorState message={error} onRetry={() => setRefresh((value) => value + 1)} />}
       {notice && <Notice tone="success">{notice}</Notice>}
+
+      <AssignmentSection eventId={eventId} members={data?.members ?? []} />
+
       <section className="space-y-3 rounded-xl border p-4">
         <div className="flex items-center gap-2">
           <UserPlus aria-hidden="true" className="size-4" />
@@ -222,5 +271,472 @@ export function EventStaffPage({ eventId }: { eventId: string }) {
         ) : <EmptyState>Belum ada undangan.</EmptyState>}
       </section>
     </AppShell>
+  );
+}
+
+/**
+ * Penugasan scanner (Q6 §9). The Worker is the final authority; this section
+ * only narrows the UI to Aktivitas/Sesi the Petugas can actually scan.
+ */
+function AssignmentSection({ eventId, members }: { eventId: string; members: MemberSummary[] }) {
+  const [assignments, setAssignments] = useState<StaffAssignment[] | null>(null);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refresh, setRefresh] = useState(0);
+  const [statusFilter, setStatusFilter] = useState<AssignmentStatusFilter>("active");
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [officerId, setOfficerId] = useState("");
+  const [activityId, setActivityId] = useState("");
+  const [sessionId, setSessionId] = useState("");
+  const [sessions, setSessions] = useState<ActivitySession[] | null>(null);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [manual, setManual] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const [revokeTarget, setRevokeTarget] = useState<StaffAssignment | null>(null);
+  const [revokeError, setRevokeError] = useState<string | null>(null);
+  const [rowBusy, setRowBusy] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    Promise.all([listEventAssignments(eventId, "all"), listActivities(eventId)])
+      .then(([assignmentBody, activityBody]) => {
+        if (cancelled) return;
+        if (!assignmentBody.ok) {
+          setError(assignmentBody.error.message);
+          return;
+        }
+        if (!activityBody.ok) {
+          setError(activityBody.error.message);
+          return;
+        }
+        setAssignments(assignmentBody.data.assignments);
+        setActivities(
+          activityBody.data.activities.filter(
+            (activity) => activity.status !== "archived" && activity.archivedAt === null,
+          ),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setError("Tidak bisa menghubungi server");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, refresh]);
+
+  useEffect(() => {
+    if (!dialogOpen || !activityId) {
+      setSessions(null);
+      return;
+    }
+
+    let cancelled = false;
+    setSessionsLoading(true);
+    setFormError(null);
+
+    listActivitySessions(eventId, activityId)
+      .then((body) => {
+        if (cancelled) return;
+        if (!body.ok) {
+          setFormError(body.error.message);
+          setSessions([]);
+          setSessionId("");
+          return;
+        }
+        const list = body.data.sessions.filter((item) => item.archivedAt === null);
+        setSessions(list);
+        setSessionId(list[0]?.id ?? "");
+      })
+      .catch(() => {
+        if (!cancelled) setFormError("Tidak bisa memuat Sesi");
+      })
+      .finally(() => {
+        if (!cancelled) setSessionsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dialogOpen, eventId, activityId]);
+
+  const activeAssignments = (assignments ?? []).filter((item) => item.status === "active");
+  const visibleAssignments = (assignments ?? []).filter(
+    (item) => statusFilter === "all" || item.status === statusFilter,
+  );
+  const officers = members.filter((member) => member.role === "officer");
+  const unassigned = officers.filter(
+    (member) => !activeAssignments.some((item) => item.userId === member.userId),
+  );
+
+  function openCreate(presetUserId?: string) {
+    setOfficerId(presetUserId ?? officers[0]?.userId ?? "");
+    setActivityId(activities[0]?.id ?? "");
+    setSessionId("");
+    setSessions(null);
+    setManual(false);
+    setFormError(null);
+    setDialogOpen(true);
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setFormError(null);
+
+    if (!officerId || !activityId) {
+      setFormError("Pilih Petugas dan Aktivitas terlebih dahulu");
+      return;
+    }
+    if (sessionsLoading) {
+      setFormError("Tunggu daftar Sesi selesai dimuat");
+      return;
+    }
+
+    const needsSession = (sessions?.length ?? 0) > 0;
+    if (needsSession && !sessionId) {
+      setFormError("Pilih Sesi untuk Aktivitas ini");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const result = await createAssignment(eventId, {
+        userId: officerId,
+        activityId,
+        sessionId: needsSession ? sessionId : null,
+        canManualCheckIn: manual,
+      });
+      if (!result.ok) {
+        setFormError(result.error.message);
+        return;
+      }
+      setDialogOpen(false);
+      setRefresh((value) => value + 1);
+    } catch {
+      setFormError("Tidak bisa menghubungi server");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function toggleManual(assignment: StaffAssignment) {
+    setRowBusy(assignment.id);
+    setError(null);
+    try {
+      const result = await updateAssignmentManualFlag(eventId, assignment.id, {
+        canManualCheckIn: !assignment.canManualCheckIn,
+      });
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
+      }
+      setAssignments((current) =>
+        current
+          ? current.map((item) =>
+              item.id === result.data.assignment.id ? result.data.assignment : item,
+            )
+          : current,
+      );
+    } catch {
+      setError("Tidak bisa menghubungi server");
+    } finally {
+      setRowBusy(null);
+    }
+  }
+
+  async function confirmRevoke() {
+    if (!revokeTarget) return;
+    setRowBusy(revokeTarget.id);
+    setRevokeError(null);
+    try {
+      const result = await revokeAssignment(eventId, revokeTarget.id);
+      if (!result.ok) {
+        setRevokeError(result.error.message);
+        return;
+      }
+      setRevokeTarget(null);
+      setRefresh((value) => value + 1);
+    } catch {
+      setRevokeError("Tidak bisa menghubungi server");
+    } finally {
+      setRowBusy(null);
+    }
+  }
+
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <h2 className="flex items-center gap-2 font-semibold">
+            <ListChecks aria-hidden="true" className="size-4" />
+            Penugasan scanner
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Tentukan Aktivitas/Sesi yang boleh dipindai tiap Petugas. Satu perangkat boleh
+            dipakai bergantian, tetapi setiap Petugas wajib memakai akun sendiri.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <Field label="Status" htmlFor="assignment-filter">
+            <Select
+              id="assignment-filter"
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value as AssignmentStatusFilter)}
+            >
+              <option value="active">Aktif</option>
+              <option value="revoked">Dicabut</option>
+              <option value="all">Semua</option>
+            </Select>
+          </Field>
+          <Button type="button" size="sm" onClick={() => openCreate()} disabled={officers.length === 0 || activities.length === 0}>
+            <Plus aria-hidden="true" className="size-4" />
+            Buat penugasan
+          </Button>
+        </div>
+      </div>
+
+      {unassigned.length > 0 && (
+        <div className="rounded-lg border border-amber-600/30 bg-amber-600/5 p-3 text-sm text-amber-900">
+          <p className="font-medium">Petugas aktif belum punya penugasan</p>
+          <p className="mt-1">
+            {unassigned.map((member) => member.displayName).join(", ")} — belum bisa memindai
+            sampai ditugaskan.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={() => openCreate(unassigned[0]?.userId)}
+            disabled={activities.length === 0}
+          >
+            <Plus aria-hidden="true" className="size-4" />
+            Buat penugasan
+          </Button>
+        </div>
+      )}
+
+      {error && <ErrorState message={error} onRetry={() => setRefresh((value) => value + 1)} />}
+
+      {loading ? (
+        <LoadingState label="Memuat penugasan…" />
+      ) : visibleAssignments.length === 0 ? (
+        <EmptyState>
+          {statusFilter === "active"
+            ? "Belum ada penugasan aktif. Petugas tidak bisa memindai tanpa penugasan."
+            : "Tidak ada penugasan pada filter ini."}
+        </EmptyState>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Petugas</TableHead>
+              <TableHead>Aktivitas</TableHead>
+              <TableHead>Sesi</TableHead>
+              <TableHead>Manual Check-in</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Aksi</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {visibleAssignments.map((assignment) => (
+              <TableRow key={assignment.id}>
+                <TableCell className="font-medium">{assignment.userDisplayName}</TableCell>
+                <TableCell>{assignment.activityName}</TableCell>
+                <TableCell>{assignment.sessionName ?? "Semua sesi"}</TableCell>
+                <TableCell>
+                  {assignment.status === "active" ? (
+                    <label className="flex items-center gap-2">
+                      <Checkbox
+                        checked={assignment.canManualCheckIn}
+                        disabled={rowBusy === assignment.id}
+                        aria-label={`Manual Check-in untuk ${assignment.userDisplayName}`}
+                        onChange={() => void toggleManual(assignment)}
+                      />
+                      <span className="text-sm">
+                        {assignment.canManualCheckIn ? "Manual aktif" : "Manual mati"}
+                      </span>
+                    </label>
+                  ) : (
+                    <Badge variant="muted">Tidak berlaku</Badge>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <Badge variant={assignment.status === "active" ? "success" : "muted"}>
+                    {assignment.status === "active" ? "Aktif" : "Dicabut"}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right">
+                  {assignment.status === "active" && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={rowBusy === assignment.id}
+                      onClick={() => {
+                        setRevokeError(null);
+                        setRevokeTarget(assignment);
+                      }}
+                    >
+                      Cabut
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+
+      <Dialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        ariaLabel="Buat penugasan scanner"
+      >
+        <form className="space-y-4" onSubmit={(event) => void submit(event)}>
+          <DialogHeader>
+            <DialogTitle>Buat penugasan scanner</DialogTitle>
+            <DialogDescription>
+              Petugas hanya bisa memindai Aktivitas/Sesi yang ditugaskan. Riwayat transaksi lama
+              tidak berubah.
+            </DialogDescription>
+          </DialogHeader>
+
+          <Field label="Petugas" htmlFor="assignment-officer">
+            <Select
+              id="assignment-officer"
+              value={officerId}
+              onChange={(event) => setOfficerId(event.target.value)}
+              autoFocus
+            >
+              {officers.length === 0 && <option value="">Belum ada Petugas aktif</option>}
+              {officers.map((member) => (
+                <option key={member.userId} value={member.userId}>
+                  {member.displayName}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <Field label="Aktivitas" htmlFor="assignment-activity">
+            <Select
+              id="assignment-activity"
+              value={activityId}
+              onChange={(event) => setActivityId(event.target.value)}
+            >
+              {activities.length === 0 && <option value="">Belum ada Aktivitas aktif</option>}
+              {activities.map((activity) => (
+                <option key={activity.id} value={activity.id}>
+                  {activity.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <Field label="Sesi" htmlFor="assignment-session">
+            <Select
+              id="assignment-session"
+              value={sessionId}
+              disabled={sessionsLoading || (sessions?.length ?? 0) === 0}
+              onChange={(event) => setSessionId(event.target.value)}
+            >
+              {sessionsLoading && <option value="">Memuat Sesi…</option>}
+              {!sessionsLoading && (sessions?.length ?? 0) === 0 && (
+                <option value="">Aktivitas ini tanpa Sesi</option>
+              )}
+              {sessions?.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <label className="flex items-start gap-2 text-sm">
+            <Checkbox
+              checked={manual}
+              onChange={(event) => setManual(event.target.checked)}
+              className="mt-0.5"
+            />
+            <span>
+              <span className="font-medium">Manual Check-in</span>
+              <span className="block text-xs text-muted-foreground">
+                Hanya membuka Manual Entry; entitlement tetap terpisah.
+              </span>
+            </span>
+          </label>
+
+          {formError && (
+            <p role="alert" className="rounded-md border border-red-600/30 bg-red-600/5 p-2 text-sm text-red-700">
+              {formError}
+            </p>
+          )}
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDialogOpen(false)}
+              disabled={saving}
+            >
+              Batal
+            </Button>
+            <Button type="submit" disabled={saving || sessionsLoading || officers.length === 0}>
+              Simpan penugasan
+            </Button>
+          </DialogFooter>
+        </form>
+      </Dialog>
+
+      <Dialog
+        open={revokeTarget !== null}
+        onClose={() => setRevokeTarget(null)}
+        ariaLabel="Cabut penugasan"
+      >
+        <DialogHeader>
+          <DialogTitle>Cabut penugasan?</DialogTitle>
+          <DialogDescription>
+            {revokeTarget?.userDisplayName} tidak bisa memindai {revokeTarget?.activityName}
+            {revokeTarget?.sessionName ? ` · ${revokeTarget.sessionName}` : ""} lagi. Riwayat
+            transaksi tetap tersimpan.
+          </DialogDescription>
+        </DialogHeader>
+
+        {revokeError && (
+          <p role="alert" className="rounded-md border border-red-600/30 bg-red-600/5 p-2 text-sm text-red-700">
+            {revokeError}
+          </p>
+        )}
+
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setRevokeTarget(null)}
+            disabled={rowBusy !== null}
+          >
+            Batal
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={() => void confirmRevoke()}
+            disabled={rowBusy !== null}
+          >
+            Cabut penugasan
+          </Button>
+        </DialogFooter>
+      </Dialog>
+    </section>
   );
 }

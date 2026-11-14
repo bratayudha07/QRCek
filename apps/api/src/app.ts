@@ -18,6 +18,7 @@ import { labelRoutes } from "./routes/labels";
 import { participantRoutes } from "./routes/participants";
 import { qrIdentityRoutes } from "./routes/qr-identities";
 import { scanRoutes } from "./routes/scan";
+import { staffAssignmentRoutes } from "./routes/staff-assignments";
 import { syncRoutes } from "./routes/sync";
 
 /**
@@ -40,6 +41,7 @@ export const ROUTES: readonly RouteDefinition[] = [
   ...labelRoutes,
   ...qrIdentityRoutes,
   ...scanRoutes,
+  ...staffAssignmentRoutes,
   ...attendanceRoutes,
   ...auditRoutes,
   ...dashboardRoutes,

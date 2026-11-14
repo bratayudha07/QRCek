@@ -28,6 +28,7 @@ const EXPECTED: Record<Action, { superadmin: boolean; eventAdmin: boolean; offic
   "qr:print": { superadmin: true, eventAdmin: true, officer: false },
   "qr:rotate": { superadmin: true, eventAdmin: true, officer: false },
   scan: { superadmin: true, eventAdmin: true, officer: true },
+  "assignment:manage": { superadmin: true, eventAdmin: true, officer: false },
   "recap:read": { superadmin: true, eventAdmin: true, officer: true },
   "attendance:manual": { superadmin: true, eventAdmin: true, officer: true },
   "transaction:correct": { superadmin: true, eventAdmin: true, officer: false },

@@ -287,7 +287,8 @@ type VersionedAuditTable =
   | "categories"
   | "custom_fields"
   | "entitlement_rules"
-  | "participants";
+  | "participants"
+  | "staff_assignments";
 
 /**
  * Audit insert that only fires when the versioned row from the same
@@ -384,8 +385,23 @@ export function insertAuditAfterParticipantUpdateStatement(
   );
 }
 
-/** Entitlement rules carry `updated_at`; a lost optimistic write writes no audit. */
-export function insertAuditAfterEntitlementRuleUpdateStatement(
+/** Assignment updates/revocations carry `updated_at`; a lost race writes no audit. */
+export function insertAuditAfterStaffAssignmentUpdateStatement(
+  db: D1Database,
+  entry: AuditEntry,
+  assignmentId: string,
+  updatedAt: number,
+): D1PreparedStatement {
+  return insertAuditAfterVersionedUpdateStatement(
+    db,
+    entry,
+    "staff_assignments",
+    assignmentId,
+    updatedAt,
+  );
+}
+
+/** Entitlement rules carry `updated_at`; a lost optimistic write writes no audit. */export function insertAuditAfterEntitlementRuleUpdateStatement(
   db: D1Database,
   entry: AuditEntry,
   ruleId: string,

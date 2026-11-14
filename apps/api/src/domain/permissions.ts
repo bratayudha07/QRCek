@@ -26,6 +26,7 @@ export type Action =
   | "qr:print"
   | "qr:rotate"
   | "scan"
+  | "assignment:manage"
   | "recap:read"
   | "attendance:manual"
   | "transaction:correct"
@@ -63,6 +64,9 @@ const MIN_MEMBERSHIP: Record<Action, EventRole | null> = {
   // (ADR-0017 sub-decision 2). Officers never.
   "qr:rotate": "event_admin",
   scan: "officer",
+  // Manage who scans which Aktivitas/Sesi (ADR-0021). Officers never, including
+  // over their own assignment; Super Admin passes as a cross-Tema manager.
+  "assignment:manage": "event_admin",
   "recap:read": "officer",
   // Manual Check-in is a separate authority from QR scan and from corrections
   // (ADR-0021, AC-055). The route still checks assignment, the flag, and

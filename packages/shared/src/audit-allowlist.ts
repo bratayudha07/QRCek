@@ -19,7 +19,8 @@ export type AuditEntityType =
   | "entitlement_rule"
   | "participant"
   | "qr_identity"
-  | "transaction";
+  | "transaction"
+  | "staff_assignment";
 
 export const REDACTED = "[REDACTED]" as const;
 
@@ -88,6 +89,17 @@ export const AUDIT_FIELDS: Readonly<Record<AuditEntityType, readonly string[]>> 
     "adjustsTransactionId",
     "reversedAt",
     "supersededAt",
+  ],
+  // Assignment coordinates and the Manual Check-in flag only. Display names,
+  // emails, and any credential are never snapshotted (FR-207).
+  staff_assignment: [
+    "themeId",
+    "activityId",
+    "sessionId",
+    "userId",
+    "canManualCheckIn",
+    "status",
+    "revokedAt",
   ],
 };
 

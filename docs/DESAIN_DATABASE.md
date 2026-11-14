@@ -2,7 +2,7 @@
 
 Database: Cloudflare D1, binding `DB`. Dialek **SQLite**, bukan Postgres.
 
-> **Status dokumen (10 November 2026).** Dokumen ini mencatat **skema aktual**: migrasi `0001`–`0011`. `0001`–`0006` sudah diterapkan di remote dan **tidak boleh diedit**; `0007_q1_activities_sessions.sql` diterapkan di remote pada 6 November 2026 (backup: `/tmp/opencode/qrcek-backup-2026-11-06.sql`). `0008_q2_categories_custom_fields.sql` diterapkan di remote pada **8 November 2026 02:28 UTC** (`app_meta.schema_version = 8`) berdekatan dengan deploy kode Q2; verifikasi data: 80 peserta, 32 kategori, 0 peserta tanpa `category_id`, 0 kategori lintas Tema (`docs/OPERASIONAL.md`). `0009_entitlement_rules.sql` (Q3) sudah diuji di database lokal dan **sudah diterapkan di remote** pada 8 November 2026 (`app_meta.schema_version = 9`, deploy `dc8b8546`); backfill menghasilkan 0 baris. `0010_qr_identities.sql` (Q4) **sudah diterapkan di remote** pada **9 November 2026 02:34 UTC** (`app_meta.schema_version = 10`, backup pra-migrasi `/tmp/opencode/qrcek-backup-2026-11-09-pre-0010.sql`, 149 KB); backfill menyalin **60 baris** kredensial legacy dari 80 peserta, 0 nilai tidak cocok. `0011_q5_transactions.sql` (Q5) **sudah diterapkan di remote** pada **12 November 2026** (`app_meta.schema_version = 11`, backup pra-migrasi `/tmp/opencode/qrcek-backup-2026-11-12-pre-0011.sql`, 187 KB). Backfill membuat **12 Aktivitas Attendance default** (satu per Tema), **32 aturan entitlement**, **5 penugasan Petugas**, dan menyalin **26 baris `attendance`** menjadi `transactions` dengan id yang sama; verifikasi lintas Tema = 0. Migrasi diuji lebih dulu di database lokal kosong dan oleh suite integrasi yang menerapkan seluruh migrasi.
+> **Status dokumen (14 November 2026).** Dokumen ini mencatat **skema aktual**: migrasi `0001`–`0011`. `0001`–`0006` sudah diterapkan di remote dan **tidak boleh diedit**; `0007_q1_activities_sessions.sql` diterapkan di remote pada 6 November 2026 (backup: `/tmp/opencode/qrcek-backup-2026-11-06.sql`). `0008_q2_categories_custom_fields.sql` diterapkan di remote pada **8 November 2026 02:28 UTC** (`app_meta.schema_version = 8`) berdekatan dengan deploy kode Q2; verifikasi data: 80 peserta, 32 kategori, 0 peserta tanpa `category_id`, 0 kategori lintas Tema (`docs/OPERASIONAL.md`). `0009_entitlement_rules.sql` (Q3) sudah diuji di database lokal dan **sudah diterapkan di remote** pada 8 November 2026 (`app_meta.schema_version = 9`, deploy `dc8b8546`); backfill menghasilkan 0 baris. `0010_qr_identities.sql` (Q4) **sudah diterapkan di remote** pada **9 November 2026 02:34 UTC** (`app_meta.schema_version = 10`, backup pra-migrasi `/tmp/opencode/qrcek-backup-2026-11-09-pre-0010.sql`, 149 KB); backfill menyalin **60 baris** kredensial legacy dari 80 peserta, 0 nilai tidak cocok. `0011_q5_transactions.sql` (Q5) **sudah diterapkan di remote** pada **12 November 2026** (`app_meta.schema_version = 11`, backup pra-migrasi `/tmp/opencode/qrcek-backup-2026-11-12-pre-0011.sql`, 187 KB). Backfill membuat **12 Aktivitas Attendance default** (satu per Tema), **32 aturan entitlement**, **5 penugasan Petugas**, dan menyalin **26 baris `attendance`** menjadi `transactions` dengan id yang sama; verifikasi lintas Tema = 0. Migrasi diuji lebih dulu di database lokal kosong dan oleh suite integrasi yang menerapkan seluruh migrasi. **Q6 tidak menambah migrasi**: penugasan memakai tabel `staff_assignments` dan indeks dari `0011`.
 >
 > **Delta yang sudah ditutup Q5:** transaksi efektif berkonteks Aktivitas/Sesi (`D-003`), Reversal/Adjustment tanpa menimpa riwayat (`D-006`), dan koreksi via `UPDATE attendance` sudah tidak ada di kode. Tabel `attendance` **tetap ada dan tidak lagi ditulis**; ia hanya dibaca oleh adaptor kompatibilitas sampai Q8. Delta yang **masih terbuka**: kuota konsumsi ditegakkan di database (Q7) dan `slot_no` sudah disiapkan tetapi belum divalidasi; `participants.qr_*` legacy belum dihapus (ADR-0017).
 
@@ -67,7 +67,7 @@ Catatan: `superadmin` bersifat global (`users.role`), sedangkan `event_admin` da
 
 ## 3. DDL
 
-> **Keadaan aktual per 10 November 2026:** migrasi `0001`–`0006` membuat tabel bisnis, kolom QR, attendance, audit, outbox, Sheets, dan metadata self-signup; `0007` menambahkan `activities` dan `activity_sessions` (Q1); `0008`–`0010` menambahkan kategori/custom field, entitlement, dan QR Identity; `0011` menambahkan `transactions`, `transaction_corrections`, dan `staff_assignments` (Q5). DDL di bawah mendokumentasikan skema; file migrasi tetap sumber kebenaran untuk definisi aktual.
+> **Keadaan aktual per 14 November 2026:** migrasi `0001`–`0006` membuat tabel bisnis, kolom QR, attendance, audit, outbox, Sheets, dan metadata self-signup; `0007` menambahkan `activities` dan `activity_sessions` (Q1); `0008`–`0010` menambahkan kategori/custom field, entitlement, dan QR Identity; `0011` menambahkan `transactions`, `transaction_corrections`, dan `staff_assignments` (Q5). Q6 hanya menambah query/route/UI di atas skema itu. DDL di bawah mendokumentasikan skema; file migrasi tetap sumber kebenaran untuk definisi aktual.
 
 File migrasi: satu file per perubahan skema, diberi nomor berurutan di `migrations/`.
 
@@ -894,8 +894,8 @@ Backfill satu kali, berurutan:
    `allowed` per kategori aktif (atau kategori arsip yang masih punya peserta), tanpa Sesi dan
    tanpa peserta. Mencegah resolver fail-closed menolak seluruh peserta lama.
 3. **Penugasan Petugas.** Setiap anggota `officer` aktif mendapat penugasan aktif pada setiap
-   Aktivitas Attendance aktif di Temanya dengan `can_manual_check_in = 0`; Q6 yang membuat
-   admin dapat mengaktifkan Manual Check-in per penugasan.
+   Aktivitas Attendance aktif di Temanya dengan `can_manual_check_in = 0`; sejak Q6 admin dapat
+   mengaktifkan Manual Check-in per penugasan.
 4. **Penyalinan `attendance` → `transactions`.** `id` lama dipakai ulang; `method = 'qr_scan'`
    menjadi `source = 'qr_scan'`, selain itu `manual`; Aktivitas tujuan adalah Aktivitas
    Attendance pertama pada Tema itu (`sort_order`, `created_at`, `id`). Hanya baris yang belum
@@ -925,6 +925,27 @@ Backfill satu kali, berurutan:
 >    `recorded_by` boleh `NULL` hanya untuk baris historis ini.
 > 7. **Backfill tidak menulis audit** karena migrasi bukan aksi admin; ini pengecualian yang
 >    sama dengan `0009`/`0010`, bukan pola untuk mutasi runtime.
+
+### Q6 — penugasan Petugas tanpa perubahan skema
+
+Q6 tidak menambah tabel, kolom, atau indeks. Semua query memakai `staff_assignments` dan
+indeks dari `0011`:
+
+- **Daftar penugasan Tema** — `WHERE theme_id = ? AND (? = 'all' OR status = ?)`, urut
+  `created_at, id`, dibatasi `ASSIGNMENT_LIST_LIMIT`. Tabel ini kecil (satu baris per Petugas
+  per Aktivitas/Sesi), sehingga filter Tema tanpa indeks khusus masih memadai; tinjau ulang
+  bila jumlah baris tumbuh jauh.
+- **Konteks milik pemanggil** — `WHERE user_id = ? AND status = 'active'` memakai
+  `idx_assignment_user_theme`, lalu join `events`, `activities`, dan `activity_sessions`.
+  Ekspansi Aktivitas → Sesi dan aturan penimpaan dilakukan di `domain/staff-context.ts`,
+  bukan di SQL.
+- **Duplikasi** — `uq_assignment_activity` dan `uq_assignment_session` (partial, hanya
+  `status = 'active'`) menolak penugasan aktif ganda; route memetakan `UNIQUE constraint
+  failed` menjadi `409 CONFLICT`, bukan `500`.
+- **Pencabutan** — `UPDATE ... SET status = 'revoked', revoked_at = ?`; tidak ada `DELETE`.
+  Trigger context tetap berlaku saat update, dan `transactions` tidak disentuh.
+- **Audit** — `assignment.created|updated|revoked` ditulis dalam `db.batch()` yang sama dengan
+  mutasi baris, sehingga tidak ada mutasi tanpa jejak (`audit.guarded-write`).
 
 ---
 
@@ -981,7 +1002,11 @@ Setiap indeks menambah baris tulis. Indeks di bawah dipilih karena setiap halama
 | Koreksi tidak bisa diubah/dihapus | Trigger `trg_transaction_corrections_no_{update,delete}` | `scan.test.ts`, `db.integration.test.ts` |
 | Catatan bebas tidak masuk audit/koreksi | `transactionSnapshot` + allowlist `transaction` hanya `noteChanged` | `domain/transactions.test.ts`, `scan.test.ts` |
 | Transaksi tidak bisa lintas Tema/Aktivitas/Sesi | `trg_transaction_context_insert` + scope query route | `scan.test.ts` — Aktivitas Tema lain → 404, token Tema lain → `INVALID_QR` |
-| Petugas hanya pada penugasan aktif | `staff_assignments` + `trg_staff_assignment_context_*` | `scan.test.ts` — tanpa penugasan → 403 |
+| Petugas hanya pada penugasan aktif | `staff_assignments` + `trg_staff_assignment_context_*` | `scan.test.ts` — tanpa penugasan → 403; `staff-assignments.test.ts` |
+| Penugasan hanya dikelola Admin Acara/Super Admin | `requireEventAccess`/`requireMutableEvent` dengan izin `assignment:manage` (minimum `event_admin`) | `staff-assignments.test.ts` — Petugas 403 |
+| Penugasan tidak lintas Tema/Aktivitas/Sesi | `trg_staff_assignment_context_*` + query ber-scope `theme_id`/`activity_id` | `staff-assignments.test.ts` — 404/422 |
+| Penugasan aktif ganda ditolak | `uq_assignment_activity` / `uq_assignment_session` (partial, `status = 'active'`) | `staff-assignments.test.ts` — 409, bukan 500 |
+| Pencabutan penugasan tidak menghapus riwayat | `UPDATE status = 'revoked'`; `transactions` tidak disentuh | `staff-assignments.test.ts` — transaksi tetap ada |
 | Scan lintas acara ditolak | `qr_identities.theme_id` diperiksa sebelum status peserta (Q4); `transactions.theme_id` di trigger Q5 | `qr-identity.db.test.ts`, `qr-identity.api.test.ts`, `scan.test.ts` |
 | Audit tidak bisa diubah | Trigger `RAISE(ABORT)` | `audit.immutable.test.ts` — `UPDATE`/`DELETE` harus error |
 | Satu undangan satu pemakaian | `used_at` + cek dalam transaksi batch | `invite.replay.test.ts` |

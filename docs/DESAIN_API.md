@@ -4,7 +4,7 @@ Semua endpoint di bawah `/api`. Otentikasi memakai cookie sesi `HttpOnly` (same-
 
 Sumber kebenaran kontrak: skema zod di `packages/shared/src/schemas/`. Dokumen ini menjelaskan **perilaku**, bukan menggantikan skema.
 
-> **Status dokumen (10 November 2026).** Dokumen ini mencatat **API aktual**: baseline `157c330` ditambah Q1 (Aktivitas/Sesi), Q2 (kategori, custom field, atribut peserta, impor ber-kategori), Q3 (konfigurasi entitlement), Q4 (QR Identity per Tema), dan Q5 (transaksi Attendance berkonteks, Manual Entry, Reversal/Adjustment), semuanya API-only; registrasi publik dihapus. Jumlahnya **87 definisi route** dan **227 pola efektif** setelah alias `/api/calendar` dan `/api/themes` (`70` definisi ber-prefix `/api/events` × 3). Rendering PNG/ZIP untuk unduh berada di Q9. Scanner/kiosk berkonteks penuh tetap Q6 dan kuota konsumsi tetap Q7; `attendance` hanya dibaca lewat adaptor kompatibilitas sampai Q8. Endpoint yang tercantum di sini bukan bukti bahwa kebutuhan produk terpenuhi (`FR-178`). Bagian yang bertentangan dengan keputusan produk `[A]` ditandai **Delta**.
+> **Status dokumen (14 November 2026).** Dokumen ini mencatat **API aktual**: baseline `157c330` ditambah Q1 (Aktivitas/Sesi), Q2 (kategori, custom field, atribut peserta, impor ber-kategori), Q3 (konfigurasi entitlement), Q4 (QR Identity per Tema), Q5 (transaksi Attendance berkonteks, Manual Entry, Reversal/Adjustment), dan Q6 (penugasan Petugas + daftar konteks scanner). Jumlahnya **92 definisi route** dan **240 pola efektif** setelah alias `/api/calendar` dan `/api/themes` (`74` definisi ber-prefix `/api/events` × 3). Rendering PNG/ZIP untuk unduh berada di Q9. Scanner kiosk penuh dan kuota konsumsi tetap Q7; `attendance` hanya dibaca lewat adaptor kompatibilitas sampai Q8. Endpoint yang tercantum di sini bukan bukti bahwa kebutuhan produk terpenuhi (`FR-178`). Bagian yang bertentangan dengan keputusan produk `[A]` ditandai **Delta**.
 
 ---
 
@@ -179,7 +179,7 @@ Slug dibuat server: `slugify(name)` + 6 karakter terakhir id, sehingga unik tanp
 
 ---
 
-## 4. Anggota dan undangan
+## 4. Anggota, undangan, dan penugasan
 
 | Method | Path | Peran | Keterangan |
 |---|---|---|---|
@@ -214,6 +214,69 @@ Slug dibuat server: `slugify(name)` + 6 karakter terakhir id, sehingga unik tanp
   tidak dapat diketahui dengan andal dari request.
 - Token berada di fragment (`#`) agar tidak masuk log akses.
 - Batas: 50 undangan aktif per acara (mencegah penyalahgunaan).
+
+### Penugasan scanner (Q6)
+
+| Method | Path | Peran | Keterangan |
+|---|---|---|---|
+| `GET` | `/api/events/:eventId/assignments` | event_admin, superadmin | Daftar penugasan Tema; filter `status=active\|revoked\|all` (default `active`) |
+| `POST` | `/api/events/:eventId/assignments` | event_admin, superadmin | Buat penugasan Petugas pada Aktivitas/Sesi |
+| `PATCH` | `/api/events/:eventId/assignments/:assignmentId` | event_admin, superadmin | Ubah flag Manual Check-in saja |
+| `POST` | `/api/events/:eventId/assignments/:assignmentId/revoke` | event_admin, superadmin | Cabut penugasan tanpa menghapus riwayat |
+| `GET` | `/api/staff/assignments` | semua pengguna terautentikasi | Konteks scanner milik pemanggil |
+
+Izin yang dipakai adalah `assignment:manage` (minimum `event_admin`). Petugas selalu `403
+FORBIDDEN`, termasuk atas penugasannya sendiri. Super Admin melewati pemeriksaan keanggotaan
+seperti pada route admin lain; Petugas yang memanggil `GET /api/events/:eventId/assignments`
+tetap ditolak.
+
+```jsonc
+// POST request
+{
+  "userId": "01J...",
+  "activityId": "01J...",
+  "sessionId": "01J...",       // null/absen bila Aktivitas tanpa Sesi
+  "canManualCheckIn": false
+}
+
+// 201
+{
+  "ok": true,
+  "data": {
+    "assignment": {
+      "id": "01J...", "themeId": "01J...", "userId": "01J...",
+      "userDisplayName": "Budi", "activityId": "01J...", "activityName": "Registrasi",
+      "sessionId": null, "sessionName": null, "canManualCheckIn": false,
+      "status": "active", "createdAt": 173..., "updatedAt": 173..., "revokedAt": null
+    }
+  }
+}
+```
+
+- Target wajib pengguna aktif dengan membership `officer` pada Tema itu; jika tidak →
+  `422 BUSINESS_RULE`.
+- Aktivitas harus milik Tema dan tidak diarsipkan; Sesi (bila dikirim) harus milik Aktivitas
+  itu dan tidak diarsipkan (`404`/`422`). Sesi tidak pernah disimpulkan dari jam.
+- Penugasan aktif ganda pada Aktivitas/Sesi yang sama → `409 CONFLICT`, bukan `500`.
+  Partial unique index `uq_assignment_activity`/`uq_assignment_session` yang menegakkannya.
+- `PATCH` hanya menerima `{ "canManualCheckIn": boolean }`. Mengubah Aktivitas/Sesi berarti
+  cabut lalu buat penugasan baru, agar riwayat tetap dapat diaudit.
+- `revoke` mengubah `status` menjadi `revoked` dan mengisi `revokedAt`; baris tidak pernah
+  dihapus dan transaksi historis tidak berubah (`BR-052`, `FR-104`). Penugasan yang sudah
+  dicabut tidak dapat di-`PATCH`/`revoke` lagi (`404`).
+- Setiap mutasi menulis audit `assignment.created`/`assignment.updated`/`assignment.revoked`
+  dalam `db.batch()` yang sama dengan perubahan baris.
+
+`GET /api/staff/assignments` tidak menerima `eventId`: query di-scope ke `auth.user.id`,
+sehingga tidak bisa membocorkan penugasan pengguna lain. Respons `{ "contexts": [...] }`
+berisi hanya penugasan aktif pada Aktivitas/Sesi yang tidak diarsipkan:
+
+- Penugasan level Aktivitas diekspansi menjadi satu konteks per Sesi non-arsip; Aktivitas
+  tanpa Sesi menghasilkan satu konteks dengan `sessionId: null`.
+- Penugasan level Sesi menimpa penugasan level Aktivitas untuk Sesi itu, termasuk
+  `assignmentId` dan `canManualCheckIn`.
+- `activityStatus` dan `sessionStatus` tetap dikirim agar UI dapat menonaktifkan konteks
+  dengan alasan teks. Worker tetap penentu akhir pada `POST .../scan` (`FR-190`).
 
 ---
 
@@ -919,11 +982,11 @@ token, hash, ciphertext, nonce, atau PII (`FR-207`).
 
 ## 7. Pemindaian, transaksi, dan absensi
 
-> **Status Q5 (10 November 2026).** Jalur Absensi sudah memakai `transactions` dengan konteks
+> **Status Q6 (14 November 2026).** Jalur Absensi sudah memakai `transactions` dengan konteks
 > Tema + Aktivitas + Sesi (`ADR-0018`–`ADR-0022`). `attendance` tidak lagi ditulis; endpoint
-> baca lama memakai adaptor kompatibilitas atas transaksi efektif. Scanner/kiosk berkonteks
-> penuh tetap Q6, dan kuota konsumsi tetap Q7. Endpoint yang ada bukan bukti pemenuhan
-> kebutuhan (`FR-178`).
+> baca lama memakai adaptor kompatibilitas atas transaksi efektif. Penugasan Petugas dan daftar
+> konteks scanner tersedia di §4; route `scan` tidak berubah, dan kuota konsumsi tetap Q7.
+> Endpoint yang ada bukan bukti pemenuhan kebutuhan (`FR-178`).
 
 ### `POST /api/events/:eventId/scan`
 

@@ -62,6 +62,33 @@ describe("filterAuditFields", () => {
     expect(filterAuditFields("theme", { slug: "x", createdBy: "u" })).toBeNull();
   });
 
+  it("keeps only assignment coordinates and the Manual Check-in flag", () => {
+    expect(
+      filterAuditFields("staff_assignment", {
+        themeId: "theme-1",
+        activityId: "activity-1",
+        sessionId: null,
+        userId: "user-1",
+        canManualCheckIn: true,
+        status: "active",
+        revokedAt: null,
+        userDisplayName: "Budi",
+        email: "budi@example.com",
+        token: "secret",
+      }),
+    ).toEqual({
+      themeId: "theme-1",
+      activityId: "activity-1",
+      sessionId: null,
+      userId: "user-1",
+      canManualCheckIn: true,
+      status: "active",
+      revokedAt: null,
+      email: REDACTED,
+      token: REDACTED,
+    });
+  });
+
   it("does not include a sensitive field that was not present", () => {
     expect(filterAuditFields("theme", { name: "Seminar" })).toEqual({ name: "Seminar" });
   });
@@ -85,6 +112,7 @@ describe("allowlist table", () => {
       "participant",
       "qr_identity",
       "session",
+      "staff_assignment",
       "theme",
       "transaction",
     ]);

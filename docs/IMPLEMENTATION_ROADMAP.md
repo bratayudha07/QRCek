@@ -285,6 +285,8 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 
 **Status:** **dibuka 14 November 2026 (UI + API)** oleh pemilik proyek, setelah gate Q5 ditutup. Rencana eksekusi ada di [`.opencode/plans/q6-scanner.md`](../.opencode/plans/q6-scanner.md). Kewenangan kelola penugasan mengikuti [ADR-0021](./adr/0021-staff-assignments-and-permissions.md) (Super Admin dan Admin Acara; Petugas tidak).
 
+**Status implementasi (14 November 2026):** route penugasan dan daftar konteks, UI pengelolaan penugasan, scanner berkonteks, serta tes T-100–T-107 sudah ada di working tree dan lulus verifikasi lokal (`typecheck`, `lint`, `test`, `build`). **Gate Q6 belum ditutup**: uji perangkat fisik di `OPERASIONAL.md` §11 belum dijalankan, dan belum ada commit/deploy. Ini status implementasi, bukan pernyataan pemenuhan seluruh kebutuhan.
+
 **Keputusan cakupan Q6:**
 
 - **Pengelolaan penugasan ikut Q6** (endpoint + UI), bukan hanya scanner. Tanpa itu Petugas baru selalu `403` karena `staff_assignments` hanya terisi backfill dan tidak punya jalur tulis. Ini prasyarat `FR-099`–`FR-102` dan uji perangkat.

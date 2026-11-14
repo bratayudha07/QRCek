@@ -681,6 +681,15 @@ fisik tetap terbuka untuk Q6.
 | T-102 | Kesalahan jaringan dipetakan berbeda dari QR tidak valid (logika murni di `apps/web/src/lib/`) | `BR-056`, `AC-027` | — |
 | T-103 | State scanner: terkunci selama feedback, kembali standby, tidak ada antrean offline (logika murni) | `FR-189`, `BR-054`, `AC-048` | `D-012` [A] |
 | T-104 | Status scanner tidak hanya warna: setiap state punya teks/ikon (logika murni) | `NFR-022`, `AC-053` | `D-013` [A] |
+| T-105 ★ | CRUD penugasan hanya untuk Admin Acara/Super Admin; Petugas 403; audit ditulis dalam batch yang sama | `FR-099`, `FR-103`, `FR-135`, `BR-053` | `D-023` [A] |
+| T-106 ★ | Penugasan lintas Tema/Aktivitas/Sesi ditolak; duplikasi aktif → 409; Sesi harus milik Aktivitas | `BR-050`, `FR-099` | `D-012` [A] |
+| T-107 ★ | Flag Manual Check-in per penugasan: Petugas tidak bisa mengubah; flag efektif dipakai Manual Entry | `FR-073`, `BR-034`, `AC-055` | `D-022` [A], `OQ-034` [A] |
+
+Status implementasi per 14 November 2026: tes otomatis T-100–T-107 ada dan lulus
+(`apps/api/src/routes/staff-assignments.test.ts`, `scan.test.ts`,
+`apps/web/src/lib/scanner.test.ts`). Uji perangkat fisik (kamera depan/belakang, portrait dan
+landscape, audio/mute setelah reload, mode pesawat) masih checklist manual di
+`docs/OPERASIONAL.md` dan **belum dijalankan**; gate Q6 belum ditutup.
 
 ### 9.7 Konsumsi (Q7)
 

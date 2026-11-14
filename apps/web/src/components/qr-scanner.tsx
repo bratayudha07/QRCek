@@ -31,15 +31,26 @@ interface BarcodeDetectorLike {
 
 type BarcodeDetectorCtor = new (options?: { formats?: string[] }) => BarcodeDetectorLike;
 
+export type CameraFacing = "environment" | "user";
+
 interface ScannerProps {
   /** While `true`, detections are ignored (request in flight or result shown). */
   paused: boolean;
   onDetected: (value: string) => void;
+  /** Rear camera by default; the operator can switch to the front camera. */
+  facingMode?: CameraFacing;
+  /** Fired from the click that starts the camera (unlock audio on iOS). */
+  onStart?: () => void;
 }
 
 const DETECTION_LOST_MS = 900;
 
-export function QrScanner({ paused, onDetected }: ScannerProps) {
+export function QrScanner({
+  paused,
+  onDetected,
+  facingMode = "environment",
+  onStart,
+}: ScannerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
@@ -48,6 +59,7 @@ export function QrScanner({ paused, onDetected }: ScannerProps) {
   const pausedRef = useRef(paused);
   const detectedRef = useRef<{ value: string; at: number } | null>(null);
   const onDetectedRef = useRef(onDetected);
+  const facingModeRef = useRef<CameraFacing>(facingMode);
 
   const [state, setState] = useState<CameraState>({ status: "idle" });
 
@@ -80,6 +92,17 @@ export function QrScanner({ paused, onDetected }: ScannerProps) {
 
   useEffect(() => stop, []);
 
+  // Switching front/rear restarts the stream, but never starts the camera on
+  // its own: if it was not running, the change only applies on the next click.
+  useEffect(() => {
+    if (facingModeRef.current === facingMode) return;
+    facingModeRef.current = facingMode;
+    if (state.status === "scanning") {
+      stop();
+      void start();
+    }
+  }, [facingMode, state.status]);
+
   function emit(value: string): void {
     if (pausedRef.current) return;
 
@@ -105,6 +128,7 @@ export function QrScanner({ paused, onDetected }: ScannerProps) {
 
   async function start(): Promise<void> {
     setState({ status: "starting" });
+    onStart?.();
 
     if (
       typeof navigator === "undefined" ||
@@ -115,6 +139,8 @@ export function QrScanner({ paused, onDetected }: ScannerProps) {
       return;
     }
 
+    const facing = facingModeRef.current;
+
     try {
       const BarcodeDetector = (
         window as unknown as { BarcodeDetector?: BarcodeDetectorCtor }
@@ -122,7 +148,7 @@ export function QrScanner({ paused, onDetected }: ScannerProps) {
 
       if (BarcodeDetector) {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" } },
+          video: { facingMode: { ideal: facing } },
           audio: false,
         });
 
@@ -164,8 +190,8 @@ export function QrScanner({ paused, onDetected }: ScannerProps) {
       const { BrowserQRCodeReader } = await import("@zxing/browser");
       const reader = new BrowserQRCodeReader();
 
-      controlsRef.current = await reader.decodeFromVideoDevice(
-        undefined,
+      controlsRef.current = await reader.decodeFromConstraints(
+        { video: { facingMode: { ideal: facing } }, audio: false },
         videoRef.current ?? undefined,
         (result) => {
           if (result) emit(result.getText());
@@ -185,7 +211,7 @@ export function QrScanner({ paused, onDetected }: ScannerProps) {
       <div className="relative overflow-hidden rounded-xl border bg-black">
         <video
           ref={videoRef}
-          className="aspect-[3/4] w-full object-cover sm:aspect-video"
+          className="max-h-[70dvh] w-full aspect-[3/4] object-cover landscape:aspect-video"
           playsInline
           muted
           autoPlay
