@@ -6,6 +6,10 @@ Tujuan pengujian di proyek ini **bukan** mengejar angka coverage, tetapi membukt
 
 ## Snapshot verifikasi terkini
 
+- Snapshot 15 November 2026 (delta UI Q4 Rotasi QR, **implementasi selesai; E2E produksi
+  belum**): bagian **Kartu QR** di detail peserta, metadata aman, dialog rotasi, dan panel QR
+  sekali tampil. Verifikasi lokal `typecheck`/`lint`/`test` **835 tes di 80 file**/`build`
+  hijau. Prosedur `OPERASIONAL.md` §12.5 dan checklist §8 butir 30 **belum dijalankan**.
 - Snapshot 14 November 2026 (delta UI Q5 Manual Entry, **implementasi selesai; E2E produksi
   belum**): tombol **Input manual** di `/staff/scan`, dialog pencarian peserta, status, dan
   catatan. Verifikasi lokal `typecheck`/`lint`/`test` **819 tes di 79 file**/`build` hijau.
@@ -549,6 +553,12 @@ Checklist singkat yang dijalankan pada staging sebelum deploy produksi:
     notice sukses menyebut nama peserta; scan QR peserta yang sama → `DUPLICATE`. Coba pada
     Tema dengan `allow_manual = 0` → pesan penolakan Worker tampil di dialog dan tidak ada
     sukses palsu. Catatan kosong tidak mengirim `note`.
+30. Rotasi QR (Q4): buka detail peserta sebagai Admin Acara → bagian **Kartu QR** menampilkan
+    metadata (terbit, jumlah rotasi, versi kunci) tanpa token. Rotasi dengan alasan 2 karakter →
+    ditolak di klien; alasan valid → QR baru tampil **sekali**, `rotationCount` naik. Tutup
+    panel → QR tidak bisa dibuka lagi; scan kartu lama gagal, scan QR baru `SUCCESS`. Buka
+    detail peserta sebagai Petugas dan pada Tema arsip → kartu tidak muncul. Buka dua tab,
+    rotasi di tab pertama, lalu rotasi di tab kedua → `409` dengan tombol muat ulang.
 
 ---
 
@@ -673,6 +683,12 @@ ulang, **48** pada jalur lost-race). Rotasi juga diuji menyalin kredensial ke ko
 mulai Q5 (`scan.test.ts`, `transactions.db.test.ts`); baseline `scan.test.ts` tetap lulus
 sebagai regression. Rendering PNG/ZIP (AC-018) tetap Q9.
 
+> **Delta UI 15 November 2026.** Gating peran/status (`canRotateQr`), batas alasan 3–500
+> karakter pada nilai yang sudah di-trim, ringkasan metadata tanpa token, dan bentuk request
+> dengan `expectedRotationCount` diuji murni di `apps/web/src/lib/qr-identities.test.ts`
+> (16 tes). Komponen kartu tidak memuat aturan rotasi; penolakan izin, `409`, dan pencabutan
+> token tetap diputuskan Worker.
+
 ### 9.5 Transaksi Attendance dan koreksi (Q5)
 
 | ID | Tes | Rujukan | Status keputusan |
@@ -710,7 +726,7 @@ Baseline `attendance` dipertahankan sebagai regression sampai adaptor baca dilep
 > **Delta UI 14 November 2026.** Aturan tampilan Manual Entry (daftar status + label, syarat
 > tombol `canManualCheckIn` + konteks siap, bentuk request dengan Aktivitas/Sesi dari konteks,
 > catatan kosong yang tidak dikirim, dan pesan sukses) diuji murni di
-> `apps/web/src/lib/manual-entry.test.ts` (15 tes). Dialog dan halaman Petugas tidak memuat
+> `apps/web/src/lib/manual-entry.test.ts` (10 tes). Dialog dan halaman Petugas tidak memuat
 > aturan transaksi; penolakan `allow_manual`, duplikasi, kuota, dan entitlement tetap datang
 > dari Worker.
 

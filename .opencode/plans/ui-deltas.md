@@ -85,4 +85,7 @@ Tidak ada migrasi baru dan tidak ada dependency baru untuk kelima delta ini.
   `typecheck`/`lint`/**809 tes**/`build` hijau. E2E produksi belum dijalankan.
 - Delta #4 (Q5 Manual Entry): **implementasi selesai** 14 November 2026; verifikasi lokal
   `typecheck`/`lint`/**819 tes**/`build` hijau. E2E produksi belum dijalankan.
-- Delta #5 (Q4 Rotasi QR): berikutnya.
+- Delta #5 (Q4 Rotasi QR): **implementasi selesai** 15 November 2026; verifikasi lokal
+  `typecheck`/`lint`/**835 tes**/`build` hijau. E2E produksi belum dijalankan.
+- Seluruh delta UI yang direncanakan sudah diimplementasikan; penutupan menunggu E2E produksi
+  pemilik dan (Q6) verifikasi iPhone Safari di Q11.

@@ -13,12 +13,15 @@ export function Dialog({
   children,
   className,
   ariaLabel,
+  dismissible = true,
 }: {
   open: boolean;
   onClose: () => void;
   children: ReactNode;
   className?: string;
   ariaLabel?: string;
+  /** When false, Escape and a backdrop click are ignored (request in flight). */
+  dismissible?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
 
@@ -37,8 +40,11 @@ export function Dialog({
       ref={ref}
       aria-label={ariaLabel}
       onClose={onClose}
+      onCancel={(event) => {
+        if (!dismissible) event.preventDefault();
+      }}
       onClick={(event) => {
-        if (event.target === ref.current) onClose();
+        if (dismissible && event.target === ref.current) onClose();
       }}
       className={cn(
         "w-[min(32rem,calc(100vw-1.5rem))] rounded-xl border border-border bg-background p-0 text-foreground shadow-2xl backdrop:bg-slate-950/40 backdrop:backdrop-blur-[2px]",

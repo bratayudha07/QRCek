@@ -1003,3 +1003,23 @@ kategorinya lebih dulu, lalu samakan ejaan di CSV.
 
 Prosedur 12.1–12.4 belum dijalankan end-to-end di produksi per 14 November 2026; hasil uji
 pemilik harus dicatat di sini.
+
+### 12.5 Rotasi QR
+
+1. Buka Tema → tab **Peserta** → buka detail peserta. Bagian **Kartu QR** hanya muncul untuk
+   Admin Acara/Super Admin pada Tema yang tidak arsip.
+2. Metadata menampilkan waktu terbit, jumlah rotasi, rotasi terakhir, dan versi kunci. Token,
+   hash, dan ciphertext tidak pernah ditampilkan.
+3. Tekan **Rotasi QR**, isi alasan minimal 3 karakter (mis. “kartu hilang”), lalu konfirmasi.
+   Alasan tercatat di audit.
+4. Setelah Worker menjawab `ok`, QR baru tampil **sekali**. Cetak atau bagikan sebelum menutup
+   panel; setelah ditutup payload tidak bisa dibuka lagi.
+5. Kartu lama langsung tidak berlaku. Scan kartu lama gagal; scan QR baru berhasil bila hak
+   peserta dan konteksnya valid.
+6. Bila muncul pesan `409` (QR baru saja dirotasi pengguna lain), tekan **Muat ulang metadata**
+   dan ulangi dengan alasan baru. Jangan menutup pesan lalu menekan rotasi berulang kali.
+7. Peserta yang belum pernah dicetak kartunya menampilkan “Belum pernah diterbitkan”; terbitkan
+   lewat alur cetak label, bukan dari panel ini.
+
+Prosedur 12.5 belum dijalankan end-to-end di produksi per 15 November 2026; hasil uji pemilik
+harus dicatat di sini.

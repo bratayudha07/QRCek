@@ -8,6 +8,7 @@ import {
   ParticipantForm,
   type ParticipantFormValues,
 } from "@/components/participant-form";
+import { QrIdentityCard } from "@/components/qr-identity-card";
 import { ParticipantStatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { listCategories } from "@/lib/categories";
@@ -19,6 +20,7 @@ import {
   getParticipant,
   updateParticipant,
 } from "@/lib/participants";
+import { canRotateQr } from "@/lib/qr-identities";
 import { navigate, participantsPath } from "@/lib/router";
 
 type LoadState =
@@ -305,6 +307,14 @@ export function ParticipantDetailPage({
             </Button>
           )}
         </div>
+      )}
+
+      {canRotateQr(event.accessRole, event.status) && (
+        <QrIdentityCard
+          eventId={eventId}
+          participantId={participantId}
+          timeZone={event.timezone}
+        />
       )}
 
       <div className="flex justify-center">

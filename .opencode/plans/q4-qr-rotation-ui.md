@@ -1,7 +1,9 @@
 # Delta UI Q4 — Rotasi QR
 
-Tanggal: 14 November 2026
-Status: siap dieksekusi (UI-only; API Q4 sudah live dan teruji).
+Tanggal: 14 November 2026 (selesai 15 November 2026)
+Status: **implementasi selesai** (UI-only; API Q4 sudah live dan teruji). Verifikasi lokal
+`typecheck`/`lint`/**835 tes di 80 file**/`build` hijau. E2E produksi dan prosedur
+`OPERASIONAL.md` §12.5 belum dijalankan.
 Prasyarat: halaman detail peserta (Q2) dan metadata QR (`0010`) sudah ada.
 
 ## Tujuan
@@ -13,6 +15,9 @@ membuat kartu lama langsung tidak berlaku, menaikkan `rotationCount`, dan tercat
 ## Keputusan UI
 
 - **Lokasi:** halaman detail peserta, bagian **“Kartu QR”** di bawah data peserta.
+- **Kartu hanya dirender untuk Admin Acara/Super Admin pada Tema yang tidak arsip.** `GET
+  /participants/:id/qr` memakai izin `qr:print` (minimal `event_admin`), jadi menampilkan kartu
+  kepada Petugas hanya akan menghasilkan 403. Petugas tidak melihat kartu maupun tombol rotasi.
 - Menampilkan metadata aman: waktu terbit, waktu rotasi terakhir, jumlah rotasi, versi kunci.
   Token/hash/ciphertext tidak pernah ditampilkan.
 - Tombol **“Rotasi QR”** hanya untuk Admin Acara/Super Admin pada Tema yang tidak arsip.
@@ -39,7 +44,7 @@ Helper murni (diuji):
 - `canRotateQr(accessRole, eventStatus)` → `event_admin`/`superadmin`, Tema tidak arsip.
 - `rotationReasonError(reason)` → pesan Indonesia bila < 3 atau > 500 karakter, selain itu
   `null` (selaras `RotateQrRequestSchema`).
-- `rotationSummary(identity)` → teks ringkas untuk kartu (`Belum pernah diterbitkan`,
+- `rotationSummary(identity, timeZone)` → teks ringkas untuk kartu (`Belum pernah diterbitkan`,
   `Diterbitkan …`, `Dirotasi …`), tanpa PII/token.
 - `nextRotationRequest(identity, reason)` → `{ reason: trimmed, expectedRotationCount }`.
 
@@ -47,9 +52,10 @@ Tes: `apps/web/src/lib/qr-identities.test.ts`.
 
 ### 2. `apps/web/src/components/qr-identity-card.tsx` (baru)
 
-- Menerima `eventId`, `participantId`, `canRotate`, `timeZone`.
+- Menerima `eventId`, `participantId`, `timeZone`. Induk hanya me-mount komponen ini saat
+  `canRotateQr(...)` benar, jadi tidak perlu prop `canRotate`.
 - Memuat metadata saat mount; `loading | ready | error` jelas, dengan tombol coba lagi.
-- Kartu ringkasan + tombol **Rotasi QR** (disabled saat `canRotate = false`).
+- Kartu ringkasan + tombol **Rotasi QR**.
 - Dialog: alasan (textarea), error validasi klien, error API apa adanya, tombol batal/rotasi.
 - Sukses: tampilkan `QrCode value={payload.qr}` (ukuran wajar, mis. 45 mm), waktu rotasi,
   `rotationCount`, dan tombol **Tutup**. Setelah ditutup, payload tidak disimpan di state.
@@ -57,8 +63,9 @@ Tes: `apps/web/src/lib/qr-identities.test.ts`.
 
 ### 3. `apps/web/src/pages/participant-detail.tsx`
 
-- Render `QrIdentityCard` setelah form/detail peserta, dengan `canRotate` dari
-  `canRotateQr(state.event.accessRole, state.event.status)` dan `timeZone` dari Tema.
+- Render `QrIdentityCard` setelah form/detail peserta **hanya bila**
+  `canRotateQr(state.event.accessRole, state.event.status)` benar; kirim `timeZone` dari Tema.
+  Petugas dan Tema arsip tidak melihat kartu sama sekali (route metadata menolak mereka).
 - Tidak mengubah alur edit/nonaktifkan peserta.
 
 ## File yang disentuh
@@ -77,7 +84,7 @@ Tidak menyentuh Worker, migrasi, atau `packages/shared`.
 - [ ] Alasan < 3 karakter ditolak di klien dan Worker (pesan jelas).
 - [ ] Setelah rotasi, scan kartu lama gagal (diverifikasi manual dengan dua QR).
 - [ ] `409` karena data usang menampilkan pesan muat ulang, bukan rotasi kedua diam-diam.
-- [ ] Petugas tidak melihat tombol rotasi; Tema arsip baca-saja.
+- [ ] Petugas tidak melihat kartu maupun tombol rotasi; Tema arsip baca-saja.
 - [ ] Tidak ada token/hash yang masuk log; payload QR hanya ada di state selama panel sukses
       terbuka dan tidak disimpan ke `localStorage`.
 - [ ] Tidak ada dependency atau migrasi baru.
