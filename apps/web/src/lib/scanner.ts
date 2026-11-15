@@ -6,7 +6,7 @@ import type {
   ScanResultPayload,
   StaffContext,
 } from "@absensi/shared";
-import { SCAN_RESULTS } from "@absensi/shared";
+import { SCAN_RESULTS, staffContextReadiness } from "@absensi/shared";
 
 /**
  * Scanner copy and pure helpers.
@@ -411,6 +411,49 @@ export function staffContextLabel(context: StaffContext): string {
   return context.sessionName
     ? `${context.activityName} · ${context.sessionName}`
     : `${context.activityName} · ${ALL_SESSIONS_LABEL}`;
+}
+
+/**
+ * Keeps the operator on the same context across a refresh. Assignments change
+ * while the page is open, so a key that is no longer in the list must fall back
+ * to the first ready context instead of staying selected and failing every scan.
+ */
+export function reconcileSelectedContext(
+  contexts: readonly StaffContext[],
+  currentKey: string | null,
+): string | null {
+  if (currentKey !== null && contexts.some((context) => staffContextKey(context) === currentKey)) {
+    return currentKey;
+  }
+
+  const next = contexts.find((context) => staffContextReadiness(context).ready) ?? contexts[0];
+  return next ? staffContextKey(next) : null;
+}
+
+/**
+ * Minimum gap between background context refreshes. `visibilitychange` and
+ * `focus` both fire when the operator returns to the tab; one request is enough.
+ */
+export const CONTEXT_REFRESH_MIN_INTERVAL_MS = 1500;
+
+/**
+ * A scanner can stay open for hours, so a tab that is never hidden still polls
+ * its assignments. One small request per minute keeps a field device current.
+ */
+export const CONTEXT_POLL_INTERVAL_MS = 60_000;
+
+/**
+ * A stale assignment is only visible to the server, so the page re-fetches its
+ * contexts when it becomes visible again. Never interrupt an in-flight scan.
+ */
+export function shouldRefreshContexts(input: {
+  now: number;
+  lastRefreshAt: number;
+  hidden: boolean;
+  inFlight: boolean;
+}): boolean {
+  if (input.hidden || input.inFlight) return false;
+  return input.now - input.lastRefreshAt >= CONTEXT_REFRESH_MIN_INTERVAL_MS;
 }
 
 export interface StaffContextMatch {

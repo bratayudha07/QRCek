@@ -2,13 +2,16 @@ import type { ApiResponse, ScanResultPayload, StaffContext } from "@absensi/shar
 import { describe, expect, it } from "vitest";
 
 import {
+  CONTEXT_REFRESH_MIN_INTERVAL_MS,
   FEEDBACK_DURATION_MS,
   INITIAL_SCANNER_STATE,
   classifyScanFailure,
   classifyScanResponse,
+  reconcileSelectedContext,
   resolveDeepLinkContext,
   scannerIsLocked,
   scannerReducer,
+  shouldRefreshContexts,
   staffContextKey,
   staffContextLabel,
   type ScannerState,
@@ -275,5 +278,72 @@ describe("deep link preselection", () => {
 
     expect(staffContextKey(sameAssignment)).not.toBe(staffContextKey(secondSession));
     expect(staffContextKey(context())).toBe("a1::");
+  });
+});
+
+describe("context refresh after an assignment change", () => {
+  function context(overrides: Partial<StaffContext> = {}): StaffContext {
+    return {
+      assignmentId: "a1",
+      themeId: "t1",
+      themeName: "Tema",
+      activityId: "act1",
+      activityName: "Registrasi",
+      sessionId: null,
+      sessionName: null,
+      activityStatus: "active",
+      sessionStatus: null,
+      canManualCheckIn: false,
+      ...overrides,
+    };
+  }
+
+  it("keeps the current context when it is still assigned", () => {
+    const assigned = context();
+    expect(reconcileSelectedContext([assigned], staffContextKey(assigned))).toBe(
+      staffContextKey(assigned),
+    );
+  });
+
+  it("moves to the first ready context when the current one was revoked", () => {
+    const revoked = context();
+    const draft = context({ assignmentId: "a2", activityStatus: "draft" });
+    const fresh = context({ assignmentId: "a3" });
+
+    expect(reconcileSelectedContext([draft, fresh], staffContextKey(revoked))).toBe(
+      staffContextKey(fresh),
+    );
+  });
+
+  it("selects a context when the Petugas was previously unassigned", () => {
+    const fresh = context();
+    expect(reconcileSelectedContext([fresh], null)).toBe(staffContextKey(fresh));
+  });
+
+  it("clears the selection when no assignment is left", () => {
+    expect(reconcileSelectedContext([], "a1::")).toBeNull();
+  });
+
+  it("never refreshes while the tab is hidden or a scan is in flight", () => {
+    expect(
+      shouldRefreshContexts({ now: 10_000, lastRefreshAt: 0, hidden: true, inFlight: false }),
+    ).toBe(false);
+    expect(
+      shouldRefreshContexts({ now: 10_000, lastRefreshAt: 0, hidden: false, inFlight: true }),
+    ).toBe(false);
+  });
+
+  it("refreshes at most once per interval", () => {
+    expect(
+      shouldRefreshContexts({ now: 1_000, lastRefreshAt: 0, hidden: false, inFlight: false }),
+    ).toBe(false);
+    expect(
+      shouldRefreshContexts({
+        now: CONTEXT_REFRESH_MIN_INTERVAL_MS,
+        lastRefreshAt: 0,
+        hidden: false,
+        inFlight: false,
+      }),
+    ).toBe(true);
   });
 });

@@ -767,13 +767,16 @@ fisik tetap terbuka untuk Q6.
 | T-105 ★ | CRUD penugasan hanya untuk Admin Acara/Super Admin; Petugas 403; audit ditulis dalam batch yang sama | `FR-099`, `FR-103`, `FR-135`, `BR-053` | `D-023` [A] |
 | T-106 ★ | Penugasan lintas Tema/Aktivitas/Sesi ditolak; duplikasi aktif → 409; Sesi harus milik Aktivitas | `BR-050`, `FR-099` | `D-012` [A] |
 | T-107 ★ | Flag Manual Check-in per penugasan: Petugas tidak bisa mengubah; flag efektif dipakai Manual Entry | `FR-073`, `BR-034`, `AC-055` | `D-022` [A], `OQ-034` [A] |
+| T-108 | Daftar konteks Petugas diperbarui tanpa reload (tab kembali terlihat, koneksi pulih, polling) dan konteks terpilih direkonsiliasi; refresh dilewati saat scan berjalan (logika murni) | `FR-190`, `FR-191`, `BR-050` | `D-012` [A] |
 
-Status implementasi per 14 November 2026: tes otomatis T-100–T-107 lulus
+Status implementasi per 15 November 2026: tes otomatis T-100–T-108 lulus
 (`apps/api/src/routes/staff-assignments.test.ts`, `scan.test.ts`,
-`apps/web/src/lib/scanner.test.ts`; suite penuh **750 tes / 73 file**). Uji perangkat fisik
+`apps/web/src/lib/scanner.test.ts`; suite penuh **841 tes / 80 file**). Uji perangkat fisik
 dijalankan pada **Android Chrome** dan lolos untuk semua butir yang dapat dijalankan
 (`docs/OPERASIONAL.md` §11). **iPhone Safari (#4) belum dijalankan**; gate Q6 ditutup
-**dengan pengecualian** dan butir itu dipindah ke verifikasi lapangan Q11.
+**dengan pengecualian** dan butir itu dipindah ke verifikasi lapangan Q11. T-108 ditambahkan
+setelah pemilik melaporkan konteks Petugas yang basi; perbaikan terpasang tetapi **uji ulang
+produksi belum dijalankan**.
 
 ### 9.7 Konsumsi (Q7)
 

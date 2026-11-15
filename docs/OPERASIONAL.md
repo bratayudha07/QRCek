@@ -909,7 +909,7 @@ dengan Sesi, satu kartu QR peserta yang valid, dan satu QR rusak/kartu acara lai
 | 9 | Scan QR rusak | Panel merah "QR tidak dikenali"; bukan sukses |
 | 10 | Matikan jaringan (mode pesawat) lalu scan | Indikator Offline; pesan "belum tercatat"; tidak ada antrean; setelah online bisa scan ulang |
 | 11 | Server 5xx / Worker dimatikan | Pesan server bermasalah, bukan sukses; scan ulang setelah pulih |
-| 12 | Cabut penugasan dari akun admin saat halaman terbuka, lalu scan | Panel "Penugasan berubah"; pemindaian berhenti; tombol "Muat ulang konteks" memperbarui daftar |
+| 12 | Cabut penugasan dari akun admin saat halaman terbuka, lalu scan | Panel "Penugasan berubah"; pemindaian berhenti; daftar konteks ikut diperbarui sendiri saat tab kembali aktif (atau ≤60 detik kemudian), dan tombol "Muat ulang konteks" tetap tersedia |
 | 13 | Aktifkan mute, reload halaman | Preferensi mute bertahan; teks/ikon tetap menjadi indikator utama |
 | 14 | Portrait dan landscape | Kamera `aspect-[3/4]` / `aspect-video`, tidak melampaui viewport, kontrol tetap terjangkau |
 | 15 | Android Chrome (BarcodeDetector) | Perilaku sama dengan Safari; fallback ZXing tidak error |
@@ -929,6 +929,17 @@ dengan Sesi, satu kartu QR peserta yang valid, dan satu QR rusak/kartu acara lai
 dapat dijalankan di Android lolos; verifikasi iPhone Safari wajib diselesaikan pada
 verifikasi lapangan Q11 sebelum rilis. Gate Q6 tidak boleh dikutip sebagai "iPhone sudah
 teruji".
+
+**Perbaikan 15 November 2026 — konteks Petugas basi.** Pemilik melaporkan halaman Petugas
+yang sudah terbuka tidak melihat penugasan baru dari Admin sampai halaman dimuat ulang.
+Penyebabnya: daftar konteks hanya diambil sekali saat halaman dipasang. Sekarang daftar
+diambil ulang saat tab kembali terlihat (`visibilitychange`/`focus`), saat koneksi pulih,
+dan lewat polling 60 detik selama halaman terlihat. Konteks terpilih direkonsiliasi: tetap
+bila penugasannya masih ada, pindah ke konteks siap pertama bila dicabut, dan kosong bila
+tidak ada penugasan tersisa. Refresh latar dilewati saat request scan sedang berjalan, dan
+kegagalannya tidak mengganti scanner yang sedang bekerja dengan layar error. Logika murni
+ada di `apps/web/src/lib/scanner.ts` dengan tes di `scanner.test.ts`. Uji ulang di produksi
+**belum dijalankan** per 15 November 2026.
 
 ---
 

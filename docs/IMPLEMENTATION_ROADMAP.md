@@ -293,6 +293,13 @@ Berlaku untuk setiap tahap; tidak diulang di tiap bagian.
 
 **Status implementasi (14 November 2026):** route penugasan dan daftar konteks, UI pengelolaan penugasan, scanner berkonteks, serta tes T-100–T-107 lulus verifikasi lokal (`typecheck`, `lint`, `test` **750 tes / 73 file**, `build`). Kode di-push sebagai commit `c693be4` dan live di produksi lewat Workers Builds; bundle produksi memuat UI penugasan scanner. Checklist perangkat di `OPERASIONAL.md` §11 dijalankan pada **Android Chrome** dan lolos untuk semua butir yang dapat dijalankan; **#4 (iPhone Safari) belum dijalankan** dan dipindah ke verifikasi lapangan Q11. Gate ditutup **dengan pengecualian** yang tercatat — bukan klaim bahwa iPhone sudah teruji.
 
+**Perbaikan pasca-gate (15 November 2026):** pemilik melaporkan halaman Petugas yang sudah
+terbuka tidak melihat penugasan baru sampai halaman dimuat ulang. Daftar konteks sekarang
+diambil ulang saat tab kembali terlihat, saat koneksi pulih, dan lewat polling 60 detik;
+konteks terpilih direkonsiliasi dan refresh dilewati saat scan berjalan (`T-108`, logika murni
+di `apps/web/src/lib/scanner.ts`). Verifikasi lokal `typecheck`, `lint`, `test` **841 tes / 80
+file**, `build` hijau. **Uji ulang di produksi belum dijalankan.**
+
 **Keputusan cakupan Q6:**
 
 - **Pengelolaan penugasan ikut Q6** (endpoint + UI), bukan hanya scanner. Tanpa itu Petugas baru selalu `403` karena `staff_assignments` hanya terisi backfill dan tidak punya jalur tulis. Ini prasyarat `FR-099`–`FR-102` dan uji perangkat.

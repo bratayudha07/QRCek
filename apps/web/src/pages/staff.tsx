@@ -13,7 +13,7 @@ import {
   Wifi,
   WifiOff,
 } from "lucide-react";
-import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import { AppLink } from "@/components/app-link";
 import { AppShell } from "@/components/app-shell";
@@ -35,12 +35,15 @@ import {
   unlockScanAudio,
 } from "@/lib/scan-audio";
 import {
+  CONTEXT_POLL_INTERVAL_MS,
   INITIAL_SCANNER_STATE,
   classifyScanFailure,
   classifyScanResponse,
+  reconcileSelectedContext,
   resolveDeepLinkContext,
   scannerIsLocked,
   scannerReducer,
+  shouldRefreshContexts,
   staffContextKey,
   staffContextLabel,
   type ScanFeedback as ScanFeedbackModel,
@@ -167,6 +170,9 @@ export function StaffScanPage() {
   const inFlight = useRef(false);
   const phaseRef = useRef(scanner.phase);
   const deepLinkHandled = useRef(false);
+  const deepLinkRejectedRef = useRef(false);
+  const hasContexts = useRef(false);
+  const lastAutoRefresh = useRef(0);
 
   phaseRef.current = scanner.phase;
 
@@ -175,6 +181,7 @@ export function StaffScanPage() {
       if (session.status === "anonymous") {
         setContexts([]);
         setSelectedKey(null);
+        hasContexts.current = false;
       }
       return;
     }
@@ -186,17 +193,21 @@ export function StaffScanPage() {
       .then((body) => {
         if (cancelled) return;
         if (!body.ok) {
-          setContextsError(body.error.message);
+          // A background refresh must not replace a working scanner with an
+          // error screen; the failure only matters when nothing is loaded yet.
+          if (!hasContexts.current) setContextsError(body.error.message);
           return;
         }
 
         const list = body.data.contexts;
+        hasContexts.current = true;
         setContexts(list);
 
         if (!deepLinkHandled.current) {
           deepLinkHandled.current = true;
           const match = resolveDeepLinkContext(list, new URLSearchParams(window.location.search));
           if (match.rejected) {
+            deepLinkRejectedRef.current = true;
             setDeepLinkRejected(true);
             setSelectedKey(null);
             return;
@@ -207,16 +218,15 @@ export function StaffScanPage() {
           }
         }
 
-        setSelectedKey((current) => {
-          if (current && list.some((context) => staffContextKey(context) === current)) {
-            return current;
-          }
-          const next = list.find((context) => staffContextReadiness(context).ready) ?? list[0];
-          return next ? staffContextKey(next) : null;
-        });
+        // A rejected deep link asks the operator to choose manually; a
+        // background refresh must not silently pick a context for them.
+        if (deepLinkRejectedRef.current) return;
+
+        setSelectedKey((current) => reconcileSelectedContext(list, current));
       })
       .catch(() => {
-        if (!cancelled) setContextsError("Tidak bisa menghubungi server");
+        if (cancelled) return;
+        if (!hasContexts.current) setContextsError("Tidak bisa menghubungi server");
       });
 
     return () => {
@@ -224,10 +234,54 @@ export function StaffScanPage() {
     };
   }, [session.status, refreshToken]);
 
+  // Assignments can change while this page stays open: an Admin may assign or
+  // revoke a Petugas at any time. Re-fetch whenever the tab becomes visible
+  // again so the scanner never keeps a context the Worker will reject.
+  const refreshContextsIfStale = useCallback(() => {
+    const now = Date.now();
+    if (
+      !shouldRefreshContexts({
+        now,
+        lastRefreshAt: lastAutoRefresh.current,
+        hidden: document.visibilityState === "hidden",
+        inFlight: inFlight.current,
+      })
+    ) {
+      return;
+    }
+
+    lastAutoRefresh.current = now;
+    setRefreshToken((value) => value + 1);
+  }, []);
+
+  useEffect(() => {
+    if (session.status !== "authenticated") return;
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") refreshContextsIfStale();
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", refreshContextsIfStale);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", refreshContextsIfStale);
+    };
+  }, [session.status, refreshContextsIfStale]);
+
+  // A scanner can stay open on screen for a whole Aktivitas, so a tab that is
+  // never hidden must still notice a new assignment on its own.
+  useEffect(() => {
+    if (session.status !== "authenticated") return;
+    const timer = window.setInterval(refreshContextsIfStale, CONTEXT_POLL_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [session.status, refreshContextsIfStale]);
+
   // A new context never inherits a result from the previous one (FR-191).
   useEffect(() => {
     setManualEntryOpen(false);
     setManualNotice(null);
+    setBlocked(null);
     dispatch({ type: "reset" });
   }, [selectedKey]);
 
@@ -249,6 +303,9 @@ export function StaffScanPage() {
     function handleOnline() {
       setOnline(true);
       dispatch({ type: "network_online", at: Date.now() });
+      // A connection that just came back may also have missed an assignment
+      // change; same throttled refresh as returning to the tab.
+      refreshContextsIfStale();
     }
 
     window.addEventListener("offline", handleOffline);
@@ -257,7 +314,7 @@ export function StaffScanPage() {
       window.removeEventListener("offline", handleOffline);
       window.removeEventListener("online", handleOnline);
     };
-  }, []);
+  }, [refreshContextsIfStale]);
 
   // Feedback never needs a confirmation click: the phase reopens on its own.
   useEffect(() => {
@@ -303,6 +360,7 @@ export function StaffScanPage() {
     if (locked) return;
     setSelectedKey(contextKey);
     setPickerOpen(false);
+    deepLinkRejectedRef.current = false;
     setDeepLinkRejected(false);
     setBlocked(null);
     dispatch({ type: "context_changed" });
