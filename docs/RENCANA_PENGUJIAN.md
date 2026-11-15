@@ -9,7 +9,13 @@ Tujuan pengujian di proyek ini **bukan** mengejar angka coverage, tetapi membukt
 - Snapshot 15 November 2026 (delta UI Q4 Rotasi QR, **implementasi selesai; E2E produksi
   belum**): bagian **Kartu QR** di detail peserta, metadata aman, dialog rotasi, dan panel QR
   sekali tampil. Verifikasi lokal `typecheck`/`lint`/`test` **835 tes di 80 file**/`build`
-  hijau. Prosedur `OPERASIONAL.md` §12.5 dan checklist §8 butir 30 **belum dijalankan**.
+  hijau. Bundle produksi `index-fpEtMZoJ.js` memuat “Kartu QR”, “Rotasi QR”, dan “Muat ulang
+  metadata”. **E2E lokal** (Worker + D1 lokal lewat HTTP, 15 November 2026) **16/16 lulus**:
+  rotasi menaikkan `rotationCount` 0→1, QR baru `SUCCESS`, QR lama `INVALID_QR`, scan ulang
+  `DUPLICATE`, `expectedRotationCount` basi `CONFLICT`, Petugas `FORBIDDEN` untuk baca/rotasi,
+  Tema arsip `BUSINESS_RULE`, audit rotasi berisi alasan tanpa token. **E2E produksi lewat UI
+  (browser, sesi nyata, cetak kartu) belum dijalankan**; prosedur `OPERASIONAL.md` §12.5 dan
+  checklist §8 butir 30 menunggu pemilik.
 - Snapshot 14 November 2026 (delta UI Q5 Manual Entry, **implementasi selesai; E2E produksi
   belum**): tombol **Input manual** di `/staff/scan`, dialog pencarian peserta, status, dan
   catatan. Verifikasi lokal `typecheck`/`lint`/`test` **819 tes di 79 file**/`build` hijau.

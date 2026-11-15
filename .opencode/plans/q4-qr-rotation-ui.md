@@ -2,8 +2,9 @@
 
 Tanggal: 14 November 2026 (selesai 15 November 2026)
 Status: **implementasi selesai** (UI-only; API Q4 sudah live dan teruji). Verifikasi lokal
-`typecheck`/`lint`/**835 tes di 80 file**/`build` hijau. E2E produksi dan prosedur
-`OPERASIONAL.md` §12.5 belum dijalankan.
+`typecheck`/`lint`/**835 tes di 80 file**/`build` hijau. E2E lokal lewat HTTP lulus 16/16 dan
+bundle produksi sudah memuat UI ini; E2E produksi lewat browser dan cetak kartu (prosedur
+`OPERASIONAL.md` §12.5) belum dijalankan.
 Prasyarat: halaman detail peserta (Q2) dan metadata QR (`0010`) sudah ada.
 
 ## Tujuan

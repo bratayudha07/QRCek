@@ -1023,3 +1023,12 @@ pemilik harus dicatat di sini.
 
 Prosedur 12.5 belum dijalankan end-to-end di produksi per 15 November 2026; hasil uji pemilik
 harus dicatat di sini.
+
+**Bukti E2E lokal (15 November 2026).** Alur yang sama dijalankan lewat HTTP terhadap Worker +
+D1 lokal (bukan produksi), memakai akun superadmin lokal, satu Tema, satu Aktivitas attendance,
+satu peserta, dan satu Petugas berpenugasan. 16/16 pemeriksaan lulus: rotasi `rotationCount`
+0→1 dengan QR baru berbeda; scan QR baru `SUCCESS`, QR lama `INVALID_QR`, scan ulang
+`DUPLICATE`; `expectedRotationCount` basi `CONFLICT`; Petugas `FORBIDDEN` untuk membaca metadata
+dan merotasi; Tema arsip `BUSINESS_RULE`; `qr_identities.rotation_count = 1`; audit
+`qr.identity_rotated` berisi alasan tanpa token. Yang **belum** tercakup: tombol/dialog/panel
+satu-kali di browser, sesi produksi, dan cetak kartu fisik.
