@@ -337,7 +337,7 @@ file**, `build` hijau. **Uji ulang di produksi belum dijalankan.**
 **Gate:**
 
 - `AC-024`, `AC-025`, `AC-046`.
-- Tes: penukaran melebihi kuota efektif ditolak di database (termasuk paralel); kuota 0 menolak; Reversal mengembalikan kuota (hanya bila `D-014` disetujui); perubahan entitlement tidak menghapus riwayat penukaran.
+- Tes: penukaran melebihi kuota efektif ditolak di database (termasuk paralel); kuota 0 menolak; Reversal mengembalikan kuota (`D-014` [A], `BR-073`, `AC-046`); perubahan entitlement tidak menghapus riwayat penukaran.
 
 **Bukan cakupan:** inventory/stock management (`D-014` [A]).
 

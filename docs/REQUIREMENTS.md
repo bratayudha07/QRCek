@@ -18,7 +18,7 @@
 |---|---|
 | Nama dokumen | Product Requirements |
 | Produk | QRCek |
-| Versi | 0.3.4 |
+| Versi | 0.3.5 |
 | Status | Draft — Pending Product Owner Review |
 | Pemilik keputusan produk | Product owner QRCek |
 | Tanggal dibuat | 3 November 2026 |
@@ -655,7 +655,7 @@ Business rule di bawah adalah invariant yang harus tetap benar terlepas dari pil
 | `BR-044` | Penukaran ganda harus dicegah berdasarkan transaksi efektif. | PRD §7.1; `D-006` [A] |
 | `BR-045` | Riwayat penukaran tetap ada setelah perubahan entitlement. | PRD §7.1; `D-005` [A] |
 | `BR-046` | Attendance dan Consumption adalah Transaction Type yang berbeda; satu Aktivitas hanya memiliki satu tipe utama. | PRD §7.2; `D-009` [A] |
-| `BR-073` | Transaksi Consumption yang di-reversal tidak menghabiskan kuota dan kuota yang dibebaskan dapat dipakai transaksi valid berikutnya. Ini adalah perilaku kuota proposed, bukan bagian dari keputusan Reversal yang sudah disepakati. | PRD §7.1; `D-014` [A] |
+| `BR-073` | Transaksi Consumption yang di-reversal tidak menghabiskan kuota dan kuota yang dibebaskan dapat dipakai transaksi valid berikutnya (`D-014` [A]). | PRD §7.1; `D-014` [A] |
 
 ### 5.7 Lifecycle
 
@@ -950,7 +950,7 @@ Business rule di bawah adalah invariant yang harus tetap benar terlepas dari pil
 | `AC-043` | Entitlement future-only | Perubahan entitlement tidak mengubah transaksi sukses yang sudah ada dan tidak melakukan reversal otomatis. | `D-005` [A] |
 | `AC-044` | Kombinasi lifecycle | Kombinasi Aktivitas/Sesi yang tidak valid ditolak; tidak ada inferensi Sesi dari waktu jam. | `D-010` [A] |
 | `AC-045` | Reversal membebaskan slot | Attendance yang di-reversal tidak lagi dihitung sebagai duplikat dan check-in baru yang valid dapat dilakukan. | `D-006` [A] |
-| `AC-046` | Kuota setelah Reversal | Reversal pada transaksi Consumption mengembalikan kuota yang sebelumnya terpakai. Perilaku ini proposed dan belum final. | `D-014` [A] |
+| `AC-046` | Kuota setelah Reversal | Reversal pada transaksi Consumption mengembalikan kuota yang sebelumnya terpakai (`D-014` [A]). | `D-014` [A] |
 | `AC-047` | Privasi audit | Audit tidak memuat token QR plaintext, password, atau secret; nilai before/after untuk field sensitif tidak disimpan, hanya status perubahannya; PII diminimalkan/dimask. | `D-023` [A], `FR-207` |
 | `AC-048` | Pending bukan sukses | Respons backend yang masih pending tidak pernah ditampilkan sebagai sukses; scanner mengunci pemrosesan selama feedback. | `D-012` [A] |
 | `AC-049` | Manual source | Manual Check-in adalah Transaction Source, bukan Correction Operation; Petugas tidak dapat melakukan Reversal/Adjustment. Super Admin **tidak berwenang** melakukan Manual Check-in (`OQ-034` [A]). | `D-022` [A], `OQ-034` [A] |
@@ -1126,7 +1126,7 @@ Konsekuensi:
 | ID | `D-006` |
 | Status | Disepakati `[A]` |
 | Mengatur | `FR-076`–`FR-080`, `FR-201`, `FR-202`, `BR-036`–`BR-040`, `AC-022`, `AC-041`, `AC-045` |
-| Keputusan | Hanya Admin Acara yang boleh melakukan Reversal atau Adjustment. Petugas tidak memiliki kewenangan koreksi, termasuk terhadap transaksi yang ia buat. Koreksi wajib memiliki alasan dan wajib tercatat di audit. Reversal membatalkan efek transaksi tanpa menghapus transaksi asli; transaksi kehadiran yang di-reversal tidak lagi menghalangi check-in baru yang valid. Adjustment mempertahankan transaksi asli dan mencatat perubahan before/after tanpa menimpa riwayat secara diam-diam. Duplikasi kehadiran dihitung dari transaksi efektif, bukan dari seluruh riwayat. Perilaku kuota Consumption setelah Reversal **tidak** termasuk keputusan ini dan tetap proposed pada `D-014` [A]. |
+| Keputusan | Hanya Admin Acara yang boleh melakukan Reversal atau Adjustment. Petugas tidak memiliki kewenangan koreksi, termasuk terhadap transaksi yang ia buat. Koreksi wajib memiliki alasan dan wajib tercatat di audit. Reversal membatalkan efek transaksi tanpa menghapus transaksi asli; transaksi kehadiran yang di-reversal tidak lagi menghalangi check-in baru yang valid. Adjustment mempertahankan transaksi asli dan mencatat perubahan before/after tanpa menimpa riwayat secara diam-diam. Duplikasi kehadiran dihitung dari transaksi efektif, bukan dari seluruh riwayat. Perilaku kuota Consumption setelah Reversal diatur terpisah oleh `D-014` [A]. |
 | Tanggal keputusan | 3 November 2026 |
 | Pemilik keputusan | Product owner QRCek |
 
@@ -1134,7 +1134,7 @@ Konsekuensi:
 
 1. Transaksi asli dan riwayat koreksi harus dipertahankan.
 2. Reversal Attendance membebaskan slot duplikasi kehadiran.
-3. Perilaku kuota Consumption setelah Reversal **belum diputuskan** di sini; rekomendasinya ada di `D-014` [A] dan menunggu review product owner.
+3. Perilaku kuota Consumption setelah Reversal diatur `D-014` [A]: transaksi yang di-reversal tidak menghabiskan kuota (`BR-073`, `AC-046`).
 4. Kewenangan Super Admin masih proposed (`D-024` [A]) dan belum menjadi bagian keputusan ini.
 
 #### `D-007` — Data produksi dan kompatibilitas
@@ -1264,4 +1264,5 @@ Semua keputusan produk D-001 s.d D-024 sudah disepakati product owner dan dicata
 | 0.3.2 | 4 November 2026 | Disetujui oleh product owner: semua keputusan proposed `D-008`–`D-024` diubah menjadi `[A]`; semua open question produk `OQ-008`–`OQ-034` ditutup; `D-024` dikoreksi dari `[P]` menjadi `[A]` (konsisten dengan `FR-077`, `FR-097`, dan §2.2); `OQ-027` ditutup (lokasi `COSTS_AND_LIMITS.md` tetap di root); `OQ-033` ditutup (arsip Sesi hanya dari Selesai/Dinonaktifkan, hanya Admin Acara); `OQ-034` ditutup (Super Admin tidak boleh Manual Check-in); NFR marker `NFR-021`/`NFR-022`/`NFR-023` diubah `[P]` → `[A]`. |
 | 0.3.3 | 6 November 2026 | Penyelarasan fakta implementasi, tanpa perubahan kebutuhan maupun status keputusan: hitungan verifikasi menjadi 53 file test/525 tes, 61 definisi route/159 pola efektif (alias `/api/calendar` dan `/api/themes`), dan 7 migrasi (`0001`–`0007`); status dokumen turunan di §0.3 dan §13.3 diperbarui (Q1 selesai, rencana Q1 tersedia, ADR-0001–0015 tercatat). Kebutuhan produk, keputusan `D-xxx`, `OQ-xxx`, `FR`, `BR`, `NFR`, dan `AC` tidak diubah. |
 | 0.3.4 | 12 November 2026 | Penyelarasan teks dengan keputusan yang sudah berlaku, tanpa mengubah status keputusan: `FR-073`, `BR-034`, `AC-021`, `AC-049`, dan `AC-055` menegaskan Super Admin **tidak berwenang** Manual Check-in (`OQ-034` [A]); §7.2 diberi catatan bahwa tabel tetap potret `157c330` dan baris Scan mencantumkan result code Q5 (`SUCCESS`/`DUPLICATE`/`NOT_ENTITLED`/`INVALID_QR`). Tidak ada kebutuhan atau status `[A]`/`[P]`/`[O]` yang berubah. |
+| 0.3.5 | 15 November 2026 | Penyelarasan teks dengan keputusan yang sudah berlaku, tanpa mengubah status keputusan: `BR-073`, `AC-046`, dan teks `D-006` menyatakan pemulihan kuota Consumption setelah Reversal sebagai bagian `D-014` [A], bukan proposed. Tidak ada kebutuhan atau status `[A]`/`[P]`/`[O]` yang berubah. |
 
