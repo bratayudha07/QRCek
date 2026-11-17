@@ -977,7 +977,8 @@ punya kuota (`activities.quota IS NULL`).
   terarsip → `422`; kuota negatif atau bukan integer → `400 VALIDATION_ERROR`.
 - `quota: null` pada bulk berarti **hapus override** dan kembali ke level berikutnya. Tanpa
   nilai itu override tidak dapat dibatalkan, karena kedua endpoint bulk hanya melakukan
-  upsert. Ini ekstensi kontrak terhadap rencana Q7 dan dicatat untuk keputusan pemilik.
+  upsert. Ini ekstensi kontrak terhadap rencana Q7 dan **disetujui pemilik 17 November 2026**.
+  `PUT .../quota` (default Aktivitas) tetap hanya menerima integer.
 - Batch maksimum 15 aturan; duplikat sel dalam satu permintaan → `400`. Kategori/peserta yang
   tidak ada di Tema itu → `404`; kategori terarsip → `422`.
 - Mutasi menulis audit di `db.batch()` yang sama: default Aktivitas →

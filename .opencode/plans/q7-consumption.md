@@ -1,9 +1,9 @@
 # Rencana Q7 — Distribusi konsumsi
 
-Status: **DIBUKA 15 November 2026.** Dokumen ini rencana eksekusi, bukan bukti implementasi.
-Enam asumsi di §2 **disetujui pemilik pada 15 November 2026**; implementasi dimulai dari
-lapisan API (migrasi `0012`, resolver, route), lalu UI. Migrasi remote hanya setelah
-persetujuan terpisah.
+Status: **DIBUKA 15 November 2026; implementasi API + UI selesai dan migrasi `0012` live 17
+November 2026; gate belum ditutup** karena smoke produksi lewat UI belum dijalankan. Dokumen
+ini rencana eksekusi, bukan bukti implementasi. Enam asumsi di §2 **disetujui pemilik pada 15
+November 2026**; migrasi remote disetujui terpisah dan diterapkan 17 November 2026.
 
 Prasyarat keputusan sudah terpenuhi: `D-009` [A] (satu tipe transaksi per Aktivitas),
 `D-014` [A] (kuota dapat dikonfigurasi; Reversal mengembalikan kuota), `D-006` [A] (transaksi
@@ -77,7 +77,7 @@ Additive; `0001`–`0011` tidak diedit.
    `COUNT(effective consumption untuk theme+participant+activity) >= kuota`.
    Penegakan di database, bukan di kode, supaya dua request paralel tidak lolos
    (`T-120`).
-4. Tidak ada backfill data: produksi belum punya Aktivitas `consumption`.
+4. Backfill default A3: `UPDATE activities SET quota = 1 WHERE transaction_type = 'consumption' AND quota IS NULL`. Produksi ternyata sudah punya satu Aktivitas `consumption` (`pagi`, `draft`) tanpa transaksi, jadi backfill menyentuh **1 baris** (bukan 0 seperti perkiraan awal).
 
 `slot_no` dihitung aplikasi dari daftar slot efektif (nomor bebas terendah, sehingga slot
 yang dibebaskan Reversal dipakai lagi) lalu di-insert; dua request paralel dengan slot sama
@@ -166,4 +166,5 @@ Consumption (Q10), konfigurasi pesan per Tema (AQ-012), kuota per Sesi (kecuali 
 6. UI kuota + scanner + dialog manual. **Selesai 15 November 2026** (butir 1–3 §6).
 7. `typecheck` → `lint` → `test` → `bench` → `build`, lalu catat angka di
    `docs/OPERASIONAL.md`.
-8. Review pemilik sebelum gate Q7 ditutup; migrasi remote hanya setelah persetujuan.
+8. Review pemilik sebelum gate Q7 ditutup. Migrasi remote **diterapkan 17 November 2026**
+   (`schema_version = 12`, backup pre-0012 281 KB); sisa gate: smoke produksi lewat UI.

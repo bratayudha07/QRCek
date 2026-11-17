@@ -787,7 +787,7 @@ produksi belum dijalankan**.
 | T-122 | Reversal Consumption mengembalikan kuota | `BR-073`, `AC-046` | `D-014` [A] |
 | T-123 ★ | Perubahan entitlement tidak menghapus riwayat penukaran | `BR-045`, `AC-025` | `D-005` [A] |
 
-**Status 15 November 2026 (Q7 API + UI).** Keempat tes punya tes yang gagal bila aturannya
+**Status 17 November 2026 (Q7 API + UI).** Keempat tes punya tes yang gagal bila aturannya
 dihapus. UI kuota dan scanner Consumption sudah ada; laporan konsumsi tetap Q8, dan E2E browser
 belum ada, jadi gate Q7 belum boleh ditutup. Verifikasi lokal: `typecheck`, `lint`, `test`
 (**911 tes / 85 file**), `bench`, dan `build` PASS. Suite penuh dijalankan sequential
@@ -795,7 +795,10 @@ belum ada, jadi gate Q7 belum boleh ditutup. Verifikasi lokal: `typecheck`, `lin
 bersamaan; tes konkurensi 50 scan lulus sendiri. Logika UI diuji tanpa DOM di
 `apps/web/src/lib/consumption.test.ts` (resolusi kuota, parsing input, baris override,
 permintaan Manual Entry konsumsi) dan `apps/web/src/lib/scanner.test.ts` (copy konsumsi,
-`quota_exhausted`, nomor porsi, copy Attendance tetap).
+`quota_exhausted`, nomor porsi, copy Attendance tetap). Migrasi `0012` **diterapkan di remote
+17 November 2026** (`schema_version = 12`); verifikasi produksi sejauh ini hanya tanpa sesi
+(`GET .../quota` → `401`, `POST .../consumption/manual` → `403` CSRF). Smoke dengan sesi nyata
+masih menunggu pemilik.
 
 | Tes | Bukti |
 |---|---|
