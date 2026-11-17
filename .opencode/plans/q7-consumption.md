@@ -109,16 +109,21 @@ allowlist, tanpa PII).
 
 ## 6. UI
 
-1. `pages/activity.tsx`: kartu **Kuota konsumsi** (default, tabel override kategori, pencarian
-   peserta untuk override individual) hanya untuk Aktivitas `consumption`. Pakai `Card`,
-   `Table`, `Input`, `Dialog` shadcn/ui yang sudah ada.
-2. Scanner `pages/staff.tsx`: label konteks menampilkan "Distribusi konsumsi"; copy hasil
-   mengikuti tipe (`Kehadiran tercatat` vs `Konsumsi tercatat`, `Sudah diambil`); tombol
-   "Input manual" muncul bila `canManualCheckIn` dan konteks `consumption`.
+**Status 15 November 2026:** butir 1–3 selesai, butir 4 belum.
+
+1. ~~`pages/activity.tsx`~~ → dikerjakan di `pages/event-activities.tsx` (halaman manajemen
+   Aktivitas; `pages/activity.tsx` adalah halaman audit) lewat tombol **Kuota** dan
+   `components/consumption-quota-dialog.tsx`: default, tabel override kategori, pencarian
+   peserta untuk override individual, serta pemakaian tertinggi. Logika murni di
+   `lib/consumption.ts`. Pakai `Table`, `Input`, `Select`, `Dialog` shadcn/ui yang sudah ada.
+2. Scanner `pages/staff.tsx`: badge **Konsumsi** pada konteks aktif, copy hasil mengikuti tipe
+   (`Kehadiran tercatat` vs `Konsumsi tercatat`, `Sudah diambil`, `Kuota sudah habis`), label
+   **Porsi ke-N**, dan tombol "Input manual" tetap memakai `canManualCheckIn` + kesiapan
+   konteks. `StaffContext` mengirim `transactionType`.
 3. `components/manual-entry-dialog.tsx`: cabang tipe — konsumsi tidak mengirim `status`,
-   hanya catatan.
-4. Riwayat peserta: kolom tipe + slot ditampilkan dari `GET /transactions?type=consumption`
-   (komponen daftar yang sudah ada).
+   hanya catatan, dan memanggil `POST .../consumption/manual`.
+4. Riwayat/daftar transaksi konsumsi (kolom tipe + slot) **belum ada**: halaman daftar
+   transaksi belum dibangun dan laporan konsumsi masuk Q8.
 
 ## 7. Tes dan gerbang
 
@@ -158,7 +163,7 @@ Consumption (Q10), konfigurasi pesan per Tema (AQ-012), kuota per Sesi (kecuali 
 3. Route kuota (GET/PUT) + audit + tes otorisasi.
 4. Cabang `consumption` di route scan + tes T-120–T-123.
 5. Manual Entry Consumption (setelah A5 diputuskan).
-6. UI kuota + scanner + dialog manual.
+6. UI kuota + scanner + dialog manual. **Selesai 15 November 2026** (butir 1–3 §6).
 7. `typecheck` → `lint` → `test` → `bench` → `build`, lalu catat angka di
    `docs/OPERASIONAL.md`.
 8. Review pemilik sebelum gate Q7 ditutup; migrasi remote hanya setelah persetujuan.

@@ -4,7 +4,7 @@ Semua endpoint di bawah `/api`. Otentikasi memakai cookie sesi `HttpOnly` (same-
 
 Sumber kebenaran kontrak: skema zod di `packages/shared/src/schemas/`. Dokumen ini menjelaskan **perilaku**, bukan menggantikan skema.
 
-> **Status dokumen (15 November 2026).** Dokumen ini mencatat **API aktual**: baseline `157c330` ditambah Q1 (Aktivitas/Sesi), Q2 (kategori, custom field, atribut peserta, impor ber-kategori), Q3 (konfigurasi entitlement), Q4 (QR Identity per Tema), Q5 (transaksi Attendance berkonteks, Manual Entry, Reversal/Adjustment), Q6 (penugasan Petugas + daftar konteks scanner), dan Q7 sisi API (kuota konsumsi, cabang Consumption pada scan, Manual Entry Consumption). Jumlahnya **92 definisi route** dan **250 pola efektif** setelah alias `/api/calendar` dan `/api/themes` (`79` definisi ber-prefix `/api/events` × 3, ditambah 13 route non-Tema). UI kuota/scanner Q7, rendering PNG/ZIP (Q9), dan laporan konsumsi (Q8) belum ada. Endpoint yang tercantum di sini bukan bukti bahwa kebutuhan produk terpenuhi (`FR-178`). Bagian yang bertentangan dengan keputusan produk `[A]` ditandai **Delta**.
+> **Status dokumen (15 November 2026).** Dokumen ini mencatat **API aktual**: baseline `157c330` ditambah Q1 (Aktivitas/Sesi), Q2 (kategori, custom field, atribut peserta, impor ber-kategori), Q3 (konfigurasi entitlement), Q4 (QR Identity per Tema), Q5 (transaksi Attendance berkonteks, Manual Entry, Reversal/Adjustment), Q6 (penugasan Petugas + daftar konteks scanner), dan Q7 sisi API (kuota konsumsi, cabang Consumption pada scan, Manual Entry Consumption). Jumlahnya **92 definisi route** dan **250 pola efektif** setelah alias `/api/calendar` dan `/api/themes` (`79` definisi ber-prefix `/api/events` × 3, ditambah 13 route non-Tema). UI Q7 (dialog kuota, scanner sadar jenis transaksi, Manual Entry konsumsi) sudah ada di `apps/web`; rendering PNG/ZIP (Q9) dan laporan konsumsi (Q8) belum ada. Endpoint yang tercantum di sini bukan bukti bahwa kebutuhan produk terpenuhi (`FR-178`). Bagian yang bertentangan dengan keputusan produk `[A]` ditandai **Delta**.
 
 ---
 
@@ -277,6 +277,9 @@ berisi hanya penugasan aktif pada Aktivitas/Sesi yang tidak diarsipkan:
   `assignmentId` dan `canManualCheckIn`.
 - `activityStatus` dan `sessionStatus` tetap dikirim agar UI dapat menonaktifkan konteks
   dengan alasan teks. Worker tetap penentu akhir pada `POST .../scan` (`FR-190`).
+- `transactionType` (`attendance` | `consumption`) ikut dikirim sejak Q7. Scanner memakainya
+  untuk copy hasil, label porsi, dan memilih route Manual Entry; Worker tetap membaca ulang
+  jenis Aktivitas dari D1 pada setiap permintaan.
 
 ---
 
