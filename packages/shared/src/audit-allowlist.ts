@@ -20,7 +20,8 @@ export type AuditEntityType =
   | "participant"
   | "qr_identity"
   | "transaction"
-  | "staff_assignment";
+  | "staff_assignment"
+  | "consumption_quota";
 
 export const REDACTED = "[REDACTED]" as const;
 
@@ -34,6 +35,7 @@ export const AUDIT_FIELDS: Readonly<Record<AuditEntityType, readonly string[]>> 
     "location",
     "sortOrder",
     "archivedAt",
+    "quota",
   ],
   session: ["name", "location", "startsAt", "endsAt", "status", "archivedAt"],
   category: ["name", "description", "sortOrder", "status", "archivedAt"],
@@ -89,6 +91,7 @@ export const AUDIT_FIELDS: Readonly<Record<AuditEntityType, readonly string[]>> 
     "adjustsTransactionId",
     "reversedAt",
     "supersededAt",
+    "slotNo",
   ],
   // Assignment coordinates and the Manual Check-in flag only. Display names,
   // emails, and any credential are never snapshotted (FR-207).
@@ -100,6 +103,15 @@ export const AUDIT_FIELDS: Readonly<Record<AuditEntityType, readonly string[]>> 
     "canManualCheckIn",
     "status",
     "revokedAt",
+  ],
+  // Quota override coordinates and the number only (Q7). A participant id is an
+  // opaque identifier, not PII; names and contact fields never appear here.
+  consumption_quota: [
+    "themeId",
+    "activityId",
+    "categoryId",
+    "participantId",
+    "quota",
   ],
 };
 

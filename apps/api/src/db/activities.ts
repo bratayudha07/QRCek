@@ -11,6 +11,8 @@ export interface ActivityRow {
   status: ActivityStatus;
   location: string | null;
   sort_order: number;
+  /** Default consumption quota; `null` for an `attendance` Aktivitas (Q7). */
+  quota: number | null;
   created_at: number;
   created_by: string | null;
   updated_at: number;
@@ -59,6 +61,11 @@ export function insertActivityStatement(
     transactionType: TransactionType;
     location: string | null;
     sortOrder: number;
+    /**
+     * `consumption` needs a quota (A3: `1` when the caller does not choose one);
+     * `attendance` must pass `null`. The database trigger rejects a mismatch.
+     */
+    quota: number | null;
     createdBy: string;
     createdAt: number;
   },
@@ -67,8 +74,8 @@ export function insertActivityStatement(
     .prepare(
       `INSERT INTO activities
          (id, theme_id, name, description, transaction_type, status, location,
-          sort_order, created_at, created_by, updated_at, updated_by)
-       VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?)`,
+          sort_order, quota, created_at, created_by, updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       input.id,
@@ -78,6 +85,7 @@ export function insertActivityStatement(
       input.transactionType,
       input.location,
       input.sortOrder,
+      input.quota,
       input.createdAt,
       input.createdBy,
       input.createdAt,
@@ -166,5 +174,38 @@ export function updateActivityStatusStatement(
       input.themeId,
       input.expectedUpdatedAt,
       input.fromStatus,
+    );
+}
+
+/**
+ * Default consumption quota of one Aktivitas (Q7). Optimistic like the other
+ * activity writes: a stale `updated_at` changes 0 rows, and the guarded audit
+ * statement in the same batch then writes nothing. Archived activities are
+ * read-only, and the database trigger rejects a quota on `attendance`.
+ */
+export function updateActivityQuotaStatement(
+  db: D1Database,
+  input: {
+    themeId: string;
+    activityId: string;
+    quota: number;
+    actorUserId: string;
+    now: number;
+    expectedUpdatedAt: number;
+  },
+): D1PreparedStatement {
+  return db
+    .prepare(
+      `UPDATE activities
+          SET quota = ?, updated_at = ?, updated_by = ?
+        WHERE id = ? AND theme_id = ? AND updated_at = ? AND status <> 'archived'`,
+    )
+    .bind(
+      input.quota,
+      input.now,
+      input.actorUserId,
+      input.activityId,
+      input.themeId,
+      input.expectedUpdatedAt,
     );
 }

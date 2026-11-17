@@ -7,7 +7,6 @@ import type {
   AttendanceStatus,
   TransactionDetailPayload,
   TransactionListPayload,
-  TransactionRecord,
 } from "@absensi/shared";
 import {
   AdjustmentRequestSchema,
@@ -60,6 +59,7 @@ import {
   adjustmentDiff,
   lifecycleRejection,
   scanMessage,
+  toTransactionRecord,
   transactionSnapshot,
 } from "../domain/transactions";
 import { resolveAttendanceContext } from "../services/transaction-context";
@@ -139,29 +139,6 @@ function transactionToLegacy(row: TransactionJoinedRow): AttendanceRecord {
     recordedByName: row.recorded_by_name,
     method: row.source,
     note: row.note,
-    updatedAt: row.updated_at,
-  };
-}
-
-function toTransaction(row: TransactionJoinedRow): TransactionRecord {
-  return {
-    id: row.id,
-    themeId: row.theme_id,
-    activityId: row.activity_id,
-    sessionId: row.session_id,
-    participantId: row.participant_id,
-    type: row.type,
-    source: row.source,
-    status: row.status,
-    occurredAt: row.occurred_at,
-    recordedBy: row.recorded_by,
-    note: row.note,
-    slotNo: row.slot_no,
-    adjustsTransactionId: row.adjusts_transaction_id,
-    reversedAt: row.reversed_at,
-    supersededAt: row.superseded_at,
-    effective: row.reversed_at === null && row.superseded_at === null,
-    createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }
@@ -297,7 +274,7 @@ async function listEventTransactions(ctx: RouteContext): Promise<RouteResult> {
   const last = items.at(-1);
 
   const payload: TransactionListPayload = {
-    items: items.map(toTransaction),
+    items: items.map(toTransactionRecord),
     nextCursor:
       hasMore && last
         ? encodeCursor({ createdAt: last.occurred_at, id: last.id })
@@ -579,7 +556,7 @@ async function reverseTransaction(ctx: RouteContext): Promise<RouteResult> {
   const updated = await findTransactionById(ctx.env.DB, eventId, transactionId);
   if (!updated) throw notFound("Transaksi tidak ditemukan pada acara ini");
 
-  const payload: TransactionDetailPayload = { transaction: toTransaction(updated) };
+  const payload: TransactionDetailPayload = { transaction: toTransactionRecord(updated) };
   return { data: payload };
 }
 
@@ -734,7 +711,7 @@ async function adjustTransaction(ctx: RouteContext): Promise<RouteResult> {
   }
 
   const payload: TransactionDetailPayload = {
-    transaction: toTransaction(replacement),
+    transaction: toTransactionRecord(replacement),
   };
   return { data: payload };
 }

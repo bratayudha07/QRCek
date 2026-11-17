@@ -11,6 +11,12 @@ export interface Activity {
   status: ActivityStatus;
   location: string | null;
   sortOrder: number;
+  /**
+   * Default consumption quota of the Aktivitas (Q7, A3). `null` for an
+   * `attendance` Aktivitas, which has no quota concept. Optional so clients
+   * written before Q7 keep compiling; the API always sends it.
+   */
+  quota?: number | null;
   createdAt: number;
   updatedAt: number;
   archivedAt: number | null;

@@ -1,3 +1,5 @@
+import type { TransactionType } from "@absensi/shared";
+
 import type { ActivityRow } from "../db/activities";
 import { findActivity, listActivities } from "../db/activities";
 import type { ActivitySessionRow } from "../db/activity-sessions";
@@ -15,6 +17,10 @@ import { businessRule, notFound } from "../http/errors";
  * several candidates the request is ambiguous, so the caller must choose one;
  * the route never guesses. A Sesi is never inferred from the clock — an
  * Aktivitas with Sesi always needs an explicit, valid `sessionId` (FR-185).
+ *
+ * `resolveTransactionContext` is type-agnostic on purpose: the scan route accepts
+ * both Attendance and Consumption and branches afterwards, while every
+ * Attendance-only caller keeps using `resolveAttendanceContext`.
  */
 
 export interface TransactionContext {
@@ -22,7 +28,7 @@ export interface TransactionContext {
   session: ActivitySessionRow | null;
 }
 
-export async function resolveAttendanceContext(
+export async function resolveTransactionContext(
   db: D1Database,
   input: {
     eventId: string;
@@ -36,6 +42,8 @@ export async function resolveAttendanceContext(
     activity = await findActivity(db, input.eventId, input.activityId);
     if (!activity) throw notFound("Aktivitas tidak ditemukan pada acara ini");
   } else {
+    // Only Attendance can be inferred: it is the single Aktivitas the Q5
+    // migration created per Tema. A Consumption Aktivitas is never assumed.
     const candidates = (await listActivities(db, input.eventId)).filter(
       (row) => row.transaction_type === "attendance" && row.status !== "archived",
     );
@@ -57,12 +65,6 @@ export async function resolveAttendanceContext(
     }
 
     activity = candidates[0] as ActivityRow;
-  }
-
-  if (activity.transaction_type !== "attendance") {
-    throw businessRule("Aktivitas ini bukan Aktivitas absensi.", {
-      reason: "context_mismatch",
-    });
   }
 
   const sessions = await listActivitySessions(db, activity.id);
@@ -91,4 +93,56 @@ export async function resolveAttendanceContext(
   }
 
   return { activity, session: null };
+}
+
+/**
+ * Attendance-only context. A Consumption Aktivitas is a request error here, so a
+ * scan or Manual Entry can never write the wrong transaction type.
+ */
+export async function resolveAttendanceContext(
+  db: D1Database,
+  input: {
+    eventId: string;
+    activityId?: string;
+    sessionId?: string;
+  },
+): Promise<TransactionContext> {
+  const context = await resolveTransactionContext(db, input);
+  assertActivityType(context.activity, "attendance");
+  return context;
+}
+
+/**
+ * Consumption-only context (Q7). The Aktivitas must be named: unlike Attendance
+ * there is no default one to fall back to, and guessing would spend a quota on
+ * the wrong Aktivitas.
+ */
+export async function resolveConsumptionContext(
+  db: D1Database,
+  input: {
+    eventId: string;
+    activityId?: string;
+    sessionId?: string;
+  },
+): Promise<TransactionContext> {
+  if (!input.activityId) {
+    throw businessRule("Pilih Aktivitas konsumsi terlebih dahulu.", {
+      reason: "context_mismatch",
+    });
+  }
+
+  const context = await resolveTransactionContext(db, input);
+  assertActivityType(context.activity, "consumption");
+  return context;
+}
+
+function assertActivityType(activity: ActivityRow, expected: TransactionType): void {
+  if (activity.transaction_type === expected) return;
+
+  throw businessRule(
+    expected === "attendance"
+      ? "Aktivitas ini bukan Aktivitas absensi."
+      : "Aktivitas ini bukan Aktivitas konsumsi.",
+    { reason: "context_mismatch" },
+  );
 }

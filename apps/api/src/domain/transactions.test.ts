@@ -173,6 +173,7 @@ describe("transactionSnapshot", () => {
       adjustsTransactionId: null,
       reversedAt: null,
       supersededAt: null,
+      slotNo: null,
     });
   });
 });

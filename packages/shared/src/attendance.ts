@@ -39,6 +39,11 @@ export const SCAN_REASONS = [
   "context_mismatch",
   "session_not_in_progress",
   "session_archived",
+  /**
+   * Consumption only (A4, `BR-044`): the effective quota is used up. It is a
+   * `DUPLICATE` result, not `NOT_ENTITLED`, and the message is "Sudah diambil".
+   */
+  "quota_exhausted",
 ] as const;
 export type ScanReason = (typeof SCAN_REASONS)[number];
 
@@ -55,6 +60,8 @@ export interface ScanTransaction {
   sessionId: string | null;
   occurredAt: number;
   status: AttendanceStatus | null;
+  /** Consumption only: the serving number (`1..quota`); `null` for Attendance. */
+  slotNo: number | null;
 }
 
 export interface ScanResultPayload {

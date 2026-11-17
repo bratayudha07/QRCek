@@ -67,6 +67,7 @@ async function seedActivity(createdBy: string): Promise<{ themeId: string; activ
     transactionType: "attendance",
     location: null,
     sortOrder: 0,
+    quota: null,
     createdBy,
     createdAt: TEST_NOW,
   }).run();

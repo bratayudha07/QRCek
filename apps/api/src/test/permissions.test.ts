@@ -31,6 +31,7 @@ const EXPECTED: Record<Action, { superadmin: boolean; eventAdmin: boolean; offic
   "assignment:manage": { superadmin: true, eventAdmin: true, officer: false },
   "recap:read": { superadmin: true, eventAdmin: true, officer: true },
   "attendance:manual": { superadmin: true, eventAdmin: true, officer: true },
+  "consumption:manual": { superadmin: true, eventAdmin: true, officer: true },
   "transaction:correct": { superadmin: true, eventAdmin: true, officer: false },
   "audit:read": { superadmin: true, eventAdmin: true, officer: false },
   "sync:configure": { superadmin: true, eventAdmin: true, officer: false },

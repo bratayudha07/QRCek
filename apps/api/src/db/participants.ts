@@ -131,6 +131,31 @@ export async function findParticipant(
 }
 
 /**
+ * Batch lookup for bulk configuration writes (Q7 quota overrides). One query for
+ * the whole batch keeps the endpoint inside the statement budget, and the
+ * `event_id` predicate makes an id from another Tema resolve to "not found".
+ */
+export async function listParticipantsByIds(
+  db: D1Database,
+  eventId: string,
+  participantIds: readonly string[],
+): Promise<ParticipantRow[]> {
+  const unique = [...new Set(participantIds)];
+  if (unique.length === 0) return [];
+
+  const placeholders = unique.map(() => "?").join(", ");
+  const { results } = await db
+    .prepare(
+      `SELECT * FROM participants
+        WHERE event_id = ? AND id IN (${placeholders})`,
+    )
+    .bind(eventId, ...unique)
+    .all<ParticipantRow>();
+
+  return results;
+}
+
+/**
  * Label printing pages through active participants with the same keyset as the
  * list endpoint: `(created_at DESC, id DESC)`. Active-only is a WHERE clause,
  * not a client-side filter, so an inactive participant can never receive a

@@ -2,6 +2,7 @@ import type {
   AttendanceStatus,
   EventStatus,
   ScanReason,
+  TransactionRecord,
   TransactionSource,
   TransactionType,
 } from "@absensi/shared";
@@ -83,6 +84,8 @@ const REASON_MESSAGES: Record<ScanReason, string> = {
   context_mismatch: "Konteks Aktivitas/Sesi tidak cocok",
   session_not_in_progress: "Sesi belum berlangsung atau sudah selesai",
   session_archived: "Sesi sudah diarsipkan",
+  // Consumption only (A4): the effective quota is used up (FR-203).
+  quota_exhausted: "Sudah diambil",
 };
 
 export function scanMessage(reason: ScanReason | null): string {
@@ -148,6 +151,44 @@ export interface TransactionLike {
   adjusts_transaction_id: string | null;
   reversed_at: number | null;
   superseded_at: number | null;
+  /** Consumption slot (Q7); absent on legacy callers, which never set it. */
+  slot_no?: number | null;
+}
+
+/** Columns a row needs before it can become an API `TransactionRecord`. */
+export interface TransactionRecordSource extends TransactionLike {
+  recorded_by: string | null;
+  note: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+/**
+ * Single mapper from a joined transaction row to the API shape. Both the
+ * Attendance and the Consumption routes use it, so a new column cannot appear in
+ * one response and be missing from the other.
+ */
+export function toTransactionRecord(row: TransactionRecordSource): TransactionRecord {
+  return {
+    id: row.id,
+    themeId: row.theme_id,
+    activityId: row.activity_id,
+    sessionId: row.session_id,
+    participantId: row.participant_id,
+    type: row.type,
+    source: row.source,
+    status: row.status,
+    occurredAt: row.occurred_at,
+    recordedBy: row.recorded_by,
+    note: row.note,
+    slotNo: row.slot_no ?? null,
+    adjustsTransactionId: row.adjusts_transaction_id,
+    reversedAt: row.reversed_at,
+    supersededAt: row.superseded_at,
+    effective: row.reversed_at === null && row.superseded_at === null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
 }
 
 /** Allowlisted audit snapshot for a transaction (ADR-0020). */
@@ -168,5 +209,6 @@ export function transactionSnapshot(
     adjustsTransactionId: row.adjusts_transaction_id,
     reversedAt: row.reversed_at,
     supersededAt: row.superseded_at,
+    slotNo: row.slot_no ?? null,
   };
 }

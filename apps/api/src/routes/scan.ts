@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-import type { ScanResultPayload, ScanTransaction } from "@absensi/shared";
+import type {
+  ScanResultPayload,
+  ScanTransaction,
+  TransactionType,
+} from "@absensi/shared";
 import {
   EventIdSchema,
   ScanRequestSchema,
@@ -10,6 +14,10 @@ import {
 } from "@absensi/shared";
 
 import { insertAuditAfterTransactionStatement, recordAudit } from "../db/audit";
+import {
+  findQuotaOverrides,
+  listEffectiveConsumptionSlots,
+} from "../db/consumption-quotas";
 import { findEventById } from "../db/events";
 import { listRulesForContext } from "../db/entitlement-rules";
 import { enqueueTransactionStatement } from "../db/outbox";
@@ -18,10 +26,19 @@ import { findIdentityParticipantByHash } from "../db/qr-identities";
 import { consumeRateLimit } from "../db/rate-limit";
 import {
   findEffectiveTransactionForScope,
+  findLatestEffectiveConsumption,
+  findTransactionById,
   insertTransactionStatement,
 } from "../db/transactions";
 import type { TransactionJoinedRow } from "../db/transactions";
 import { findEffectiveAssignment } from "../db/staff-assignments";
+import {
+  consumptionMessage,
+  isQuotaExhaustedError,
+  nextSlotNo,
+  quotaRejection,
+  resolveQuota,
+} from "../domain/consumption";
 import { newId } from "../domain/ids";
 import {
   QrConfigError,
@@ -34,7 +51,9 @@ import {
   scanMessage,
   transactionSnapshot,
 } from "../domain/transactions";
-import { resolveAttendanceContext } from "../services/transaction-context";
+import type { TransactionContext } from "../services/transaction-context";
+import { resolveTransactionContext } from "../services/transaction-context";
+import type { AuthContext } from "../http/auth";
 import { authOf, requireEventAccess } from "../http/auth";
 import { ApiError, forbidden, notFound, rateLimited } from "../http/errors";
 import type { RouteContext, RouteDefinition, RouteResult } from "../http/router";
@@ -77,6 +96,7 @@ function transactionPayload(row: TransactionJoinedRow): ScanTransaction {
     sessionId: row.session_id,
     occurredAt: row.occurred_at,
     status: row.status,
+    slotNo: row.slot_no,
   };
 }
 
@@ -85,11 +105,16 @@ function businessResult(input: {
   reason: ScanResultPayload["reason"];
   participant?: ParticipantRow;
   transaction?: TransactionJoinedRow;
+  /** Consumption has its own success/duplicate copy (A4, D-013). */
+  type?: TransactionType;
 }): RouteResult {
   const payload: ScanResultPayload = {
     result: input.result,
     reason: input.reason,
-    message: scanMessage(input.reason),
+    message:
+      input.type === "consumption"
+        ? consumptionMessage(input.reason)
+        : scanMessage(input.reason),
   };
 
   if (input.participant) payload.participant = participantPayload(input.participant);
@@ -109,6 +134,191 @@ function qrFailure(error: unknown): never {
   }
 
   throw error;
+}
+
+async function recordConsumptionScan(
+  ctx: RouteContext,
+  input: {
+    auth: AuthContext;
+    eventId: string;
+    participant: ParticipantRow;
+    context: TransactionContext;
+    deviceTs: number | null;
+    ipHash: string | null;
+  },
+): Promise<RouteResult> {
+  const { auth, eventId, participant, context } = input;
+  const activity = context.activity;
+  const sessionId = context.session?.id ?? null;
+
+  // A1: usage counts the whole Aktivitas, not the Sesi. Two reads, not one per
+  // level: the effective slots give both the usage and the next free number,
+  // and one more read resolves both override levels.
+  const usedSlots = await listEffectiveConsumptionSlots(ctx.env.DB, {
+    themeId: eventId,
+    activityId: activity.id,
+    participantId: participant.id,
+  });
+  const used = usedSlots.length;
+
+  const overrides = await findQuotaOverrides(ctx.env.DB, {
+    themeId: eventId,
+    activityId: activity.id,
+    participantId: participant.id,
+    categoryId: participant.category_id,
+  });
+
+  const quota = resolveQuota({
+    activityQuota: activity.quota,
+    categoryOverride: overrides.categoryOverride,
+    participantOverride: overrides.participantOverride,
+  });
+
+  const rejection = quotaRejection({ used, quota });
+
+  if (rejection !== null) {
+    // A4: no row is written; the scanner gets DUPLICATE/quota_exhausted with
+    // HTTP 200, plus the row that used the quota when one exists.
+    const existing = await findLatestEffectiveConsumption(ctx.env.DB, {
+      themeId: eventId,
+      participantId: participant.id,
+      activityId: activity.id,
+    });
+
+    return businessResult({
+      result: "DUPLICATE",
+      reason: rejection,
+      participant,
+      ...(existing ? { transaction: existing } : {}),
+      type: "consumption",
+    });
+  }
+
+  const transactionId = newId(ctx.now);
+  const slotNo = nextSlotNo({ usedSlots });
+
+  let inserted: boolean;
+
+  try {
+    const results = await ctx.env.DB.batch([
+      insertTransactionStatement(ctx.env.DB, {
+        id: transactionId,
+        themeId: eventId,
+        activityId: activity.id,
+        sessionId,
+        participantId: participant.id,
+        type: "consumption",
+        source: "qr_scan",
+        // A Consumption transaction has no attendance status (CHECK in 0011).
+        status: null,
+        occurredAt: ctx.now,
+        deviceTs: input.deviceTs,
+        recordedBy: auth.user.id,
+        note: null,
+        slotNo,
+        adjustsTransactionId: null,
+        now: ctx.now,
+      }),
+      insertAuditAfterTransactionStatement(
+        ctx.env.DB,
+        {
+          id: newId(ctx.now),
+          eventId,
+          actorUserId: auth.user.id,
+          action: "transaction.recorded",
+          entityType: "transaction",
+          entityId: transactionId,
+          after: filterAuditFields(
+            "transaction",
+            transactionSnapshot({
+              id: transactionId,
+              theme_id: eventId,
+              activity_id: activity.id,
+              session_id: sessionId,
+              participant_id: participant.id,
+              type: "consumption",
+              source: "qr_scan",
+              status: null,
+              occurred_at: ctx.now,
+              adjusts_transaction_id: null,
+              reversed_at: null,
+              superseded_at: null,
+              slot_no: slotNo,
+            }),
+          ),
+          ipHash: input.ipHash,
+          createdAt: ctx.now,
+        },
+        transactionId,
+      ),
+    ]);
+
+    inserted = (results[0]?.meta.changes ?? 0) > 0;
+  } catch (error) {
+    // A parallel request may have taken the last slot after our count. The
+    // trigger is the authority, and its rejection is a business outcome.
+    if (!isQuotaExhaustedError(error)) throw error;
+
+    const existing = await findLatestEffectiveConsumption(ctx.env.DB, {
+      themeId: eventId,
+      participantId: participant.id,
+      activityId: activity.id,
+    });
+
+    return businessResult({
+      result: "DUPLICATE",
+      reason: "quota_exhausted",
+      participant,
+      ...(existing ? { transaction: existing } : {}),
+      type: "consumption",
+    });
+  }
+
+  if (!inserted) {
+    // Lost the slot race on `uq_tx_consumption_*`: the slot is taken, so the
+    // participant already has an effective row for this Aktivitas/Sesi.
+    const existing = await findEffectiveTransactionForScope(ctx.env.DB, {
+      themeId: eventId,
+      participantId: participant.id,
+      activityId: activity.id,
+      sessionId,
+      type: "consumption",
+    });
+
+    if (!existing) {
+      throw new ApiError(
+        500,
+        "SYSTEM_ERROR",
+        "Transaksi efektif tidak dapat dibaca setelah konflik. Coba lagi.",
+      );
+    }
+
+    return businessResult({
+      result: "DUPLICATE",
+      reason: "duplicate",
+      participant,
+      transaction: existing,
+      type: "consumption",
+    });
+  }
+
+  const created = await findTransactionById(ctx.env.DB, eventId, transactionId);
+
+  if (!created) {
+    throw new ApiError(
+      500,
+      "SYSTEM_ERROR",
+      "Transaksi tidak dapat dibaca setelah pencatatan. Coba lagi.",
+    );
+  }
+
+  return businessResult({
+    result: "SUCCESS",
+    reason: null,
+    participant,
+    transaction: created,
+    type: "consumption",
+  });
 }
 
 async function scan(ctx: RouteContext): Promise<RouteResult> {
@@ -202,11 +412,13 @@ async function scan(ctx: RouteContext): Promise<RouteResult> {
   const event = await findEventById(ctx.env.DB, eventId);
   if (!event) throw notFound("Acara tidak ditemukan");
 
-  const context = await resolveAttendanceContext(ctx.env.DB, {
+  const context = await resolveTransactionContext(ctx.env.DB, {
     eventId,
     activityId: body.activityId,
     sessionId: body.sessionId,
   });
+
+  const activityType = context.activity.transaction_type;
 
   const rejection = lifecycleRejection({
     event,
@@ -221,6 +433,7 @@ async function scan(ctx: RouteContext): Promise<RouteResult> {
       result: "NOT_ENTITLED",
       reason: rejection,
       participant,
+      type: activityType,
     });
   }
 
@@ -247,6 +460,7 @@ async function scan(ctx: RouteContext): Promise<RouteResult> {
       result: "NOT_ENTITLED",
       reason: "entitlement_denied",
       participant,
+      type: activityType,
     });
   }
 
@@ -264,6 +478,19 @@ async function scan(ctx: RouteContext): Promise<RouteResult> {
     if (!assignment) {
       throw forbidden("Anda tidak ditugaskan pada Aktivitas/Sesi ini");
     }
+  }
+
+  // The Aktivitas decides the transaction type (D-009). The database trigger
+  // rejects a mismatch too, so a wrong branch can never write cross-type rows.
+  if (activityType === "consumption") {
+    return recordConsumptionScan(ctx, {
+      auth,
+      eventId,
+      participant,
+      context,
+      deviceTs: body.deviceTs ?? null,
+      ipHash,
+    });
   }
 
   const transactionId = newId(ctx.now);

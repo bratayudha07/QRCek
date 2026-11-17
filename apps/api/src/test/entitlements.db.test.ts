@@ -63,6 +63,7 @@ async function seedTheme(): Promise<{
     transactionType: "attendance",
     location: null,
     sortOrder: 0,
+    quota: null,
     createdBy: userId,
     createdAt: TEST_NOW,
   }).run();
@@ -225,6 +226,7 @@ describe("entitlement_rules persistence", () => {
       transactionType: "attendance",
       location: null,
       sortOrder: 0,
+      quota: null,
       createdBy: otherUser,
       createdAt: TEST_NOW,
     }).run();
@@ -257,6 +259,7 @@ describe("entitlement_rules persistence", () => {
       transactionType: "attendance",
       location: null,
       sortOrder: 0,
+      quota: null,
       createdBy: seeded.userId,
       createdAt: TEST_NOW,
     }).run();
@@ -336,6 +339,7 @@ describe("0009 backfill", () => {
         transactionType: "attendance",
         location: null,
         sortOrder: 0,
+        quota: null,
         createdBy: userId,
         createdAt: TEST_NOW,
       }).run();

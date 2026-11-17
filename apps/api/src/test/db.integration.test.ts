@@ -38,6 +38,7 @@ describe("D1 integration", () => {
       "0009_entitlement_rules.sql",
       "0010_qr_identities.sql",
       "0011_q5_transactions.sql",
+      "0012_q7_consumption.sql",
     ]);
   });
 
@@ -46,7 +47,7 @@ describe("D1 integration", () => {
       .bind("schema_version")
       .first<{ value: string }>();
 
-    expect(row?.value).toBe("11");
+    expect(row?.value).toBe("12");
   });
 
   it("stores and updates a key", async () => {

@@ -29,6 +29,7 @@ export type Action =
   | "assignment:manage"
   | "recap:read"
   | "attendance:manual"
+  | "consumption:manual"
   | "transaction:correct"
   | "audit:read"
   | "sync:configure"
@@ -72,6 +73,11 @@ const MIN_MEMBERSHIP: Record<Action, EventRole | null> = {
   // (ADR-0021, AC-055). The route still checks assignment, the flag, and
   // `events.allow_manual`; Super Admin is rejected explicitly there.
   "attendance:manual": "officer",
+  // Manual Entry for a Consumption Aktivitas is its own authority (A5): reusing
+  // `attendance:manual` would make the matrix lie about what the officer may do.
+  // The route still checks assignment, the flag, and `events.allow_manual`;
+  // Super Admin is rejected explicitly there.
+  "consumption:manual": "officer",
   // Reversal/Adjustment: event_admin of that Tema only. Super Admin is rejected
   // explicitly in the route because `isAllowed` otherwise lets it pass (D-024).
   "transaction:correct": "event_admin",

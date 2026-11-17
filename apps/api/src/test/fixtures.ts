@@ -79,25 +79,35 @@ export async function createActivity(
     transactionType?: "attendance" | "consumption";
     status?: "draft" | "active" | "completed" | "archived";
     sortOrder?: number;
+    /** Default consumption quota (Q7); `attendance` must leave it `null`. */
+    quota?: number | null;
     createdBy?: string | null;
   } = {},
 ): Promise<string> {
   const id = options.id ?? newId(TEST_NOW);
   const status = options.status ?? "active";
+  const transactionType = options.transactionType ?? "attendance";
+  const quota =
+    options.quota !== undefined
+      ? options.quota
+      : transactionType === "consumption"
+        ? 1
+        : null;
 
   await testEnv.DB.prepare(
     `INSERT INTO activities
        (id, theme_id, name, description, transaction_type, status, location,
-        sort_order, created_at, created_by, updated_at, updated_by, archived_at)
-     VALUES (?, ?, ?, NULL, ?, ?, NULL, ?, ?, ?, ?, NULL, ?)`,
+        sort_order, quota, created_at, created_by, updated_at, updated_by, archived_at)
+     VALUES (?, ?, ?, NULL, ?, ?, NULL, ?, ?, ?, ?, ?, NULL, ?)`,
   )
     .bind(
       id,
       eventId,
       options.name ?? "Absensi",
-      options.transactionType ?? "attendance",
+      transactionType,
       status,
       options.sortOrder ?? 0,
+      quota,
       TEST_NOW,
       options.createdBy ?? null,
       TEST_NOW,

@@ -107,6 +107,7 @@ describe("allowlist table", () => {
     expect(Object.keys(AUDIT_FIELDS).sort()).toEqual([
       "activity",
       "category",
+      "consumption_quota",
       "custom_field",
       "entitlement_rule",
       "participant",

@@ -57,6 +57,7 @@ describe("classifyScanResponse", () => {
           sessionId: null,
           occurredAt: 1_760_000_000_000,
           status: "present",
+          slotNo: null,
         },
       }),
     });

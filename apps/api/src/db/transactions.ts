@@ -111,6 +111,27 @@ export async function findEffectiveTransactionForScope(
     .first<TransactionJoinedRow>();
 }
 
+/**
+ * Latest effective Consumption row of one participant in one Aktivitas, across
+ * every Sesi (Q7). Used to answer a quota rejection with the row that used the
+ * quota, so the scanner can show when it was taken.
+ */
+export async function findLatestEffectiveConsumption(
+  db: D1Database,
+  input: { themeId: string; participantId: string; activityId: string },
+): Promise<TransactionJoinedRow | null> {
+  return db
+    .prepare(
+      `${TRANSACTION_SELECT}
+        WHERE t.theme_id = ? AND t.participant_id = ? AND t.activity_id = ?
+          AND t.type = 'consumption' AND ${EFFECTIVE}
+        ORDER BY t.occurred_at DESC, t.id DESC
+        LIMIT 1`,
+    )
+    .bind(input.themeId, input.participantId, input.activityId)
+    .first<TransactionJoinedRow>();
+}
+
 /** Latest effective Attendance transaction for a participant (compat adapter). */
 export async function findEffectiveAttendanceForParticipant(
   db: D1Database,

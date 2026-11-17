@@ -20,6 +20,7 @@ const TABLES_CHILDREN_FIRST = [
   "transactions",
   "staff_assignments",
   "entitlement_rules",
+  "consumption_quotas",
   "activity_sessions",
   "activities",
   "attendance",

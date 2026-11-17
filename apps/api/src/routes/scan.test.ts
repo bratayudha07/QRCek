@@ -197,31 +197,37 @@ describe("POST /api/events/:eventId/scan", () => {
     expect(auditCount?.n).toBe(1);
   });
 
-  it("never creates more than one effective row under 50 concurrent scans", async () => {
-    const s = await scenario();
+  it(
+    "never creates more than one effective row under 50 concurrent scans",
+    async () => {
+      const s = await scenario();
 
-    const responses = await Promise.all(
-      Array.from({ length: 50 }, () => scan(s.officerCookie, s.eventId, s.qr)),
-    );
+      const responses = await Promise.all(
+        Array.from({ length: 50 }, () => scan(s.officerCookie, s.eventId, s.qr)),
+      );
 
-    const results = responses.map((response) => {
-      const body = response.json<ScanResultPayload>();
-      return body.ok ? body.data.result : "error";
-    });
+      const results = responses.map((response) => {
+        const body = response.json<ScanResultPayload>();
+        return body.ok ? body.data.result : "error";
+      });
 
-    expect(responses.every((response) => response.status === 200)).toBe(true);
-    expect(results.filter((result) => result === "SUCCESS")).toHaveLength(1);
-    expect(results.filter((result) => result === "DUPLICATE")).toHaveLength(49);
-    expect(await transactionCount(s.eventId)).toBe(1);
+      expect(responses.every((response) => response.status === 200)).toBe(true);
+      expect(results.filter((result) => result === "SUCCESS")).toHaveLength(1);
+      expect(results.filter((result) => result === "DUPLICATE")).toHaveLength(49);
+      expect(await transactionCount(s.eventId)).toBe(1);
 
-    const effective = await testEnv.DB.prepare(
-      `SELECT COUNT(*) AS n FROM transactions
-        WHERE theme_id = ? AND reversed_at IS NULL AND superseded_at IS NULL`,
-    )
-      .bind(s.eventId)
-      .first<{ n: number }>();
-    expect(effective?.n).toBe(1);
-  });
+      const effective = await testEnv.DB.prepare(
+        `SELECT COUNT(*) AS n FROM transactions
+          WHERE theme_id = ? AND reversed_at IS NULL AND superseded_at IS NULL`,
+      )
+        .bind(s.eventId)
+        .first<{ n: number }>();
+      expect(effective?.n).toBe(1);
+    },
+    // 50 concurrent requests against local workerd sit right at the 5 s default
+    // on the owner's Celeron; the assertion is about integrity, not latency.
+    15_000,
+  );
 
   it("rejects an unknown or malformed payload as INVALID_QR", async () => {
     const s = await scenario();

@@ -285,6 +285,7 @@ type VersionedAuditTable =
   | "activities"
   | "activity_sessions"
   | "categories"
+  | "consumption_quotas"
   | "custom_fields"
   | "entitlement_rules"
   | "participants"
@@ -401,7 +402,8 @@ export function insertAuditAfterStaffAssignmentUpdateStatement(
   );
 }
 
-/** Entitlement rules carry `updated_at`; a lost optimistic write writes no audit. */export function insertAuditAfterEntitlementRuleUpdateStatement(
+/** Entitlement rules carry `updated_at`; a lost optimistic write writes no audit. */
+export function insertAuditAfterEntitlementRuleUpdateStatement(
   db: D1Database,
   entry: AuditEntry,
   ruleId: string,
@@ -412,6 +414,22 @@ export function insertAuditAfterStaffAssignmentUpdateStatement(
     entry,
     "entitlement_rules",
     ruleId,
+    updatedAt,
+  );
+}
+
+/** Quota overrides carry `updated_at`; a lost optimistic write writes no audit. */
+export function insertAuditAfterConsumptionQuotaUpdateStatement(
+  db: D1Database,
+  entry: AuditEntry,
+  quotaId: string,
+  updatedAt: number,
+): D1PreparedStatement {
+  return insertAuditAfterVersionedUpdateStatement(
+    db,
+    entry,
+    "consumption_quotas",
+    quotaId,
     updatedAt,
   );
 }
@@ -489,6 +507,40 @@ export function insertAuditAfterEntitlementRuleDeleteStatement(
       entry.ipHash ?? null,
       entry.createdAt,
       ruleId,
+    );
+}
+
+/**
+ * Delete audit fires only when the row is gone after the delete statement in the
+ * same batch. A stale `updated_at` leaves the row in place, so no audit row.
+ */
+export function insertAuditAfterConsumptionQuotaDeleteStatement(
+  db: D1Database,
+  entry: AuditEntry,
+  quotaId: string,
+): D1PreparedStatement {
+  return db
+    .prepare(
+      `INSERT INTO audit_log
+         (id, event_id, actor_user_id, action, entity_type, entity_id,
+          before_json, after_json, reason, request_id, ip_hash, created_at)
+       SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        WHERE NOT EXISTS (SELECT 1 FROM consumption_quotas WHERE id = ?)`,
+    )
+    .bind(
+      entry.id,
+      entry.eventId,
+      entry.actorUserId,
+      entry.action,
+      entry.entityType,
+      entry.entityId ?? null,
+      jsonOrNull(entry.before),
+      jsonOrNull(entry.after),
+      entry.reason ?? null,
+      entry.requestId ?? null,
+      entry.ipHash ?? null,
+      entry.createdAt,
+      quotaId,
     );
 }
 

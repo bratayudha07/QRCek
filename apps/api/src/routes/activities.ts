@@ -64,6 +64,7 @@ function toActivity(row: ActivityRow): Activity {
     status: row.status,
     location: row.location,
     sortOrder: row.sort_order,
+    quota: row.quota,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     archivedAt: row.archived_at,
@@ -122,6 +123,8 @@ async function createActivity(ctx: RouteContext): Promise<RouteResult> {
   const body = await parseJsonBody(ctx.request, ActivityCreateRequestSchema);
 
   const id = newId(ctx.now);
+  // A3: a new `consumption` Aktivitas starts with quota 1; `attendance` has none.
+  const quota = body.transactionType === "consumption" ? 1 : null;
   const activity: ActivityRow = {
     id,
     theme_id: eventId,
@@ -131,6 +134,7 @@ async function createActivity(ctx: RouteContext): Promise<RouteResult> {
     status: "draft",
     location: body.location ?? null,
     sort_order: body.sortOrder,
+    quota,
     created_at: ctx.now,
     created_by: auth.user.id,
     updated_at: ctx.now,
@@ -147,6 +151,7 @@ async function createActivity(ctx: RouteContext): Promise<RouteResult> {
       transactionType: body.transactionType,
       location: activity.location,
       sortOrder: body.sortOrder,
+      quota,
       createdBy: auth.user.id,
       createdAt: ctx.now,
     }),
