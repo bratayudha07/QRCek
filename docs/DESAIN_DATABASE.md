@@ -2,9 +2,9 @@
 
 Database: Cloudflare D1, binding `DB`. Dialek **SQLite**, bukan Postgres.
 
-> **Status dokumen (14 November 2026).** Dokumen ini mencatat **skema aktual**: migrasi `0001`–`0011`. `0001`–`0006` sudah diterapkan di remote dan **tidak boleh diedit**; `0007_q1_activities_sessions.sql` diterapkan di remote pada 6 November 2026 (backup: `/tmp/opencode/qrcek-backup-2026-11-06.sql`). `0008_q2_categories_custom_fields.sql` diterapkan di remote pada **8 November 2026 02:28 UTC** (`app_meta.schema_version = 8`) berdekatan dengan deploy kode Q2; verifikasi data: 80 peserta, 32 kategori, 0 peserta tanpa `category_id`, 0 kategori lintas Tema (`docs/OPERASIONAL.md`). `0009_entitlement_rules.sql` (Q3) sudah diuji di database lokal dan **sudah diterapkan di remote** pada 8 November 2026 (`app_meta.schema_version = 9`, deploy `dc8b8546`); backfill menghasilkan 0 baris. `0010_qr_identities.sql` (Q4) **sudah diterapkan di remote** pada **9 November 2026 02:34 UTC** (`app_meta.schema_version = 10`, backup pra-migrasi `/tmp/opencode/qrcek-backup-2026-11-09-pre-0010.sql`, 149 KB); backfill menyalin **60 baris** kredensial legacy dari 80 peserta, 0 nilai tidak cocok. `0011_q5_transactions.sql` (Q5) **sudah diterapkan di remote** pada **12 November 2026** (`app_meta.schema_version = 11`, backup pra-migrasi `/tmp/opencode/qrcek-backup-2026-11-12-pre-0011.sql`, 187 KB). Backfill membuat **12 Aktivitas Attendance default** (satu per Tema), **32 aturan entitlement**, **5 penugasan Petugas**, dan menyalin **26 baris `attendance`** menjadi `transactions` dengan id yang sama; verifikasi lintas Tema = 0. Migrasi diuji lebih dulu di database lokal kosong dan oleh suite integrasi yang menerapkan seluruh migrasi. **Q6 tidak menambah migrasi**: penugasan memakai tabel `staff_assignments` dan indeks dari `0011`.
+> **Status dokumen (15 November 2026).** Dokumen ini mencatat **skema aktual**: migrasi `0001`–`0012`. `0001`–`0006` sudah diterapkan di remote dan **tidak boleh diedit**; `0007_q1_activities_sessions.sql` diterapkan di remote pada 6 November 2026 (backup: `/tmp/opencode/qrcek-backup-2026-11-06.sql`). `0008_q2_categories_custom_fields.sql` diterapkan di remote pada **8 November 2026 02:28 UTC** (`app_meta.schema_version = 8`) berdekatan dengan deploy kode Q2; verifikasi data: 80 peserta, 32 kategori, 0 peserta tanpa `category_id`, 0 kategori lintas Tema (`docs/OPERASIONAL.md`). `0009_entitlement_rules.sql` (Q3) sudah diuji di database lokal dan **sudah diterapkan di remote** pada 8 November 2026 (`app_meta.schema_version = 9`, deploy `dc8b8546`); backfill menghasilkan 0 baris. `0010_qr_identities.sql` (Q4) **sudah diterapkan di remote** pada **9 November 2026 02:34 UTC** (`app_meta.schema_version = 10`, backup pra-migrasi `/tmp/opencode/qrcek-backup-2026-11-09-pre-0010.sql`, 149 KB); backfill menyalin **60 baris** kredensial legacy dari 80 peserta, 0 nilai tidak cocok. `0011_q5_transactions.sql` (Q5) **sudah diterapkan di remote** pada **12 November 2026** (`app_meta.schema_version = 11`, backup pra-migrasi `/tmp/opencode/qrcek-backup-2026-11-12-pre-0011.sql`, 187 KB). Backfill membuat **12 Aktivitas Attendance default** (satu per Tema), **32 aturan entitlement**, **5 penugasan Petugas**, dan menyalin **26 baris `attendance`** menjadi `transactions` dengan id yang sama; verifikasi lintas Tema = 0. Migrasi diuji lebih dulu di database lokal kosong dan oleh suite integrasi yang menerapkan seluruh migrasi. **Q6 tidak menambah migrasi**: penugasan memakai tabel `staff_assignments` dan indeks dari `0011`. `0012_q7_consumption.sql` (Q7) **sudah diuji di database lokal kosong dan oleh suite integrasi, belum diterapkan di remote**; ia additive, dan satu-satunya backfill-nya adalah `UPDATE activities SET quota = 1 WHERE transaction_type = 'consumption' AND quota IS NULL` yang defensif karena produksi belum punya Aktivitas `consumption`.
 >
-> **Delta yang sudah ditutup Q5:** transaksi efektif berkonteks Aktivitas/Sesi (`D-003`), Reversal/Adjustment tanpa menimpa riwayat (`D-006`), dan koreksi via `UPDATE attendance` sudah tidak ada di kode. Tabel `attendance` **tetap ada dan tidak lagi ditulis**; ia hanya dibaca oleh adaptor kompatibilitas sampai Q8. Delta yang **masih terbuka**: kuota konsumsi ditegakkan di database (Q7) dan `slot_no` sudah disiapkan tetapi belum divalidasi; `participants.qr_*` legacy belum dihapus (ADR-0017).
+> **Delta yang sudah ditutup Q5:** transaksi efektif berkonteks Aktivitas/Sesi (`D-003`), Reversal/Adjustment tanpa menimpa riwayat (`D-006`), dan koreksi via `UPDATE attendance` sudah tidak ada di kode. Tabel `attendance` **tetap ada dan tidak lagi ditulis**; ia hanya dibaca oleh adaptor kompatibilitas sampai Q8. **Delta yang sudah ditutup Q7:** kuota konsumsi ditegakkan di database lewat trigger `BEFORE INSERT`, dan `slot_no` dihitung Worker serta dijaga indeks unik parsial Q5. Delta yang **masih terbuka**: `participants.qr_*` legacy belum dihapus (ADR-0017), dan UI kuota serta laporan konsumsi belum ada (Q7 sisi API saja).
 
 Batasan platform yang membentuk skema ini (terverifikasi, lihat [`../COSTS_AND_LIMITS.md`](../COSTS_AND_LIMITS.md)):
 
@@ -50,6 +50,7 @@ events ──┬──< event_memberships >── users ──┬──< device_
          │                                  └──< sheet_rows (1:1)
          ├──< custom_fields
          ├──< entitlement_rules (tema/aktivitas/sesi/peserta/kategori)
+         ├──< consumption_quotas (aktivitas × kategori/peserta)
          ├──< invites
          ├──< outbox
          ├──< audit_log
@@ -67,7 +68,7 @@ Catatan: `superadmin` bersifat global (`users.role`), sedangkan `event_admin` da
 
 ## 3. DDL
 
-> **Keadaan aktual per 14 November 2026:** migrasi `0001`–`0006` membuat tabel bisnis, kolom QR, attendance, audit, outbox, Sheets, dan metadata self-signup; `0007` menambahkan `activities` dan `activity_sessions` (Q1); `0008`–`0010` menambahkan kategori/custom field, entitlement, dan QR Identity; `0011` menambahkan `transactions`, `transaction_corrections`, dan `staff_assignments` (Q5). Q6 hanya menambah query/route/UI di atas skema itu. DDL di bawah mendokumentasikan skema; file migrasi tetap sumber kebenaran untuk definisi aktual.
+> **Keadaan aktual per 15 November 2026:** migrasi `0001`–`0006` membuat tabel bisnis, kolom QR, attendance, audit, outbox, Sheets, dan metadata self-signup; `0007` menambahkan `activities` dan `activity_sessions` (Q1); `0008`–`0010` menambahkan kategori/custom field, entitlement, dan QR Identity; `0011` menambahkan `transactions`, `transaction_corrections`, dan `staff_assignments` (Q5); `0012` menambahkan `activities.quota`, `consumption_quotas`, dan penegakan kuota konsumsi (Q7). Q6 hanya menambah query/route/UI di atas skema itu. DDL di bawah mendokumentasikan skema; file migrasi tetap sumber kebenaran untuk definisi aktual.
 
 File migrasi: satu file per perubahan skema, diberi nomor berurutan di `migrations/`.
 
@@ -947,6 +948,86 @@ indeks dari `0011`:
 - **Audit** — `assignment.created|updated|revoked` ditulis dalam `db.batch()` yang sama dengan
   mutasi baris, sehingga tidak ada mutasi tanpa jejak (`audit.guarded-write`).
 
+### Q7 — kuota konsumsi (`0012`)
+
+File: `migrations/0012_q7_consumption.sql` (Q7, `D-005`/`D-009`/`D-014`, `BR-043`/`BR-044`/`BR-045`/`BR-073`)
+
+```sql
+ALTER TABLE activities ADD COLUMN quota INTEGER;
+
+CREATE TABLE consumption_quotas (
+  id             TEXT PRIMARY KEY,
+  theme_id       TEXT NOT NULL REFERENCES events(id) ON DELETE RESTRICT,
+  activity_id    TEXT NOT NULL REFERENCES activities(id) ON DELETE RESTRICT,
+  category_id    TEXT REFERENCES categories(id) ON DELETE RESTRICT,
+  participant_id TEXT REFERENCES participants(id) ON DELETE RESTRICT,
+  quota          INTEGER NOT NULL CHECK (quota >= 0),
+  created_at     INTEGER NOT NULL,
+  created_by     TEXT REFERENCES users(id) ON DELETE RESTRICT,
+  updated_at     INTEGER NOT NULL,
+  updated_by     TEXT REFERENCES users(id) ON DELETE RESTRICT,
+  CHECK (created_at > 0),
+  CHECK (updated_at >= created_at),
+  CHECK ((category_id IS NULL) <> (participant_id IS NULL))
+);
+
+CREATE UNIQUE INDEX uq_consumption_quota_category
+  ON consumption_quotas(theme_id, activity_id, category_id)
+  WHERE participant_id IS NULL;
+
+CREATE UNIQUE INDEX uq_consumption_quota_participant
+  ON consumption_quotas(theme_id, activity_id, participant_id)
+  WHERE category_id IS NULL;
+
+CREATE INDEX idx_consumption_quotas_activity
+  ON consumption_quotas(theme_id, activity_id, category_id, participant_id);
+
+CREATE INDEX idx_tx_consumption_effective
+  ON transactions(theme_id, participant_id, activity_id, session_id)
+  WHERE type = 'consumption'
+    AND reversed_at IS NULL
+    AND superseded_at IS NULL;
+```
+
+Trigger: `trg_activity_quota_insert`, `trg_activity_quota_update`,
+`trg_consumption_quota_context_insert`, `trg_consumption_quota_context_update`,
+`trg_transaction_consumption_quota`.
+
+> **Catatan 0012.**
+>
+> 1. **Kuota ditegakkan database, bukan Worker.** `trg_transaction_consumption_quota`
+>    (`BEFORE INSERT`, hanya `adjusts_transaction_id IS NULL`) menghitung transaksi
+>    konsumsi efektif peserta itu pada Aktivitas itu lalu `RAISE(ABORT, 'consumption quota
+>    exhausted')` bila sudah mencapai plafon. Dua request paralel tidak bisa sama-sama lolos
+>    (`T-120`, `BR-044`). Worker tetap menghitung `slot_no` dan melakukan pra-cek agar hasilnya
+>    bisa dipetakan ke `DUPLICATE`/`quota_exhausted` (scan) atau `422` (Manual Entry), tetapi
+>    trigger adalah otoritasnya.
+> 2. **Kuota per Aktivitas, lintas Sesi (A1).** Hitungan tidak memakai `session_id`; Sesi tidak
+>    pernah mereset kuota. `idx_tx_consumption_effective` membuat hitungan itu `SEARCH` penutup.
+> 3. **Resolusi individual → kategori → Aktivitas.** `COALESCE` di trigger membaca
+>    `consumption_quotas` (peserta, lalu kategori peserta), lalu `activities.quota`. Fungsi
+>    murni `resolveQuota` memakai urutan yang sama untuk tampilan dan pra-cek.
+> 4. **Reversal membebaskan kuota; Adjustment tidak menambah pemakaian (A6).** Predikat
+>    efektif trigger identik dengan predikat indeks unik Q5, sehingga Reversal/supersede
+>    mengeluarkan baris dari hitungan. Adjustment mewarisi `slot_no` dan dikecualikan dari
+>    plafon (`T-122`).
+> 5. **Kuota `0` adalah konfigurasi, bukan penghapusan.** `CHECK (quota >= 0)` dan resolver
+>    menganggap `0` sebagai plafon yang menolak transaksi pertama; menghapus override berarti
+>    kembali ke level berikutnya, bukan menulis `0`.
+> 6. **Tipe Aktivitas menentukan keberadaan kuota.** Trigger `trg_activity_quota_*` menolak
+>    `quota` pada Aktivitas `attendance` dan menolak Aktivitas `consumption` tanpa kuota,
+>    sehingga dua konsep itu tidak tercampur (`D-009`).
+> 7. **Override dijaga lintas konteks.** `trg_consumption_quota_context_*` menolak Aktivitas
+>    yang bukan milik Tema, Aktivitas non-`consumption`, serta kategori/peserta Tema lain.
+>    Pelanggaran unik parsial dipetakan route menjadi `409 CONFLICT`.
+> 8. **Perubahan kuota hanya berlaku ke depan (`D-005`, A2).** Tidak ada `UPDATE`/`DELETE`
+>    pada `transactions` di jalur kuota; `T-123` memastikan riwayat penukaran tetap ada.
+> 9. **Backfill hanya defensif, tanpa audit di migrasi.** Produksi belum punya Aktivitas
+>    `consumption`; `UPDATE activities SET quota = 1` hanya menjaga database lokal/seed agar
+>    Aktivitas konsumsi lama tidak berkuota `NULL` (yang dibaca trigger sebagai tanpa plafon).
+>    Migrasi bukan aksi admin — pengecualian yang sama dengan `0009`/`0010`/`0011`. Audit kuota
+>    ditulis route saat mutasi runtime.
+
 ---
 
 ## 4. Indeks: alasan dan biaya
@@ -979,7 +1060,10 @@ Setiap indeks menambah baris tulis. Indeks di bawah dipilih karena setiap halama
 | `uq_qr_identity_participant` (`0010`) | Satu identitas per Tema + Peserta; `ON CONFLICT` penerbitan lazy |
 | `uq_qr_identity_hash` (`0010`) | Lookup scan satu `SEARCH`; menjamin hash hanya milik satu identitas |
 | `uq_tx_attendance_*` (`0011`, 2 partial) | Satu transaksi Attendance efektif per peserta per Aktivitas/Sesi |
-| `uq_tx_consumption_*` (`0011`, 2 partial) | Satu transaksi konsumsi efektif per peserta per ruang lingkup dan `slot_no`; disiapkan untuk Q7 |
+| `uq_tx_consumption_*` (`0011`, 2 partial) | Satu transaksi konsumsi efektif per peserta per ruang lingkup dan `slot_no`; kuotanya ditegakkan `0012` |
+| `idx_tx_consumption_effective` (`0012`, partial) | Hitungan kuota per peserta per Aktivitas (lintas Sesi) menjadi `SEARCH` penutup, bukan scan riwayat peserta |
+| `uq_consumption_quota_category` / `uq_consumption_quota_participant` (`0012`, partial) | Satu override per sel (kategori/peserta); `ON CONFLICT` wajib mengulang predikatnya |
+| `idx_consumption_quotas_activity` (`0012`) | Daftar override satu Aktivitas untuk `GET .../quota` |
 | `idx_tx_effective_activity` / `idx_tx_effective_participant` (`0011`, partial) | Rekap, riwayat, dashboard, dan proyeksi Sheets hanya membaca transaksi efektif |
 | `idx_tx_participant_history` (`0011`) | Riwayat termasuk versi yang sudah di-Reversal/supersede |
 | `uq_txc_reversal` (`0011`, partial) | Maksimum satu Reversal per transaksi |
@@ -1045,6 +1129,15 @@ Setiap indeks menambah baris tulis. Indeks di bawah dipilih karena setiap halama
 | Riwayat transaksi tidak berubah karena rotasi | Tidak ada UPDATE/DELETE pada `transactions` | `qr-identity.api.test.ts` — jumlah transaksi tetap |
 | Identitas tidak bisa lintas Tema di level database | Trigger `trg_qr_identity_context_*` | `qr-identity.db.test.ts` — insert lintas Tema error |
 | Metadata/rotasi tidak membocorkan kredensial | Respons & allowlist audit tanpa token/hash/ciphertext/nonce | `qr-identity.api.test.ts`, `audit-allowlist.test.ts` |
+| Kuota konsumsi ditegakkan database, bukan cek baca-lalu-tulis | `trg_transaction_consumption_quota` (`0012`) menghitung transaksi efektif peserta per Aktivitas; insert melebihi plafon `RAISE(ABORT)` | `consumption.db.test.ts` — T-120: insert di dalam `db.batch` gagal dan 0 baris tertulis; `routes/consumption.test.ts` — scan kedua `DUPLICATE/quota_exhausted`, baris tetap 1 |
+| Kuota per Aktivitas lintas Sesi | Hitungan trigger tidak memakai `session_id`; `resolveQuota` murni | `consumption.db.test.ts` — "counts usage across every Sesi"; `domain/consumption.test.ts` |
+| Kuota individual → kategori → Aktivitas | `COALESCE` di trigger + `resolveQuota` | `consumption.db.test.ts` — T-121 tiga tingkat dan plafon 0; `domain/consumption.test.ts` |
+| Reversal mengembalikan kuota dan slot | Predikat efektif trigger sama dengan `uq_tx_consumption_*` | `consumption.db.test.ts` — T-122 |
+| Perubahan kuota tidak menghapus riwayat | Jalur kuota tidak menyentuh `transactions` | `consumption.db.test.ts` — T-123 |
+| Aktivitas `attendance` tanpa kuota, `consumption` wajib kuota | `trg_activity_quota_insert` / `trg_activity_quota_update` | `consumption.db.test.ts` — 3 tes trigger tipe/negatif |
+| Override kuota tidak lintas Tema/Aktivitas | `trg_consumption_quota_context_*` + scope `theme_id` | `consumption.db.test.ts` — Aktivitas/kategori/peserta lintas Tema dan Aktivitas `attendance` ditolak |
+| Kuota hanya ditulis Admin Acara | Route memakai `entitlement:write` (minimum `event_admin`); Petugas 403, Super Admin lewat matriks tapi tetap butuh Tema | `routes/consumption.test.ts` — Petugas baca 200, tulis 403 |
+| Audit kuota tanpa token/PII | Snapshot allowlist `activity.quota` dan entitas `consumption_quota` | `routes/consumption.test.ts`, `audit-allowlist.test.ts` |
 
 ---
 

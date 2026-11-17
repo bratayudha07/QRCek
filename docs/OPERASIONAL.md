@@ -4,7 +4,12 @@ Dokumen ini mencatat hasil pengukuran, instruksi operasi, status deployment, dan
 
 > **Konteks (10 November 2026).** Semua pengukuran dan prosedur di sini berlaku untuk baseline (model `events` datar, commit acuan `157c330`) ditambah Q1 (Aktivitas/Sesi), Q2 (kategori, custom field, atribut peserta), Q3 (konfigurasi entitlement), Q4 (QR Identity per Tema), dan Q5 (transaksi Attendance berkonteks, Reversal/Adjustment) — semuanya API-only. Angka CPU/statement/baris **tidak** otomatis berlaku untuk tahap berikutnya dan harus diukur ulang di tahap terkait ([`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md) Q6–Q11). Uji perangkat fisik scanner, akun Google Sheets nyata, dan CPU produksi belum pernah dilakukan (`REQUIREMENTS.md` §7.3). Rujukan "ADR-00N" di dokumen ini = `docs/adr/000N-*.md`.
 
-## Status operasi saat ini (14 November 2026)
+## Status operasi saat ini (15 November 2026)
+
+- **Q7 (kuota konsumsi) belum dirilis.** Kode dan `migrations/0012_q7_consumption.sql` ada di
+  working tree, sudah lulus suite lokal, tetapi migrasi **belum** diterapkan di remote dan belum
+  ada deploy. Produksi masih pada `schema_version = 11` dan perilaku Q6; jangan menganggap route
+  kuota atau Aktivitas `consumption` tersedia di produksi sebelum §6.5 dijalankan.
 
 - Worker produksi berjalan di `https://qrcek.hamdirobbi5.workers.dev` dan di-deploy lewat
   **Cloudflare Workers Builds** (Git integration): push/merge ke `main` memicu build lalu
@@ -486,6 +491,38 @@ Quirk yang akan mengganggu:
   tetapi kuota konsumsi baru ditegakkan di Q7. Jangan menganggap `uq_tx_consumption_*` sebagai
   penegakan kuota; indeks itu hanya mencegah baris efektif ganda.
 
+### 6.5 Pengukuran Q7 (`0012`) — lokal, belum rilis
+
+Diukur 15 November 2026 di `workerd` lokal (D1 uji). Bukan CPU produksi; lihat §2. `0012`
+**belum diterapkan di remote** dan belum ada deploy yang membutuhkannya.
+
+| Metrik | Hasil | Cara |
+|---|---|---|
+| Statement `GET .../quota` | **8** dari batas 50 | `consumption.statements.test.ts` menghitung `prepare()` pada env yang di-proxy |
+| Statement `PUT .../quota` (default) | **8** | sama |
+| Statement scan Consumption | **16** (scan Attendance 15) | sama |
+| Statement Manual Entry Consumption | **14** | sama |
+| Statement bulk override 15 aturan | **38** | sama |
+| Hitungan kuota per peserta | `SEARCH ... USING INDEX idx_tx_consumption_effective`, tanpa `SCAN` | `EXPLAIN QUERY PLAN` di `consumption.db.test.ts` |
+| Penegakan kuota paralel | insert kedua ditolak trigger `consumption quota exhausted`, batch rollback, 0 baris tertulis | `consumption.db.test.ts` (T-120) |
+| Backfill `0012` | **defensif saja** — `UPDATE activities SET quota = 1` untuk Aktivitas `consumption` lama; produksi belum punya baris seperti itu | `npm run db:reset:local && npm run db:migrate:local` |
+
+Quirk yang akan mengganggu:
+
+- **Error trigger muncul sebagai error driver, bukan `meta.changes`.** D1 melempar pesan
+  `consumption quota exhausted` dari dalam batch dan membatalkan seluruh batch. Route memetakan
+  pesan itu ke hasil bisnis (`DUPLICATE`/`quota_exhausted` atau `422`), bukan `500`. Jangan
+  mencocokkan pesan SQLite lain secara longgar.
+- **Trigger kuota hanya untuk transaksi baru.** `WHEN NEW.type = 'consumption' AND
+  NEW.adjusts_transaction_id IS NULL`; Adjustment mewarisi `slot_no` dan tidak menambah
+  pemakaian. Mengubah predikat ini akan membuat koreksi gagal setelah kuota penuh.
+- **`activities.quota` wajib untuk `consumption`, terlarang untuk `attendance`.** Fixture dan
+  backfill Aktivitas Attendance harus menulis `quota: null`; `insertActivityStatement`
+  mewajibkan parameter itu eksplisit.
+- **Urutan rilis Q7: migrasi dulu, deploy kemudian.** Kode Q7 membaca `activities.quota` dan
+  `consumption_quotas`; deploy lebih dulu membuat route kuota dan cabang scan Consumption gagal
+  karena kolom/tabel belum ada. Aktivitas `consumption` juga belum bisa dibuat tanpa kolom itu.
+
 ---
 
 ## 7. Autentikasi dan kredensial QR: secret, akun pertama, dan perilaku sesi (Tahap 2–4)
@@ -680,6 +717,9 @@ lama, dan itu akan terlihat sebagai `500` pada cetak ulang (bukan kerusakan data
 | CPU produksi route entitlement | Setelah deploy Q3 | `wrangler tail`; matriks/batch 15 baris adalah kandidat terberat |
 | CPU produksi rotasi/QR label | Setelah deploy Q4 | `wrangler tail` saat cetak 38 label dan rotasi; lokal 47 statement / 45 ms adalah proksi |
 | CPU produksi scan/koreksi Q5 | Setelah deploy Q5 | `wrangler tail`; lokal 15 statement scan / 11–12 koreksi adalah proksi, bukan CPU tertagih |
+| Penerapan `0012` (Q7) di remote | **Belum; menunggu konfirmasi pemilik** | Backup pre-0012, hitung kandidat (0 Aktivitas `consumption`), `npm run db:migrate:remote`, verifikasi `schema_version = 12` serta tabel/index/trigger kuota (§6.5) |
+| Smoke produksi Q7 (scan Consumption + kuota) | Setelah `0012` dan UI kuota tersedia | Buat Aktivitas `consumption`, kuota 1, scan Petugas → `SUCCESS`, scan kedua → `DUPLICATE/quota_exhausted`, Reversal Admin → scan lagi `SUCCESS`, periksa audit kuota tanpa token |
+| CPU produksi route kuota Q7 | Setelah deploy Q7 | `wrangler tail`; lokal 8 statement GET/PUT dan 38 statement bulk 15 aturan adalah proksi |
 
 Repo ini tidak memakai GitHub Actions. Workers Builds hanya menjalankan build dan deploy, bukan
 test suite, jadi verifikasi wajib dijalankan lokal sebelum merge/deploy; jangan menyimpulkan

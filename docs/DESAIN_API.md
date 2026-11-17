@@ -4,7 +4,7 @@ Semua endpoint di bawah `/api`. Otentikasi memakai cookie sesi `HttpOnly` (same-
 
 Sumber kebenaran kontrak: skema zod di `packages/shared/src/schemas/`. Dokumen ini menjelaskan **perilaku**, bukan menggantikan skema.
 
-> **Status dokumen (14 November 2026).** Dokumen ini mencatat **API aktual**: baseline `157c330` ditambah Q1 (Aktivitas/Sesi), Q2 (kategori, custom field, atribut peserta, impor ber-kategori), Q3 (konfigurasi entitlement), Q4 (QR Identity per Tema), Q5 (transaksi Attendance berkonteks, Manual Entry, Reversal/Adjustment), dan Q6 (penugasan Petugas + daftar konteks scanner). Jumlahnya **92 definisi route** dan **240 pola efektif** setelah alias `/api/calendar` dan `/api/themes` (`74` definisi ber-prefix `/api/events` × 3). Rendering PNG/ZIP untuk unduh berada di Q9. Scanner kiosk penuh dan kuota konsumsi tetap Q7; `attendance` hanya dibaca lewat adaptor kompatibilitas sampai Q8. Endpoint yang tercantum di sini bukan bukti bahwa kebutuhan produk terpenuhi (`FR-178`). Bagian yang bertentangan dengan keputusan produk `[A]` ditandai **Delta**.
+> **Status dokumen (15 November 2026).** Dokumen ini mencatat **API aktual**: baseline `157c330` ditambah Q1 (Aktivitas/Sesi), Q2 (kategori, custom field, atribut peserta, impor ber-kategori), Q3 (konfigurasi entitlement), Q4 (QR Identity per Tema), Q5 (transaksi Attendance berkonteks, Manual Entry, Reversal/Adjustment), Q6 (penugasan Petugas + daftar konteks scanner), dan Q7 sisi API (kuota konsumsi, cabang Consumption pada scan, Manual Entry Consumption). Jumlahnya **92 definisi route** dan **250 pola efektif** setelah alias `/api/calendar` dan `/api/themes` (`79` definisi ber-prefix `/api/events` × 3, ditambah 13 route non-Tema). UI kuota/scanner Q7, rendering PNG/ZIP (Q9), dan laporan konsumsi (Q8) belum ada. Endpoint yang tercantum di sini bukan bukti bahwa kebutuhan produk terpenuhi (`FR-178`). Bagian yang bertentangan dengan keputusan produk `[A]` ditandai **Delta**.
 
 ---
 
@@ -638,9 +638,15 @@ Tema). Non-anggota mendapat `404`, anggota dengan peran kurang mendapat `403`. T
   "id": "01J...", "themeId": "01J...", "name": "Kehadiran Hari 1",
   "description": "Presensi gerbang utama", "transactionType": "attendance",
   "status": "draft", "location": "Aula", "sortOrder": 0,
+  "quota": null,
   "createdAt": 173..., "updatedAt": 173..., "archivedAt": null
 } } }
 ```
+
+- `quota` adalah default kuota konsumsi (Q7). Aktivitas `consumption` baru mendapat `1`
+  (`A3`), Aktivitas `attendance` selalu `null`; nilainya diubah lewat route kuota, bukan
+  `PATCH` Aktivitas. `POST`/`PATCH` Aktivitas memakai skema `.strict()`, jadi mengirim
+  `quota` di sana ditolak `400 VALIDATION_ERROR`.
 
 - `transactionType` **tidak dapat diubah** setelah dibuat; `PATCH` yang memuatnya ditolak
   `400 VALIDATION_ERROR`. Tipe yang salah dikoreksi dengan membuat Aktivitas baru, bukan
@@ -939,6 +945,51 @@ Biaya query: satu resolve = **1 statement**, paling banyak **5 baris**. Satu bat
 baris = 30 statement upsert+audit + 1 kelengkapan + pembacaan konteks (±4), di bawah 50. Angka
 dan query plan dicatat di [`OPERASIONAL.md`](./OPERASIONAL.md) §6.1.
 
+### Kuota konsumsi (Q7)
+
+Kuota adalah konfigurasi per Aktivitas `consumption` (D-014): default di Aktivitas, override
+kategori, dan override individual. Nilai efektif `individual → kategori → Aktivitas`
+(`apps/api/src/domain/consumption.ts`), boleh `0`, `1`, atau lebih, dan dihitung dari
+**transaksi efektif lintas Sesi** Aktivitas itu (asumsi A1). Aktivitas `attendance` tidak
+punya kuota (`activities.quota IS NULL`).
+
+| Method | Path | Peran | Keterangan |
+|---|---|---|---|
+| `GET` | `/api/events/:eventId/activities/:activityId/quota` | `entitlement:read` | Default, override kategori/peserta, pemakaian efektif per peserta (maks. 200 baris) |
+| `PUT` | `/api/events/:eventId/activities/:activityId/quota` | `entitlement:write` | `{ "quota": 3 }` mengubah default Aktivitas |
+| `PUT` | `/api/events/:eventId/activities/:activityId/quota/categories` | `entitlement:write` | Bulk `{ "rules": [{ "categoryId": "01J...", "quota": 2 }] }` |
+| `PUT` | `/api/events/:eventId/activities/:activityId/quota/participants` | `entitlement:write` | Bulk `{ "rules": [{ "participantId": "01J...", "quota": 0 }] }` |
+
+```jsonc
+// GET 200
+{ "ok": true, "data": {
+  "activityId": "01J...", "defaultQuota": 1,
+  "categoryOverrides": [{ "categoryId": "01J...", "quota": 2 }],
+  "participantOverrides": [{ "participantId": "01J...", "quota": 0 }],
+  "usage": [{ "participantId": "01J...", "used": 1 }]
+} }
+```
+
+- Aktivitas `attendance` pada route kuota → `422 BUSINESS_RULE`; Aktivitas terarsip dan Tema
+  terarsip → `422`; kuota negatif atau bukan integer → `400 VALIDATION_ERROR`.
+- `quota: null` pada bulk berarti **hapus override** dan kembali ke level berikutnya. Tanpa
+  nilai itu override tidak dapat dibatalkan, karena kedua endpoint bulk hanya melakukan
+  upsert. Ini ekstensi kontrak terhadap rencana Q7 dan dicatat untuk keputusan pemilik.
+- Batch maksimum 15 aturan; duplikat sel dalam satu permintaan → `400`. Kategori/peserta yang
+  tidak ada di Tema itu → `404`; kategori terarsip → `422`.
+- Mutasi menulis audit di `db.batch()` yang sama: default Aktivitas →
+  `activity.quota_updated` (entitas `activity`, snapshot `{ quota }`); override →
+  `consumption_quota.created|updated|deleted` (snapshot `themeId`, `activityId`,
+  `categoryId`, `participantId`, `quota`). Pemeriksaan optimistis `updated_at` membuat
+  audit hanya tertulis bila mutasi mendarat.
+- Kuota tidak mengubah riwayat: menaikkan/menurunkan kuota hanya berlaku untuk penukaran
+  berikutnya (D-005, A2).
+
+Biaya query terukur (`consumption.statements.test.ts`, 15 November 2026): **8 statement**
+untuk GET, **8** untuk PUT default, **16** untuk scan Consumption, **14** untuk Manual Entry
+Consumption, dan **38** untuk bulk 15 aturan kategori — semuanya di bawah 50. Hitungan kuota
+memakai `idx_tx_consumption_effective` (`SEARCH`), diverifikasi `EXPLAIN QUERY PLAN`.
+
 ### Paginasi dan batas
 
 Q1 **belum** memaginasi daftar Aktivitas/Sesi: kedua endpoint mengembalikan seluruh baris milik Tema/Aktivitas dengan urutan deterministik (`sort_order`, `created_at`, `id` untuk Aktivitas; `starts_at` null-akhir, `created_at`, `id` untuk Sesi). Alasannya:
@@ -962,6 +1013,8 @@ disaring allowlist ADR-0011 (`packages/shared/src/audit-allowlist.ts`):
 | `category.created`, `category.updated`, `category.archived`, `category.activated` | Kategori |
 | `custom_field.created`, `custom_field.updated`, `custom_field.type_changed`, `custom_field.archived`, `custom_field.activated` | Custom field |
 | `entitlement_rule.created`, `entitlement_rule.updated`, `entitlement_rule.deleted` | Aturan entitlement |
+| `activity.quota_updated` | Aktivitas (default kuota konsumsi, Q7) |
+| `consumption_quota.created`, `consumption_quota.updated`, `consumption_quota.deleted` | Override kuota kategori/peserta (Q7) |
 | `participant.created`, `participant.updated`, `participant.deactivated`, `participant.imported` | Peserta |
 | `qr.identity_issued` (per request, berisi `count`) | `qr_identities` (penerbitan lazy) |
 | `qr.identity_rotated` | `qr_identities` (rotasi in-place) |
@@ -982,11 +1035,12 @@ token, hash, ciphertext, nonce, atau PII (`FR-207`).
 
 ## 7. Pemindaian, transaksi, dan absensi
 
-> **Status Q6 (14 November 2026).** Jalur Absensi sudah memakai `transactions` dengan konteks
-> Tema + Aktivitas + Sesi (`ADR-0018`–`ADR-0022`). `attendance` tidak lagi ditulis; endpoint
-> baca lama memakai adaptor kompatibilitas atas transaksi efektif. Penugasan Petugas dan daftar
-> konteks scanner tersedia di §4; route `scan` tidak berubah, dan kuota konsumsi tetap Q7.
-> Endpoint yang ada bukan bukti pemenuhan kebutuhan (`FR-178`).
+> **Status Q7 (15 November 2026).** Jalur Absensi dan Konsumsi memakai `transactions` dengan
+> konteks Tema + Aktivitas + Sesi (`ADR-0018`–`ADR-0022`). `attendance` tidak lagi ditulis;
+> endpoint baca lama memakai adaptor kompatibilitas atas transaksi efektif. Penugasan Petugas
+> dan daftar konteks scanner tersedia di §4. Q7 menambahkan cabang Consumption pada `scan`,
+> Manual Entry Consumption, dan konfigurasi kuota di §6. Endpoint yang ada bukan bukti
+> pemenuhan kebutuhan (`FR-178`).
 
 ### `POST /api/events/:eventId/scan`
 
@@ -1027,7 +1081,8 @@ Peran: `officer` yang ditugaskan pada Aktivitas/Sesi, atau `event_admin` Tema.
 `reason` yang mungkin: `duplicate`, `qr_invalid`, `participant_inactive`,
 `entitlement_denied`, `theme_archived`, `theme_not_active`, `activity_not_active`,
 `activity_archived`, `session_required`, `context_mismatch`, `session_not_in_progress`,
-`session_archived`. `SYSTEM_ERROR` adalah kode error 5xx pada envelope, bukan hasil bisnis.
+`session_archived`, dan `quota_exhausted` (khusus Consumption). `SYSTEM_ERROR` adalah kode
+error 5xx pada envelope, bukan hasil bisnis.
 
 Lookup token memakai satu `SEARCH` pada `qr_identities.token_hash` lalu join primary-key ke
 `participants`. Scope Tema diperiksa dari `qr_identities.theme_id`, bukan dari
@@ -1046,12 +1101,25 @@ jam. Petugas juga wajib punya penugasan aktif pada Aktivitas/Sesi tersebut (403 
 absensi. Waktu resmi selalu dari server (UTC). Duplikasi dicegah empat partial unique index
 pada transaksi efektif; hasilnya `DUPLICATE`, bukan error 500 (`BR-032`, `ADR-0019`).
 
+**Cabang Consumption (Q7).** Tipe transaksi ditentukan oleh Aktivitas (`D-009`), bukan oleh
+request. Untuk Aktivitas `consumption`, jalur yang sama (lifecycle, entitlement, penugasan)
+dilanjutkan dengan hitung pemakaian efektif lintas Sesi, resolver kuota, lalu insert
+`type = 'consumption'`, `status = NULL`, dan `slot_no` = nomor slot bebas terendah (`1..quota`;
+slot yang dibebaskan Reversal dipakai lagi). Kuota habis → HTTP 200
+`DUPLICATE` dengan `reason: "quota_exhausted"` dan pesan "Sudah diambil" (`FR-203`); tidak ada
+baris baru. Batas kuota ditegakkan trigger database, jadi dua request paralel tidak dapat
+sama-sama lolos; penolakan trigger dipetakan ke hasil bisnis yang sama, bukan 500. Pesan
+sukses memakai "Konsumsi tercatat". Transaksi Consumption **tidak** masuk outbox Sheets pada
+Q7 (Q10).
+
 Batas laju: 120 scan/menit per sesi, 600/menit per acara. Kelebihan → `429` dengan `Retry-After`.
 
 Biaya query terukur (`transactions.statements.test.ts`, 10 November 2026): **15 statement**
-untuk scan sukses, **11** untuk Reversal, **13** untuk Manual Entry, dan **12** untuk
-Adjustment — semuanya jauh di bawah batas 50 per invokasi. Angka ini termasuk otentikasi, dua
-rate limit, resolusi konteks, entitlement, penugasan, batch tulis, dan baca ulang.
+untuk scan Attendance sukses, **11** untuk Reversal, **13** untuk Manual Entry Attendance, dan
+**12** untuk Adjustment. Jalur Consumption terukur **16** (scan) dan **14** (Manual Entry)
+pada 15 November 2026 (`consumption.statements.test.ts`). Semuanya jauh di bawah batas 50 per
+invokasi; angka ini termasuk otentikasi, dua rate limit, resolusi konteks, entitlement,
+penugasan, batch tulis, dan baca ulang.
 
 ### `GET /api/events/:eventId/attendance`
 
@@ -1125,6 +1193,28 @@ Peran: `officer` berpenugasan dengan `can_manual_check_in = 1`, atau `event_admi
 
 Manual Entry adalah Transaction Source `manual`, bukan koreksi (`AC-055`). Kontrak konteks,
 lifecycle, dan entitlement sama dengan scan. Duplikat pada ruang lingkup yang sama → `409`.
+
+### `POST /api/events/:eventId/consumption/manual`
+
+Peran: `consumption:manual` — `officer` berpenugasan dengan `can_manual_check_in = 1`, atau
+`event_admin` Tema. **Super Admin ditolak (403)** (`OQ-034` [A], `ADR-0021`). Hanya jika
+`events.allow_manual = 1`. Izin ini terpisah dari `attendance:manual` agar matriks izin tidak
+menyesatkan (asumsi A5).
+
+```jsonc
+{ "participantId": "01J...", "activityId": "01J...", "sessionId": "01J...",
+  "note": "Kartu rusak" }
+```
+
+- `activityId` **wajib** dan harus Aktivitas `consumption`; tidak ada Aktivitas default yang
+  ditebak. Aktivitas `attendance` → `422 BUSINESS_RULE` (`context_mismatch`).
+- Body tidak memuat `status`: transaksi Consumption tidak punya status kehadiran.
+- Kuota tetap ditegakkan. Kuota habis → `422 BUSINESS_RULE` dengan
+  `details.reason` = `"quota_exhausted"` dan pesan "Sudah diambil" (bukan `DUPLICATE`, karena
+  ini permintaan admin yang dapat dikoreksi). Slot yang sudah terpakai di Sesi yang sama →
+  `409 CONFLICT`.
+- Audit `transaction.manual` mencatat `noteChanged` tanpa nilai catatan, dan tidak pernah
+  memuat token QR atau PII (`FR-207`).
 
 ### Rekap dashboard
 

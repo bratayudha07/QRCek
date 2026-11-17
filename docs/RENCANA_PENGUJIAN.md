@@ -787,6 +787,30 @@ produksi belum dijalankan**.
 | T-122 | Reversal Consumption mengembalikan kuota | `BR-073`, `AC-046` | `D-014` [A] |
 | T-123 ★ | Perubahan entitlement tidak menghapus riwayat penukaran | `BR-045`, `AC-025` | `D-005` [A] |
 
+**Status 15 November 2026 (Q7 sisi API).** Keempat tes punya tes yang gagal bila aturannya
+dihapus. UI kuota dan laporan konsumsi belum ada (Q8), jadi gate Q7 belum boleh ditutup.
+Verifikasi lokal: `typecheck`, `lint`, `test` (**895 tes / 84 file**), `bench`, dan `build`
+PASS. Suite penuh dijalankan sequential (`--no-file-parallelism`) karena mesin dev 4 GB
+kehabisan memori saat 84 worker berjalan bersamaan; tes konkurensi 50 scan lulus sendiri.
+
+| Tes | Bukti |
+|---|---|
+| T-120 | `apps/api/src/test/consumption.db.test.ts` — insert melebihi kuota di dalam `db.batch` gagal dan tidak menulis baris apa pun; `apps/api/src/routes/consumption.test.ts` — scan kedua → HTTP 200 `DUPLICATE` dengan `reason: "quota_exhausted"`, jumlah transaksi efektif tetap 1 |
+| T-121 | `consumption.db.test.ts` — default Aktivitas, override kategori, override individual, dan plafon `0`; `apps/api/src/domain/consumption.test.ts` — resolusi murni tiga tingkat |
+| T-122 | `consumption.db.test.ts` — Reversal membebaskan kuota **dan** `slot_no`; scan berikutnya `SUCCESS` dengan slot 1 |
+| T-123 | `consumption.db.test.ts` — menaikkan/menurunkan kuota tidak mengubah baris `transactions` yang sudah ada |
+
+Tambahan yang diuji tanpa ID khusus: trigger tipe Aktivitas (`attendance` tidak boleh punya
+kuota, `consumption` wajib), trigger konteks override lintas Tema/Aktivitas, satu override per
+sel (`409`, bukan `500`), Petugas tanpa penugasan → `403`, Petugas tanpa
+`can_manual_check_in` → `403`, Super Admin pada Manual Entry Consumption → `403`
+(`D-024`/`OQ-034`), kuota habis pada Manual Entry → `422 BUSINESS_RULE`, Aktivitas
+`consumption` ditolak route Manual Entry Attendance dan sebaliknya, serta audit kuota tanpa
+token/PII. Anggaran statement: `apps/api/src/test/consumption.statements.test.ts` — **GET 8**,
+**PUT default 8**, **scan Consumption 16**, **Manual Entry Consumption 14**, **bulk 15 aturan
+38** dari batas 50. Hitungan kuota memakai `idx_tx_consumption_effective` (`SEARCH`),
+diverifikasi `EXPLAIN QUERY PLAN` di `consumption.db.test.ts`.
+
 ### 9.8 Audit, laporan, ekspor (Q1 mekanisme, Q8 cakupan)
 
 | ID | Tes | Rujukan | Status keputusan |

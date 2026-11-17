@@ -1,7 +1,9 @@
 # Rencana Q7 — Distribusi konsumsi
 
 Status: **DIBUKA 15 November 2026.** Dokumen ini rencana eksekusi, bukan bukti implementasi.
-Implementasi belum dimulai; kode menunggu persetujuan daftar asumsi di §2.
+Enam asumsi di §2 **disetujui pemilik pada 15 November 2026**; implementasi dimulai dari
+lapisan API (migrasi `0012`, resolver, route), lalu UI. Migrasi remote hanya setelah
+persetujuan terpisah.
 
 Prasyarat keputusan sudah terpenuhi: `D-009` [A] (satu tipe transaksi per Aktivitas),
 `D-014` [A] (kuota dapat dikonfigurasi; Reversal mengembalikan kuota), `D-006` [A] (transaksi
@@ -77,15 +79,17 @@ Additive; `0001`–`0011` tidak diedit.
    (`T-120`).
 4. Tidak ada backfill data: produksi belum punya Aktivitas `consumption`.
 
-`slot_no` dihitung aplikasi (`COUNT(effective) + 1`) lalu di-insert; dua request paralel
-dengan slot sama ditolak partial unique index dan dipetakan menjadi `DUPLICATE`, bukan 500.
+`slot_no` dihitung aplikasi dari daftar slot efektif (nomor bebas terendah, sehingga slot
+yang dibebaskan Reversal dipakai lagi) lalu di-insert; dua request paralel dengan slot sama
+ditolak partial unique index dan dipetakan menjadi `DUPLICATE`, bukan 500.
 
 ## 4. Domain murni — `apps/api/src/domain/consumption.ts`
 
 - `resolveQuota({ activityQuota, categoryOverride, participantOverride })` → kuota efektif
   (prioritas individual → kategori → Aktivitas), dengan unit test tanpa I/O.
 - `quotaRejection({ used, quota })` → `null` atau `"quota_exhausted"`.
-- `nextSlotNo({ used })` → `used + 1`.
+- `nextSlotNo({ usedSlots })` → nomor slot bebas terendah (bukan `used + 1`, karena Reversal
+  di tengah membuat `used + 1` bertabrakan dengan slot yang masih efektif).
 - `consumptionMessage(reason)` untuk copy "Sudah diambil" / "Kuota habis".
 
 ## 5. API
