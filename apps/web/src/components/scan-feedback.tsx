@@ -68,9 +68,13 @@ export function ScanFeedback({
           <p className="truncate text-sm font-medium">{feedback.participantName}</p>
         )}
         <p className="text-sm opacity-90">{feedback.description}</p>
+        {feedback.slotNo !== undefined && (
+          <p className="text-sm font-medium">Porsi ke-{feedback.slotNo}</p>
+        )}
         {feedback.occurredAt !== undefined && (
           <p className="text-xs opacity-80">
-            Absen pertama: {formatDateTime(feedback.occurredAt, TIMESTAMP_ZONE)} WIB
+            {feedback.occurredAtLabel ?? "Absen pertama"}:{" "}
+            {formatDateTime(feedback.occurredAt, TIMESTAMP_ZONE)} WIB
           </p>
         )}
       </div>

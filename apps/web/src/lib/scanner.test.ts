@@ -66,6 +66,80 @@ describe("classifyScanResponse", () => {
     expect(feedback.occurredAt).toBe(1_760_000_000_000);
   });
 
+  it("uses Consumption copy and shows the serving number", () => {
+    const feedback = classifyScanResponse(
+      {
+        ok: true,
+        data: payload({
+          message: "Konsumsi tercatat",
+          participant: { id: "p1", fullName: "Budi", externalRef: null, category: null },
+          transaction: {
+            id: "t2",
+            activityId: "a1",
+            sessionId: null,
+            occurredAt: 1_760_000_000_000,
+            status: null,
+            slotNo: 2,
+          },
+        }),
+      },
+      { transactionType: "consumption" },
+    );
+
+    expect(feedback).toMatchObject({
+      tone: "success",
+      title: "Konsumsi tercatat",
+      slotNo: 2,
+      participantName: "Budi",
+    });
+  });
+
+  it("tells a Consumption duplicate apart from an exhausted quota", () => {
+    const transaction = {
+      id: "t3",
+      activityId: "a1",
+      sessionId: null,
+      occurredAt: 1_760_000_000_000,
+      status: null,
+      slotNo: 1,
+    };
+
+    const duplicate = classifyScanResponse(
+      {
+        ok: true,
+        data: payload({ result: "DUPLICATE", reason: "duplicate", message: "Sudah diambil", transaction }),
+      },
+      { transactionType: "consumption" },
+    );
+    const exhausted = classifyScanResponse(
+      {
+        ok: true,
+        data: payload({
+          result: "DUPLICATE",
+          reason: "quota_exhausted",
+          message: "Sudah diambil",
+          transaction,
+        }),
+      },
+      { transactionType: "consumption" },
+    );
+
+    expect(duplicate.title).toBe("Sudah diambil");
+    expect(exhausted.title).toBe("Kuota sudah habis");
+    expect(exhausted.occurredAtLabel).toBe("Diambil sebelumnya");
+    expect(exhausted.tone).toBe("warning");
+  });
+
+  it("keeps Attendance copy when no transaction type is given", () => {
+    const feedback = classifyScanResponse({
+      ok: true,
+      data: payload({ result: "DUPLICATE", reason: "duplicate", message: "Sudah tercatat" }),
+    });
+
+    expect(feedback.title).toBe("Sudah pernah absen");
+    expect(feedback.slotNo).toBeUndefined();
+  });
+
   it("never reports an unknown result as success", () => {
     const unknown = {
       ok: true,
@@ -215,6 +289,7 @@ describe("deep link preselection", () => {
       themeName: "Tema",
       activityId: "act1",
       activityName: "Registrasi",
+      transactionType: "attendance",
       sessionId: null,
       sessionName: null,
       activityStatus: "active",
@@ -290,6 +365,7 @@ describe("context refresh after an assignment change", () => {
       themeName: "Tema",
       activityId: "act1",
       activityName: "Registrasi",
+      transactionType: "attendance",
       sessionId: null,
       sessionName: null,
       activityStatus: "active",

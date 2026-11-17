@@ -1,4 +1,9 @@
-import type { ActivityStatus, SessionStatus, StaffContext } from "@absensi/shared";
+import type {
+  ActivityStatus,
+  SessionStatus,
+  StaffContext,
+  TransactionType,
+} from "@absensi/shared";
 
 import type { StaffContextSourceRow } from "../db/staff-assignments";
 
@@ -40,6 +45,7 @@ export function expandStaffContexts(rows: readonly StaffContextSourceRow[]): Sta
       themeName: row.theme_name,
       activityId: row.activity_id,
       activityName: row.activity_name,
+      transactionType: row.activity_transaction_type as TransactionType,
       sessionId: row.session_id,
       sessionName: row.session_name,
       activityStatus: row.activity_status as ActivityStatus,

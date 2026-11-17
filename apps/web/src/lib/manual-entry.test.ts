@@ -17,6 +17,7 @@ function context(overrides: Partial<StaffContext> = {}): StaffContext {
     themeName: "Tema",
     activityId: "act1",
     activityName: "Aktivitas",
+    transactionType: "attendance",
     sessionId: null,
     sessionName: null,
     activityStatus: "active",

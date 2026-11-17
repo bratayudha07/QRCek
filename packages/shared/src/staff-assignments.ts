@@ -1,4 +1,4 @@
-import type { ActivityStatus } from "./schemas/activities";
+import type { ActivityStatus, TransactionType } from "./schemas/activities";
 import type { SessionStatus } from "./schemas/activity-sessions";
 
 /**
@@ -49,6 +49,13 @@ export interface StaffContext {
   themeName: string;
   activityId: string;
   activityName: string;
+  /**
+   * Attendance or Consumption (Q7). The scanner needs it before the first scan:
+   * the two types have different copy, no Attendance status for Consumption, and
+   * Manual Entry posts to a different route. The Worker still re-reads the type
+   * from D1 on every request — this only drives the UI.
+   */
+  transactionType: TransactionType;
   sessionId: string | null;
   sessionName: string | null;
   activityStatus: ActivityStatus;

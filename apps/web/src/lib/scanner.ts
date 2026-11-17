@@ -5,6 +5,7 @@ import type {
   ScanResult,
   ScanResultPayload,
   StaffContext,
+  TransactionType,
 } from "@absensi/shared";
 import { SCAN_RESULTS, staffContextReadiness } from "@absensi/shared";
 
@@ -62,6 +63,8 @@ const REASON_TITLE: Partial<Record<ScanReason, string>> = {
   context_mismatch: "Konteks absensi tidak cocok",
   session_not_in_progress: "Sesi belum/sudah tidak berlangsung",
   session_archived: "Sesi sudah diarsipkan",
+  // Consumption only (A4): the effective quota is used up.
+  quota_exhausted: "Kuota sudah habis",
 };
 
 /** Title is refined by `reason` when present; the tone always follows `result`. */
@@ -157,6 +160,10 @@ export interface ScanFeedback {
   participantName?: string;
   /** First-scan timestamp for DUPLICATE. */
   occurredAt?: number;
+  /** Label for `occurredAt`; the two transaction types read differently. */
+  occurredAtLabel?: string;
+  /** Consumption only: the serving number of the recorded transaction. */
+  slotNo?: number;
 }
 
 function isKnownResult(value: unknown): value is ScanResult {
@@ -234,6 +241,7 @@ function failureFeedback(
 
 export function classifyScanResponse(
   response: ApiResponse<ScanResultPayload>,
+  options: { transactionType?: TransactionType } = {},
 ): ScanFeedback {
   if (!response.ok) {
     return failureFeedback(response.error.code, response.error.message);
@@ -253,10 +261,14 @@ export function classifyScanResponse(
     };
   }
 
+  const consumption = options.transactionType === "consumption";
   const participantName = payload.participant?.fullName;
+  const slotNo = payload.transaction?.slotNo ?? null;
   const base = {
     participantName,
     ...(payload.transaction ? { occurredAt: payload.transaction.occurredAt } : {}),
+    ...(consumption ? { occurredAtLabel: "Diambil sebelumnya" } : {}),
+    ...(consumption && slotNo !== null ? { slotNo } : {}),
   };
 
   switch (payload.result) {
@@ -264,8 +276,10 @@ export function classifyScanResponse(
       return {
         tone: "success",
         kind: "success",
-        title: "Kehadiran tercatat",
-        description: payload.message || "Peserta berhasil dicatat hadir.",
+        title: consumption ? "Konsumsi tercatat" : "Kehadiran tercatat",
+        description:
+          payload.message ||
+          (consumption ? "Peserta berhasil dicatat mengambil konsumsi." : "Peserta berhasil dicatat hadir."),
         icon: "check",
         role: "status",
         ...base,
@@ -274,8 +288,17 @@ export function classifyScanResponse(
       return {
         tone: "warning",
         kind: "duplicate",
-        title: "Sudah pernah absen",
-        description: payload.message || "Peserta ini sudah tercatat pada konteks ini.",
+        title:
+          payload.reason === "quota_exhausted"
+            ? "Kuota sudah habis"
+            : consumption
+              ? "Sudah diambil"
+              : "Sudah pernah absen",
+        description:
+          payload.message ||
+          (consumption
+            ? "Peserta ini sudah mengambil jatahnya pada Aktivitas ini."
+            : "Peserta ini sudah tercatat pada konteks ini."),
         icon: "alert",
         role: "status",
         ...base,

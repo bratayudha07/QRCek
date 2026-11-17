@@ -36,6 +36,7 @@ export interface StaffContextSourceRow {
   theme_name: string;
   activity_id: string;
   activity_name: string;
+  activity_transaction_type: string;
   activity_status: string;
   activity_archived_at: number | null;
   session_id: string | null;
@@ -145,6 +146,7 @@ export async function listUserContexts(
               sa.can_manual_check_in,
               e.id AS theme_id, e.name AS theme_name,
               a.id AS activity_id, a.name AS activity_name,
+              a.transaction_type AS activity_transaction_type,
               a.status AS activity_status, a.archived_at AS activity_archived_at,
               s.id AS session_id, s.name AS session_name,
               s.status AS session_status, s.archived_at AS session_archived_at

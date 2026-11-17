@@ -27,7 +27,7 @@ import { Label, Select } from "@/components/ui/field";
 import { listMyStaffContexts } from "@/lib/assignments";
 import { listStaffAttendance, scanQr } from "@/lib/attendance";
 import { formatDateTime } from "@/lib/format";
-import { canUseManualEntry, manualEntrySuccessMessage } from "@/lib/manual-entry";
+import { canUseManualEntry } from "@/lib/manual-entry";
 import {
   isScannerMuted,
   playScanTone,
@@ -93,7 +93,7 @@ export function StaffHomePage() {
           <span className="space-y-0.5">
             <span className="block text-sm font-semibold">Scan QR</span>
             <span className="block text-xs text-muted-foreground">
-              Pindai kartu peserta untuk mencatat kehadiran.
+              Pindai kartu peserta untuk mencatat kehadiran atau konsumsi.
             </span>
           </span>
         </AppLink>
@@ -398,11 +398,14 @@ export function StaffScanPage() {
     dispatch({ type: "detected", at: Date.now() });
 
     try {
-      const response = await scanQr(selected.themeId, qr, {
-        activityId: selected.activityId,
-        ...(selected.sessionId ? { sessionId: selected.sessionId } : {}),
+      const context = selected;
+      const response = await scanQr(context.themeId, qr, {
+        activityId: context.activityId,
+        ...(context.sessionId ? { sessionId: context.sessionId } : {}),
       });
-      applyFeedback(classifyScanResponse(response));
+      applyFeedback(
+        classifyScanResponse(response, { transactionType: context.transactionType }),
+      );
     } catch (error) {
       applyFeedback(classifyScanFailure(error));
     } finally {
@@ -427,7 +430,7 @@ export function StaffScanPage() {
       subtitle={
         session.status === "authenticated"
           ? `Masuk sebagai ${session.user.displayName} · gunakan akun sendiri`
-          : "Pindai kartu peserta untuk mencatat kehadiran"
+          : "Pindai kartu peserta untuk mencatat kehadiran atau konsumsi"
       }
     >
       {session.status === "loading" && <LoadingState label="Memeriksa sesi…" />}
@@ -465,6 +468,9 @@ export function StaffScanPage() {
               </p>
               <p className="truncate text-sm font-semibold">{selected.themeName}</p>
               <p className="text-sm text-muted-foreground">{staffContextLabel(selected)}</p>
+              <Badge variant="outline">
+                {selected.transactionType === "consumption" ? "Konsumsi" : "Kehadiran"}
+              </Badge>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant={online ? "success" : "warning"} className="gap-1">
@@ -685,7 +691,7 @@ export function StaffScanPage() {
           context={selected}
           open={manualEntryOpen}
           onClose={() => setManualEntryOpen(false)}
-          onRecorded={(record) => setManualNotice(manualEntrySuccessMessage(record))}
+          onRecorded={(message) => setManualNotice(message)}
         />
       )}
     </AppShell>

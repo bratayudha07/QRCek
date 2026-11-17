@@ -10,6 +10,7 @@ import { Archive, CalendarClock, Copy, Plus } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { AppShell } from "@/components/app-shell";
+import { ConsumptionQuotaDialog } from "@/components/consumption-quota-dialog";
 import { EmptyState, ErrorState, LoadingState, Notice } from "@/components/page-state";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -162,6 +163,10 @@ export function EventActivitiesPage({ eventId }: { eventId: string }) {
   const [sessionForm, setSessionForm] = useState<SessionFormValues>(EMPTY_SESSION_FORM);
   const [sessionFormError, setSessionFormError] = useState<string | null>(null);
   const [savingSession, setSavingSession] = useState(false);
+
+  // Consumption quota configuration (Q7). Kept as the whole Aktivitas so the
+  // dialog can show the archived state without another request.
+  const [quotaActivity, setQuotaActivity] = useState<Activity | null>(null);
 
   // ── Tema ────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -683,6 +688,18 @@ export function EventActivitiesPage({ eventId }: { eventId: string }) {
                           Sesi
                         </Button>
 
+                        {canManage && activity.transactionType === "consumption" && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={busy !== null}
+                            onClick={() => setQuotaActivity(activity)}
+                          >
+                            Kuota
+                          </Button>
+                        )}
+
                         {canManage && !archived && (
                           <>
                             <Button
@@ -1045,6 +1062,15 @@ export function EventActivitiesPage({ eventId }: { eventId: string }) {
           </DialogFooter>
         </form>
       </Dialog>
+
+      {quotaActivity && (
+        <ConsumptionQuotaDialog
+          eventId={eventId}
+          activity={quotaActivity}
+          open
+          onClose={() => setQuotaActivity(null)}
+        />
+      )}
     </AppShell>
   );
 }

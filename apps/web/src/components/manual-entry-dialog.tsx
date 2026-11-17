@@ -1,4 +1,4 @@
-import type { AttendanceRecord, AttendanceStatus, ParticipantSummary, StaffContext } from "@absensi/shared";
+import type { AttendanceStatus, ParticipantSummary, StaffContext } from "@absensi/shared";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { EmptyState, ErrorState, LoadingState } from "@/components/page-state";
@@ -13,7 +13,16 @@ import {
 } from "@/components/ui/dialog";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { createManualAttendance } from "@/lib/attendance";
-import { manualEntryRequest, manualEntryStatuses } from "@/lib/manual-entry";
+import {
+  consumptionManualRequest,
+  consumptionManualSuccessMessage,
+  createManualConsumption,
+} from "@/lib/consumption";
+import {
+  manualEntryRequest,
+  manualEntryStatuses,
+  manualEntrySuccessMessage,
+} from "@/lib/manual-entry";
 import { listParticipants } from "@/lib/participants";
 import { staffContextLabel } from "@/lib/scanner";
 
@@ -23,11 +32,12 @@ const NOTE_MAX_LENGTH = 500;
 type SearchState = "loading" | "ready" | "error";
 
 /**
- * Manual Entry dialog for `/staff/scan` (Q5 delta).
+ * Manual Entry dialog for `/staff/scan` (Q5 delta, Q7 consumption).
  *
  * The Aktivitas/Sesi come from the active scanner context and cannot be changed
- * here. Nothing is shown as recorded before the Worker answers `ok`; a rejected
- * request keeps the dialog open with the Worker's own message.
+ * here. Attendance posts a status; Consumption posts none and the Worker spends
+ * one quota slot instead. Nothing is shown as recorded before the Worker answers
+ * `ok`; a rejected request keeps the dialog open with the Worker's own message.
  */
 export function ManualEntryDialog({
   context,
@@ -38,8 +48,10 @@ export function ManualEntryDialog({
   context: StaffContext;
   open: boolean;
   onClose: () => void;
-  onRecorded: (record: AttendanceRecord) => void;
+  /** Ready-to-display confirmation; the caller owns where it is shown. */
+  onRecorded: (message: string) => void;
 }) {
+  const consumption = context.transactionType === "consumption";
   const [searchQuery, setSearchQuery] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
   // Bumped on every submit so retrying the same term still sends a request.
@@ -120,6 +132,27 @@ export function ManualEntryDialog({
     setFormError(null);
 
     try {
+      if (consumption) {
+        const body = await createManualConsumption(
+          context.themeId,
+          consumptionManualRequest(context, selectedParticipant.id, note),
+        );
+
+        if (!body.ok) {
+          setFormError(body.error.message);
+          return;
+        }
+
+        onRecorded(
+          consumptionManualSuccessMessage(
+            selectedParticipant.fullName,
+            body.data.transaction.slotNo,
+          ),
+        );
+        onClose();
+        return;
+      }
+
       const body = await createManualAttendance(
         context.themeId,
         manualEntryRequest(context, selectedParticipant.id, status, note),
@@ -130,7 +163,9 @@ export function ManualEntryDialog({
         return;
       }
 
-      onRecorded(body.data.attendance);
+      onRecorded(
+        manualEntrySuccessMessage(body.data.attendance),
+      );
       onClose();
     } catch {
       setFormError("Tidak bisa menghubungi server");
@@ -140,9 +175,13 @@ export function ManualEntryDialog({
   }
 
   return (
-    <Dialog open={open} onClose={onClose} ariaLabel="Input manual kehadiran">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      ariaLabel={consumption ? "Input manual konsumsi" : "Input manual kehadiran"}
+    >
       <DialogHeader>
-        <DialogTitle>Input manual</DialogTitle>
+        <DialogTitle>{consumption ? "Input manual konsumsi" : "Input manual"}</DialogTitle>
         <DialogDescription>
           {context.themeName} · {staffContextLabel(context)}
         </DialogDescription>
@@ -201,24 +240,30 @@ export function ManualEntryDialog({
       )}
 
       <div className="mt-4 space-y-3">
-        <Field label="Status kehadiran" htmlFor="manual-entry-status">
-          <Select
-            id="manual-entry-status"
-            value={status}
-            onChange={(event) => setStatus(event.target.value as AttendanceStatus)}
-          >
-            {manualEntryStatuses().map((option) => (
-              <option key={option.status} value={option.status}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
-        </Field>
+        {!consumption && (
+          <Field label="Status kehadiran" htmlFor="manual-entry-status">
+            <Select
+              id="manual-entry-status"
+              value={status}
+              onChange={(event) => setStatus(event.target.value as AttendanceStatus)}
+            >
+              {manualEntryStatuses().map((option) => (
+                <option key={option.status} value={option.status}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
 
         <Field
           label="Catatan (opsional)"
           htmlFor="manual-entry-note"
-          hint="Misalnya alasan pencatatan tanpa QR."
+          hint={
+            consumption
+              ? "Misalnya alasan pemberian tanpa QR."
+              : "Misalnya alasan pencatatan tanpa QR."
+          }
         >
           <Textarea
             id="manual-entry-note"
@@ -248,7 +293,7 @@ export function ManualEntryDialog({
           disabled={saving || selectedParticipant === null}
           onClick={() => void submitManualEntry()}
         >
-          {saving ? "Menyimpan…" : "Simpan kehadiran"}
+          {saving ? "Menyimpan…" : consumption ? "Simpan konsumsi" : "Simpan kehadiran"}
         </Button>
       </DialogFooter>
     </Dialog>
