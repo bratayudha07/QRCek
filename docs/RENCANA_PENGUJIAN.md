@@ -796,9 +796,11 @@ bersamaan; tes konkurensi 50 scan lulus sendiri. Logika UI diuji tanpa DOM di
 `apps/web/src/lib/consumption.test.ts` (resolusi kuota, parsing input, baris override,
 permintaan Manual Entry konsumsi) dan `apps/web/src/lib/scanner.test.ts` (copy konsumsi,
 `quota_exhausted`, nomor porsi, copy Attendance tetap). Migrasi `0012` **diterapkan di remote
-17 November 2026** (`schema_version = 12`); verifikasi produksi sejauh ini hanya tanpa sesi
-(`GET .../quota` → `401`, `POST .../consumption/manual` → `403` CSRF). Smoke dengan sesi nyata
-masih menunggu pemilik.
+17 November 2026** (`schema_version = 12`). Smoke produksi 18 November 2026 (Tema `Mhs`)
+membuktikan aturan hak + aktivasi, konfigurasi kuota, dan **2 scan QR sukses** (2 transaksi
+`consumption` slot 1, audit tanpa token). **Belum:** scan kedua peserta yang sama →
+`DUPLICATE/quota_exhausted`, Reversal membebaskan kuota, dan Manual Entry konsumsi; gate Q7
+menunggu ketiganya.
 
 | Tes | Bukti |
 |---|---|
