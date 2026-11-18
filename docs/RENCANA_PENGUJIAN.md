@@ -791,7 +791,7 @@ produksi belum dijalankan**.
 dihapus. UI kuota, scanner Consumption, dan daftar transaksi + Reversal sudah ada; laporan
 konsumsi tetap Q8. E2E browser otomatis belum ada, tetapi gate ditutup lewat smoke UI manual
 oleh pemilik. Verifikasi lokal: `typecheck`, `lint`, `test`
-(**913 tes / 85 file**), `bench`, dan `build` PASS. Suite penuh dijalankan sequential
+(**915 tes / 85 file**), `bench`, dan `build` PASS. Suite penuh dijalankan sequential
 (`--no-file-parallelism`) karena mesin dev 4 GB kehabisan memori saat 85 worker berjalan
 bersamaan; tes konkurensi 50 scan lulus sendiri. Logika UI diuji tanpa DOM di
 `apps/web/src/lib/consumption.test.ts` (resolusi kuota, parsing input, baris override,

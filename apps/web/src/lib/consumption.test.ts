@@ -10,6 +10,7 @@ import {
   categoryQuotaRows,
   consumptionManualRequest,
   consumptionManualSuccessMessage,
+  consumptionReversalNotice,
   consumptionSourceLabel,
   parseQuotaInput,
   participantQuotaRows,
@@ -201,6 +202,16 @@ describe("canReverseConsumption", () => {
     expect(canReverseConsumption("event_admin")).toBe(true);
     expect(canReverseConsumption("superadmin")).toBe(false);
     expect(canReverseConsumption("officer")).toBe(false);
+  });
+});
+
+describe("consumptionReversalNotice", () => {
+  it("explains the missing action to a Super Admin", () => {
+    expect(consumptionReversalNotice("superadmin")).toContain("Admin Acara");
+  });
+
+  it("stays silent for the role that can actually reverse", () => {
+    expect(consumptionReversalNotice("event_admin")).toBeNull();
   });
 });
 

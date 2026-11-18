@@ -1,4 +1,4 @@
-import type { Activity, TransactionRecord } from "@absensi/shared";
+import type { Activity, EventAccessRole, TransactionRecord } from "@absensi/shared";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { EmptyState, ErrorState, LoadingState, Notice } from "@/components/page-state";
@@ -20,7 +20,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { listTransactions, reverseTransaction } from "@/lib/attendance";
-import { consumptionSourceLabel } from "@/lib/consumption";
+import {
+  canReverseConsumption,
+  consumptionReversalNotice,
+  consumptionSourceLabel,
+} from "@/lib/consumption";
 import { listParticipants } from "@/lib/participants";
 
 const PAGE_LIMIT = 100;
@@ -63,16 +67,19 @@ async function loadParticipantNames(eventId: string): Promise<Map<string, string
 export function ConsumptionTransactionsDialog({
   eventId,
   activity,
-  canReverse,
+  accessRole,
   open,
   onClose,
 }: {
   eventId: string;
   activity: Pick<Activity, "id" | "name">;
-  canReverse: boolean;
+  accessRole: EventAccessRole;
   open: boolean;
   onClose: () => void;
 }) {
+  const canReverse = canReverseConsumption(accessRole);
+  const reversalNotice = consumptionReversalNotice(accessRole);
+
   const [state, setState] = useState<LoadState>("loading");
   const [error, setError] = useState("");
   const [rows, setRows] = useState<TransactionRecord[]>([]);
@@ -256,10 +263,12 @@ export function ConsumptionTransactionsDialog({
           <DialogHeader>
             <DialogTitle>Transaksi konsumsi · {activity.name}</DialogTitle>
             <DialogDescription>
-              Hanya transaksi efektif. Setiap pembatalan mengembalikan kuota peserta dan tercatat
-              di audit.
+              Hanya transaksi efektif. Pembatalan tidak menghapus baris asli: kuota peserta kembali
+              dan jejaknya tercatat di audit.
             </DialogDescription>
           </DialogHeader>
+
+          {reversalNotice && <Notice>{reversalNotice}</Notice>}
 
           {notice && <Notice tone="success">{notice}</Notice>}
           {actionError && (

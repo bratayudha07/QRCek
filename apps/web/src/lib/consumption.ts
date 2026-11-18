@@ -229,3 +229,14 @@ export function canReverseConsumption(accessRole: EventAccessRole): boolean {
 export function consumptionSourceLabel(source: TransactionSource): string {
   return source === "qr_scan" ? "Scan QR" : "Input manual";
 }
+
+/**
+ * Super Admin keeps read access across Temas but cannot correct transactions
+ * (D-006, D-024). Without an explanation the missing Reversal button looks like
+ * a broken screen, so the dialog states the rule instead.
+ */
+export function consumptionReversalNotice(accessRole: EventAccessRole): string | null {
+  return accessRole === "superadmin"
+    ? "Pembatalan transaksi hanya dapat dilakukan Admin Acara Tema ini. Super Admin hanya dapat melihat riwayat."
+    : null;
+}

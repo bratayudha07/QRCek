@@ -54,7 +54,6 @@ import {
   updateActivitySession,
 } from "@/lib/activity-sessions";
 import { epochToLocalInput, localInputToEpoch } from "@/lib/activity-time";
-import { canReverseConsumption } from "@/lib/consumption";
 import { defaultActivityId } from "@/lib/entitlements";
 import { getEvent } from "@/lib/events";
 import { formatSchedule } from "@/lib/format";
@@ -1088,11 +1087,11 @@ export function EventActivitiesPage({ eventId }: { eventId: string }) {
         />
       )}
 
-      {transactionsActivity && (
+      {transactionsActivity && event && (
         <ConsumptionTransactionsDialog
           eventId={eventId}
           activity={transactionsActivity}
-          canReverse={event !== null && canReverseConsumption(event.accessRole)}
+          accessRole={event.accessRole}
           open
           onClose={() => setTransactionsActivity(null)}
         />
