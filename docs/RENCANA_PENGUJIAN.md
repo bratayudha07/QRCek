@@ -787,9 +787,10 @@ produksi belum dijalankan**.
 | T-122 | Reversal Consumption mengembalikan kuota | `BR-073`, `AC-046` | `D-014` [A] |
 | T-123 ★ | Perubahan entitlement tidak menghapus riwayat penukaran | `BR-045`, `AC-025` | `D-005` [A] |
 
-**Status 17 November 2026 (Q7 API + UI).** Keempat tes punya tes yang gagal bila aturannya
-dihapus. UI kuota dan scanner Consumption sudah ada; laporan konsumsi tetap Q8, dan E2E browser
-belum ada, jadi gate Q7 belum boleh ditutup. Verifikasi lokal: `typecheck`, `lint`, `test`
+**Status 18 November 2026 (Q7 API + UI).** Keempat tes punya tes yang gagal bila aturannya
+dihapus. UI kuota, scanner Consumption, dan daftar transaksi + Reversal sudah ada; laporan
+konsumsi tetap Q8. E2E browser otomatis belum ada, tetapi gate ditutup lewat smoke UI manual
+oleh pemilik. Verifikasi lokal: `typecheck`, `lint`, `test`
 (**913 tes / 85 file**), `bench`, dan `build` PASS. Suite penuh dijalankan sequential
 (`--no-file-parallelism`) karena mesin dev 4 GB kehabisan memori saat 85 worker berjalan
 bersamaan; tes konkurensi 50 scan lulus sendiri. Logika UI diuji tanpa DOM di
@@ -797,10 +798,12 @@ bersamaan; tes konkurensi 50 scan lulus sendiri. Logika UI diuji tanpa DOM di
 permintaan Manual Entry konsumsi) dan `apps/web/src/lib/scanner.test.ts` (copy konsumsi,
 `quota_exhausted`, nomor porsi, copy Attendance tetap). Migrasi `0012` **diterapkan di remote
 17 November 2026** (`schema_version = 12`). Smoke produksi 18 November 2026 (Tema `Mhs`)
-membuktikan aturan hak + aktivasi, konfigurasi kuota, **2 scan QR sukses** (2 transaksi
-`consumption` slot 1, audit tanpa token), dan **scan ulang peserta yang sama ditolak tanpa
-menambah baris**. UI **Transaksi** + **Batalkan** (Reversal) ditambahkan 18 November 2026;
-**belum di-smoke di produksi**, begitu juga Manual Entry konsumsi. Gate Q7 menunggu keduanya.
+membuktikan seluruh gate: aturan hak + aktivasi, konfigurasi kuota, **2 scan QR sukses**,
+**scan ulang ditolak tanpa menambah baris**, **Reversal lewat UI** (`reversed_at` +
+`transaction_corrections`), dan **Manual Entry** (`source = 'manual'`, slot bebas terendah
+dipakai ulang). Audit `transaction.recorded`/`transaction.reversal`/`transaction.manual` tidak
+memuat token QR. **Gate Q7 ditutup 18 November 2026.** E2E browser otomatis tetap belum ada
+(kandidat Q11).
 
 | Tes | Bukti |
 |---|---|

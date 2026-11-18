@@ -4,21 +4,25 @@ Dokumen ini mencatat hasil pengukuran, instruksi operasi, status deployment, dan
 
 > **Konteks (17 November 2026).** Semua pengukuran dan prosedur di sini berlaku untuk baseline (model `events` datar, commit acuan `157c330`) ditambah Q1 (Aktivitas/Sesi), Q2 (kategori, custom field, atribut peserta), Q3 (konfigurasi entitlement), Q4 (QR Identity per Tema), Q5 (transaksi Attendance berkonteks, Reversal/Adjustment), Q6 (scanner/kiosk), dan Q7 (kuota konsumsi) — masing-masing dengan permukaan UI-nya. Angka CPU/statement/baris **tidak** otomatis berlaku untuk tahap berikutnya dan harus diukur ulang di tahap terkait ([`IMPLEMENTATION_ROADMAP.md`](./IMPLEMENTATION_ROADMAP.md) Q8–Q11). Uji perangkat fisik scanner, akun Google Sheets nyata, dan CPU produksi belum pernah dilakukan (`REQUIREMENTS.md` §7.3). Rujukan "ADR-00N" di dokumen ini = `docs/adr/000N-*.md`.
 
-## Status operasi saat ini (17 November 2026)
+## Status operasi saat ini (18 November 2026)
 
-- **Q7 (kuota konsumsi) sudah diterapkan di database produksi, gate tahap belum ditutup.**
-  `migrations/0012_q7_consumption.sql` diterapkan di remote pada **17 November 2026**
-  (`schema_version = 12`, backup pra-migrasi `/tmp/opencode/qrcek-backup-2026-11-17-pre-0012.sql`,
-  281 KB, 14 command). Kode Q7 sudah ada di `main`; Cloudflare Workers Builds meng-auto-deploy
-  dari `main`, dan produksi kini menyajikan bundle `index-CI7SJ_J2.js` dengan route kuota dan
-  Manual Entry konsumsi aktif. **Smoke produksi lewat UI sudah dijalankan sebagian pada 18
-  November 2026** di Tema `Mhs`: Aktivitas `pagi` diaktifkan setelah 2 aturan hak kategori,
-  kuota default 1 + 2 override kategori, 2 scan QR peserta berbeda menghasilkan 2 transaksi
-  `consumption` slot 1 dengan audit `transaction.recorded` (snapshot tanpa token), dan scan
-  ulang peserta yang sama ditolak tanpa menambah baris. UI **Transaksi** + **Batalkan**
-  (Reversal) ditambahkan 18 November 2026. **Belum dibuktikan di produksi:** Reversal lewat UI
-  (kuota kembali) dan Manual Entry konsumsi. E2E browser juga belum ada — karena itu gate Q7
-  tetap terbuka.
+- **Q7 (kuota konsumsi) selesai; gate ditutup 18 November 2026** setelah review pemilik dan
+  smoke UI produksi. `migrations/0012_q7_consumption.sql` diterapkan di remote pada **17
+  November 2026** (`schema_version = 12`, backup pra-migrasi
+  `/tmp/opencode/qrcek-backup-2026-11-17-pre-0012.sql`, 281 KB, 14 command). Kode Q7 ada di
+  `main`; Cloudflare Workers Builds meng-auto-deploy dari `main`, dan produksi menyajikan
+  bundle `index-B-r_1qX6.js` (UI kuota, scanner konsumsi, Manual Entry, daftar transaksi +
+  Reversal).
+
+  **Smoke UI produksi (Tema `Mhs`, 18 November 2026):** Aktivitas `pagi` diaktifkan setelah 2
+  aturan hak kategori; kuota default 1 + 2 override kategori; 2 scan QR peserta berbeda → 2
+  transaksi `consumption` slot 1; scan ulang peserta yang sama ditolak tanpa menambah baris;
+  Reversal lewat dialog **Transaksi** menandai `reversed_at` + `transaction_corrections`
+  (`reversal`) dan mengembalikan kuota; Manual Entry berikutnya untuk peserta yang sama
+  berhasil dengan `source = 'manual'`, `slot_no = 1`, dan audit `transaction.manual`. Snapshot
+  audit `transaction.recorded`/`transaction.reversal`/`transaction.manual` tidak memuat token QR.
+  E2E browser otomatis tetap belum ada (kandidat Q11); bukti gate ini adalah pengujian UI manual
+  oleh pemilik.
 
   **Pelajaran urutan rilis:** Workers Builds men-deploy kode segera setelah push ke `main`,
   sedangkan migrasi D1 manual. Untuk perubahan yang membutuhkan kolom/tabel baru, **terapkan
@@ -523,7 +527,7 @@ Diukur 15 November 2026 di `workerd` lokal (D1 uji). Bukan CPU produksi; lihat �
 | Penegakan kuota paralel | insert kedua ditolak trigger `consumption quota exhausted`, batch rollback, 0 baris tertulis | `consumption.db.test.ts` (T-120) |
 | Backfill `0012` | **1 baris** di produksi — Aktivitas `consumption` `pagi` (`draft`) mendapat `quota = 1`; 0 Aktivitas `attendance` berkuota | backup pre-0012, apply remote, verifikasi `schema_version = 12` dan hitungan baris |
 
-**Smoke produksi 18 November 2026 (sebagian, Tema `Mhs`).** Bukti dari D1 produksi, bukan
+**Smoke produksi 18 November 2026 (Tema `Mhs`, gate Q7).** Bukti dari D1 produksi, bukan
 salinan lokal:
 
 | Langkah | Bukti |
@@ -531,12 +535,16 @@ salinan lokal:
 | Aturan hak untuk `pagi` | 2 baris `entitlement_rules` (`5B`, `kelas 5A`, `allowed`), audit `entitlement_rule.created` |
 | Aktivasi `pagi` | `activities.status = 'active'`, audit `activity.status_changed` |
 | Konfigurasi kuota | `activities.quota = 1` + 2 override kategori `quota = 1`; audit `activity.quota_updated`, `consumption_quota.created` ×2 |
-| Dua scan QR peserta berbeda | 2 baris `transactions` `consumption`, `source = 'qr_scan'`, `slot_no = 1`, tanpa reversal/supersede; audit `transaction.recorded` ×2 |
+| Dua scan QR peserta berbeda | 2 baris `transactions` `consumption`, `source = 'qr_scan'`, `slot_no = 1`; audit `transaction.recorded` ×2 |
+| Scan ulang peserta yang sama | Ditolak "Sudah diambil" di UI; tidak ada baris/audit baru |
+| Reversal lewat UI | `reversed_at` terisi pada transaksi `01M7PRR7…`, 1 baris `transaction_corrections` operasi `reversal`, audit `transaction.reversal` |
+| Manual Entry setelah Reversal | Transaksi `01M7PVR4…`, `source = 'manual'`, `slot_no = 1` (slot bebas terendah dipakai ulang), audit `transaction.manual` |
 | Snapshot audit | `after_json` hanya berisi `themeId`/`activityId`/`sessionId`/`participantId`/`type`/`source`/`status`/`occurredAt`/`adjustsTransactionId`/`reversedAt`/`supersededAt`/`slotNo` — tanpa token QR |
 
-**Belum dibuktikan di produksi:** Reversal lewat UI (kuota kembali, scan berikutnya `SUCCESS`)
-dan Manual Entry konsumsi. Scan ulang peserta yang sama sudah ditolak tanpa menambah baris.
-Gate Q7 menunggu dua bukti itu.
+**Gate Q7 ditutup 18 November 2026.** Semua butir gate terbukti di produksi lewat UI: kuota
+ditegakkan, duplikat ditolak, Reversal mengembalikan kuota, dan Manual Entry mencatat sumber
+`manual`. E2E browser otomatis tetap belum ada dan dicatat sebagai kandidat Q11, bukan blocker
+gate.
 
 Quirk yang akan mengganggu:
 
@@ -749,7 +757,7 @@ lama, dan itu akan terlihat sebagai `500` pada cetak ulang (bukan kerusakan data
 | CPU produksi rotasi/QR label | Setelah deploy Q4 | `wrangler tail` saat cetak 38 label dan rotasi; lokal 47 statement / 45 ms adalah proksi |
 | CPU produksi scan/koreksi Q5 | Setelah deploy Q5 | `wrangler tail`; lokal 15 statement scan / 11–12 koreksi adalah proksi, bukan CPU tertagih |
 | Penerapan `0012` (Q7) di remote | **Selesai 17 November 2026** | Backup pre-0012 (281 KB), kandidat 1 Aktivitas `consumption`, `npm run db:migrate:remote` (14 command), verifikasi `schema_version = 12`, tabel/index/trigger kuota, backfill `quota = 1`, hitungan baris tidak berubah, `PRAGMA quick_check = ok` (§6.5) |
-| Smoke produksi Q7 (scan Consumption + kuota) | **Sebagian 18 November 2026** — aktivasi, kuota, 2 scan sukses, duplicate ditolak tanpa baris, audit tanpa token sudah terbukti (§6.5); **belum** Reversal lewat UI dan Manual Entry | Buka Aktivitas `pagi` → **Transaksi** → **Batalkan** dengan alasan; lalu Manual Entry lewat Petugas dengan `allow_manual` + penugasan manual aktif |
+| Smoke produksi Q7 (scan Consumption + kuota) | **Selesai 18 November 2026** | Aktivasi, kuota, 2 scan, duplicate ditolak, Reversal, dan Manual Entry terbukti di Tema `Mhs` (§6.5); gate Q7 ditutup |
 | CPU produksi route kuota Q7 | Setelah deploy Q7 | `wrangler tail`; lokal 8 statement GET/PUT dan 38 statement bulk 15 aturan adalah proksi |
 
 Repo ini tidak memakai GitHub Actions. Workers Builds hanya menjalankan build dan deploy, bukan

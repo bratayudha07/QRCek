@@ -1,9 +1,10 @@
 # Rencana Q7 — Distribusi konsumsi
 
-Status: **DIBUKA 15 November 2026; implementasi API + UI selesai dan migrasi `0012` live 17
-November 2026; gate belum ditutup** karena smoke produksi lewat UI belum dijalankan. Dokumen
-ini rencana eksekusi, bukan bukti implementasi. Enam asumsi di §2 **disetujui pemilik pada 15
-November 2026**; migrasi remote disetujui terpisah dan diterapkan 17 November 2026.
+Status: **DITUTUP 18 November 2026.** Implementasi API + UI selesai, migrasi `0012` live 17
+November 2026, dan smoke UI produksi lengkap (kuota, duplicate, Reversal, Manual Entry). Dokumen
+ini rencana eksekusi, bukan bukti implementasi; bukti ada di `docs/OPERASIONAL.md` §6.5 dan
+`docs/RENCANA_PENGUJIAN.md` §9.7. Enam asumsi di §2 **disetujui pemilik pada 15 November 2026**;
+migrasi remote disetujui terpisah dan diterapkan 17 November 2026.
 
 Prasyarat keputusan sudah terpenuhi: `D-009` [A] (satu tipe transaksi per Aktivitas),
 `D-014` [A] (kuota dapat dikonfigurasi; Reversal mengembalikan kuota), `D-006` [A] (transaksi
@@ -168,5 +169,5 @@ Consumption (Q10), konfigurasi pesan per Tema (AQ-012), kuota per Sesi (kecuali 
 6. UI kuota + scanner + dialog manual. **Selesai 15 November 2026** (butir 1–3 §6).
 7. `typecheck` → `lint` → `test` → `bench` → `build`, lalu catat angka di
    `docs/OPERASIONAL.md`.
-8. Review pemilik sebelum gate Q7 ditutup. Migrasi remote **diterapkan 17 November 2026**
-   (`schema_version = 12`, backup pre-0012 281 KB); sisa gate: smoke produksi lewat UI.
+8. Review pemilik dan smoke UI produksi **selesai 18 November 2026**; gate Q7 ditutup. Migrasi
+   remote diterapkan 17 November 2026 (`schema_version = 12`, backup pre-0012 281 KB).
