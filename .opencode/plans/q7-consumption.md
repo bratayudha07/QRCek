@@ -109,7 +109,7 @@ allowlist, tanpa PII).
 
 ## 6. UI
 
-**Status 15 November 2026:** butir 1–3 selesai, butir 4 belum.
+**Status 18 November 2026:** butir 1–4 selesai; laporan konsumsi tetap Q8.
 
 1. ~~`pages/activity.tsx`~~ → dikerjakan di `pages/event-activities.tsx` (halaman manajemen
    Aktivitas; `pages/activity.tsx` adalah halaman audit) lewat tombol **Kuota** dan
@@ -122,8 +122,10 @@ allowlist, tanpa PII).
    konteks. `StaffContext` mengirim `transactionType`.
 3. `components/manual-entry-dialog.tsx`: cabang tipe — konsumsi tidak mengirim `status`,
    hanya catatan, dan memanggil `POST .../consumption/manual`.
-4. Riwayat/daftar transaksi konsumsi (kolom tipe + slot) **belum ada**: halaman daftar
-   transaksi belum dibangun dan laporan konsumsi masuk Q8.
+4. Riwayat/daftar transaksi konsumsi: **minimal untuk gate Q7** lewat tombol **Transaksi** pada
+   baris Aktivitas `consumption` (`components/consumption-transactions-dialog.tsx`). Dialog
+   menampilkan transaksi efektif (peserta, porsi, waktu, sumber) dan aksi **Batalkan** dengan
+   alasan wajib, hanya untuk Admin Acara. Laporan/ekspor konsumsi tetap Q8.
 
 ## 7. Tes dan gerbang
 

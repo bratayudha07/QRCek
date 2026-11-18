@@ -11,6 +11,7 @@ import { useEffect, useState, type FormEvent } from "react";
 
 import { AppShell } from "@/components/app-shell";
 import { ConsumptionQuotaDialog } from "@/components/consumption-quota-dialog";
+import { ConsumptionTransactionsDialog } from "@/components/consumption-transactions-dialog";
 import { EmptyState, ErrorState, LoadingState, Notice } from "@/components/page-state";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,7 @@ import {
   updateActivitySession,
 } from "@/lib/activity-sessions";
 import { epochToLocalInput, localInputToEpoch } from "@/lib/activity-time";
+import { canReverseConsumption } from "@/lib/consumption";
 import { defaultActivityId } from "@/lib/entitlements";
 import { getEvent } from "@/lib/events";
 import { formatSchedule } from "@/lib/format";
@@ -167,6 +169,9 @@ export function EventActivitiesPage({ eventId }: { eventId: string }) {
   // Consumption quota configuration (Q7). Kept as the whole Aktivitas so the
   // dialog can show the archived state without another request.
   const [quotaActivity, setQuotaActivity] = useState<Activity | null>(null);
+  // Consumption transaction history + Reversal (Q7 gate). The dialog reads the
+  // effective list; only an Admin Acara sees the Reversal action.
+  const [transactionsActivity, setTransactionsActivity] = useState<Activity | null>(null);
 
   // ── Tema ────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -689,15 +694,26 @@ export function EventActivitiesPage({ eventId }: { eventId: string }) {
                         </Button>
 
                         {canManage && activity.transactionType === "consumption" && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={busy !== null}
-                            onClick={() => setQuotaActivity(activity)}
-                          >
-                            Kuota
-                          </Button>
+                          <>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={busy !== null}
+                              onClick={() => setTransactionsActivity(activity)}
+                            >
+                              Transaksi
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={busy !== null}
+                              onClick={() => setQuotaActivity(activity)}
+                            >
+                              Kuota
+                            </Button>
+                          </>
                         )}
 
                         {canManage && !archived && (
@@ -1069,6 +1085,16 @@ export function EventActivitiesPage({ eventId }: { eventId: string }) {
           activity={quotaActivity}
           open
           onClose={() => setQuotaActivity(null)}
+        />
+      )}
+
+      {transactionsActivity && (
+        <ConsumptionTransactionsDialog
+          eventId={eventId}
+          activity={transactionsActivity}
+          canReverse={event !== null && canReverseConsumption(event.accessRole)}
+          open
+          onClose={() => setTransactionsActivity(null)}
         />
       )}
     </AppShell>

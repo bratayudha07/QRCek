@@ -790,17 +790,17 @@ produksi belum dijalankan**.
 **Status 17 November 2026 (Q7 API + UI).** Keempat tes punya tes yang gagal bila aturannya
 dihapus. UI kuota dan scanner Consumption sudah ada; laporan konsumsi tetap Q8, dan E2E browser
 belum ada, jadi gate Q7 belum boleh ditutup. Verifikasi lokal: `typecheck`, `lint`, `test`
-(**911 tes / 85 file**), `bench`, dan `build` PASS. Suite penuh dijalankan sequential
+(**913 tes / 85 file**), `bench`, dan `build` PASS. Suite penuh dijalankan sequential
 (`--no-file-parallelism`) karena mesin dev 4 GB kehabisan memori saat 85 worker berjalan
 bersamaan; tes konkurensi 50 scan lulus sendiri. Logika UI diuji tanpa DOM di
 `apps/web/src/lib/consumption.test.ts` (resolusi kuota, parsing input, baris override,
 permintaan Manual Entry konsumsi) dan `apps/web/src/lib/scanner.test.ts` (copy konsumsi,
 `quota_exhausted`, nomor porsi, copy Attendance tetap). Migrasi `0012` **diterapkan di remote
 17 November 2026** (`schema_version = 12`). Smoke produksi 18 November 2026 (Tema `Mhs`)
-membuktikan aturan hak + aktivasi, konfigurasi kuota, dan **2 scan QR sukses** (2 transaksi
-`consumption` slot 1, audit tanpa token). **Belum:** scan kedua peserta yang sama →
-`DUPLICATE/quota_exhausted`, Reversal membebaskan kuota, dan Manual Entry konsumsi; gate Q7
-menunggu ketiganya.
+membuktikan aturan hak + aktivasi, konfigurasi kuota, **2 scan QR sukses** (2 transaksi
+`consumption` slot 1, audit tanpa token), dan **scan ulang peserta yang sama ditolak tanpa
+menambah baris**. UI **Transaksi** + **Batalkan** (Reversal) ditambahkan 18 November 2026;
+**belum di-smoke di produksi**, begitu juga Manual Entry konsumsi. Gate Q7 menunggu keduanya.
 
 | Tes | Bukti |
 |---|---|

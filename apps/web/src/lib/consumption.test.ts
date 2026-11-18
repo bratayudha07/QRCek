@@ -6,9 +6,11 @@ import type {
 import { describe, expect, it } from "vitest";
 
 import {
+  canReverseConsumption,
   categoryQuotaRows,
   consumptionManualRequest,
   consumptionManualSuccessMessage,
+  consumptionSourceLabel,
   parseQuotaInput,
   participantQuotaRows,
   quotaUsageLabel,
@@ -191,5 +193,20 @@ describe("consumptionManualSuccessMessage", () => {
 
   it("stays readable without a slot", () => {
     expect(consumptionManualSuccessMessage("Budi", null)).toBe("Konsumsi tercatat untuk Budi.");
+  });
+});
+
+describe("canReverseConsumption", () => {
+  it("allows only the Tema's Admin Acara", () => {
+    expect(canReverseConsumption("event_admin")).toBe(true);
+    expect(canReverseConsumption("superadmin")).toBe(false);
+    expect(canReverseConsumption("officer")).toBe(false);
+  });
+});
+
+describe("consumptionSourceLabel", () => {
+  it("maps both transaction sources to user-facing copy", () => {
+    expect(consumptionSourceLabel("qr_scan")).toBe("Scan QR");
+    expect(consumptionSourceLabel("manual")).toBe("Input manual");
   });
 });

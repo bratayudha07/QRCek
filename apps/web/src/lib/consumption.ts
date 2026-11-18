@@ -7,8 +7,10 @@ import type {
   ConsumptionParticipantQuotaRulesRequest,
   ConsumptionQuotaDefaultPayload,
   ConsumptionQuotaPayload,
+  EventAccessRole,
   StaffContext,
   TransactionDetailPayload,
+  TransactionSource,
 } from "@absensi/shared";
 
 import { apiRequest } from "./http";
@@ -214,4 +216,16 @@ export function consumptionManualSuccessMessage(
   return slotNo === null
     ? `Konsumsi tercatat untuk ${participantName}.`
     : `Konsumsi tercatat untuk ${participantName} (porsi ${slotNo}).`;
+}
+
+/**
+ * Reversal is an Admin Acara action. Super Admin is read-only across Temas and
+ * Petugas never corrects, so neither may see the action (D-006, D-024).
+ */
+export function canReverseConsumption(accessRole: EventAccessRole): boolean {
+  return accessRole === "event_admin";
+}
+
+export function consumptionSourceLabel(source: TransactionSource): string {
+  return source === "qr_scan" ? "Scan QR" : "Input manual";
 }
