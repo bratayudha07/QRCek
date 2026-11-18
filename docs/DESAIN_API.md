@@ -1143,9 +1143,8 @@ memetakannya ke bentuk `AttendanceRecord` lama (`id` = id transaksi, `checkedInA
 ], "nextCursor": null } }
 ```
 
-`participantName` dan `participantCategory` diambil dari `JOIN participants` pada query yang
-sudah ada, sehingga daftar transaksi tidak perlu permintaan kedua untuk menampilkan nama
-(aditif, 18 November 2026).
+`eventTimezone` adalah zona IANA Tema. Klien memakainya untuk menampilkan waktu; Worker tetap
+menyimpan dan mengirim UTC epoch (aditif, 18 November 2026).
 
 ### `GET /api/events/:eventId/transactions`
 
@@ -1165,8 +1164,9 @@ Peran: `officer`, `event_admin`, `superadmin` (anggota Tema). Query: `activityId
 ], "nextCursor": null } }
 ```
 
-`eventTimezone` adalah zona IANA Tema. Klien memakainya untuk menampilkan waktu; Worker tetap
-menyimpan dan mengirim UTC epoch (aditif, 18 November 2026).
+`participantName` dan `participantCategory` diambil dari `JOIN participants` pada query yang
+sudah ada, sehingga daftar transaksi tidak perlu permintaan kedua untuk menampilkan nama
+(aditif, 18 November 2026).
 
 ### Reversal dan Adjustment
 
