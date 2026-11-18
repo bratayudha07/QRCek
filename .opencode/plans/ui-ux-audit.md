@@ -4,12 +4,12 @@ Tanggal: 18 November 2026. **Status: UI-1, UI-2, dan UI-5 sudah dieksekusi; UI-3
 belum.** Dokumen ini bukan rencana tahap roadmap; Q9 (design system) tetap belum dibuka dan
 tidak boleh menambah fitur.
 
-**Hasil eksekusi 18 November 2026** (commit menyusul di `main`):
+**Hasil eksekusi 18 November 2026** (commit `a1609a0`, sudah di-push ke `main`):
 
 | Paket | Status | Bukti |
 |---|---|---|
 | UI-1 | Selesai | `components/error-boundary.tsx`, `lib/document-title.ts` (+ tes), dipasang di `App.tsx` dan `AppShell`; `index.html` → `QRCek` |
-| UI-2 | Selesai | `eventTimezone` pada `AttendanceRecord`, `timezone` pada dashboard/audit/`StaffContext`; `scan-feedback` menerima prop `timeZone`; `formatDateTimeWithZone` + tes |
+| UI-2 | Selesai | `eventTimezone` pada `AttendanceRecord`, `timezone` pada dashboard/audit/`StaffContext`; `scan-feedback` dan dialog transaksi menerima prop zona; `formatDateTimeWithZone` + tes WIB/WITA/WIT |
 | UI-5 | Selesai | `participantName`/`participantCategory` pada `TransactionRecord`; dialog Transaksi tidak lagi memanggil `listParticipants` |
 | UI-3 | Belum | 12 `window.confirm` masih ada |
 | UI-4 | Belum | `Field` belum punya slot error |
