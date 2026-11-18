@@ -24,6 +24,7 @@ export interface AttendanceRow {
 
 export interface AttendanceJoinedRow extends AttendanceRow {
   event_name: string;
+  event_timezone: string;
   participant_name: string;
   participant_external_ref: string | null;
   category: string | null;
@@ -56,6 +57,7 @@ export const ATTENDANCE_SELECT = `
          t.created_at,
          t.updated_at,
          e.name             AS event_name,
+         e.timezone         AS event_timezone,
          p.full_name        AS participant_name,
          p.external_ref     AS participant_external_ref,
          p.category         AS category,

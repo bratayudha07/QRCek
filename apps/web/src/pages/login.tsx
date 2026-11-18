@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
 import { recoverAccount } from "@/lib/auth";
+import { useDocumentTitle } from "@/lib/document-title";
 
 /**
  * `/masuk` — login with a recovery code.
@@ -26,6 +27,8 @@ export function LoginPage() {
   const [code, setCode] = useState("");
   const [label, setLabel] = useState("");
   const [status, setStatus] = useState<Status>({ kind: "idle" });
+
+  useDocumentTitle("Masuk");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

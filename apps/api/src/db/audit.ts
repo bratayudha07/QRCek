@@ -34,6 +34,7 @@ export interface AuditJoinedRow {
   after_json: string | null;
   reason: string | null;
   created_at: number;
+  timezone: string | null;
 }
 
 export async function listAuditEntries(
@@ -61,9 +62,10 @@ export async function listAuditEntries(
     .prepare(
       `SELECT a.id, a.event_id, a.actor_user_id, u.display_name AS actor_name,
               a.action, a.entity_type, a.entity_id, a.before_json, a.after_json,
-              a.reason, a.created_at
+              a.reason, a.created_at, e.timezone
          FROM audit_log a
          LEFT JOIN users u ON u.id = a.actor_user_id
+         LEFT JOIN events e ON e.id = a.event_id
         WHERE ${clauses.join(" AND ")}
         ORDER BY a.created_at DESC, a.id DESC
         LIMIT ?`,

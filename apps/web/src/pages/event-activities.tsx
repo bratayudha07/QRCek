@@ -1092,6 +1092,7 @@ export function EventActivitiesPage({ eventId }: { eventId: string }) {
           eventId={eventId}
           activity={transactionsActivity}
           accessRole={event.accessRole}
+          timeZone={event.timezone}
           open
           onClose={() => setTransactionsActivity(null)}
         />

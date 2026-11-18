@@ -25,37 +25,11 @@ import {
   consumptionReversalNotice,
   consumptionSourceLabel,
 } from "@/lib/consumption";
-import { listParticipants } from "@/lib/participants";
+import { formatDateTimeWithZone } from "@/lib/format";
 
 const PAGE_LIMIT = 100;
-const NAME_PAGE_LIMIT = 100;
-/** Bounds the name lookup so a huge Tema cannot turn one dialog into many requests. */
-const NAME_PAGE_MAX = 10;
 
 type LoadState = "loading" | "ready" | "error";
-
-async function loadParticipantNames(eventId: string): Promise<Map<string, string>> {
-  const names = new Map<string, string>();
-  let cursor: string | null = null;
-
-  for (let page = 0; page < NAME_PAGE_MAX; page += 1) {
-    const body = await listParticipants(eventId, {
-      status: "all",
-      limit: NAME_PAGE_LIMIT,
-      ...(cursor !== null ? { cursor } : {}),
-    });
-    if (!body.ok) break;
-
-    for (const participant of body.data.items) {
-      names.set(participant.id, participant.fullName);
-    }
-
-    cursor = body.data.nextCursor;
-    if (cursor === null) break;
-  }
-
-  return names;
-}
 
 /**
  * Effective Consumption transactions for one Aktivitas (Q7 gate).
@@ -68,12 +42,15 @@ export function ConsumptionTransactionsDialog({
   eventId,
   activity,
   accessRole,
+  timeZone,
   open,
   onClose,
 }: {
   eventId: string;
   activity: Pick<Activity, "id" | "name">;
   accessRole: EventAccessRole;
+  /** IANA zone of the Tema; the Worker only ever sends UTC epoch. */
+  timeZone: string;
   open: boolean;
   onClose: () => void;
 }) {
@@ -84,7 +61,6 @@ export function ConsumptionTransactionsDialog({
   const [error, setError] = useState("");
   const [rows, setRows] = useState<TransactionRecord[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
-  const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map());
   const [reloadKey, setReloadKey] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
 
@@ -110,25 +86,21 @@ export function ConsumptionTransactionsDialog({
     setState("loading");
     setError("");
 
-    Promise.all([
-      listTransactions(eventId, {
-        activityId: activity.id,
-        type: "consumption",
-        effective: "true",
-        limit: PAGE_LIMIT,
-      }),
-      loadParticipantNames(eventId),
-    ])
-      .then(([transactionBody, nameMap]) => {
+    listTransactions(eventId, {
+      activityId: activity.id,
+      type: "consumption",
+      effective: "true",
+      limit: PAGE_LIMIT,
+    })
+      .then((body) => {
         if (cancelled) return;
-        if (!transactionBody.ok) {
+        if (!body.ok) {
           setState("error");
-          setError(transactionBody.error.message);
+          setError(body.error.message);
           return;
         }
-        setRows(transactionBody.data.items);
-        setCursor(transactionBody.data.nextCursor);
-        setNames(nameMap);
+        setRows(body.data.items);
+        setCursor(body.data.nextCursor);
         setState("ready");
       })
       .catch(() => {
@@ -193,9 +165,6 @@ export function ConsumptionTransactionsDialog({
     }
   }
 
-  const participantName = (participantId: string) =>
-    names.get(participantId) ?? "Peserta tidak dikenal";
-
   return (
     <Dialog
       open={open}
@@ -209,8 +178,8 @@ export function ConsumptionTransactionsDialog({
           <DialogHeader>
             <DialogTitle>Batalkan transaksi konsumsi</DialogTitle>
             <DialogDescription>
-              {participantName(selected.participantId)} · porsi {selected.slotNo ?? "—"} ·{" "}
-              {new Date(selected.occurredAt).toLocaleString("id-ID")}
+              {selected.participantName} · porsi {selected.slotNo ?? "—"} ·{" "}
+              {formatDateTimeWithZone(selected.occurredAt, timeZone)}
             </DialogDescription>
           </DialogHeader>
 
@@ -303,10 +272,15 @@ export function ConsumptionTransactionsDialog({
                 {rows.map((row) => (
                   <TableRow key={row.id}>
                     <TableCell className="font-medium">
-                      {participantName(row.participantId)}
+                      <span className="block">{row.participantName}</span>
+                      {row.participantCategory && (
+                        <span className="block text-xs text-muted-foreground">
+                          {row.participantCategory}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell>{row.slotNo ?? "—"}</TableCell>
-                    <TableCell>{new Date(row.occurredAt).toLocaleString("id-ID")}</TableCell>
+                    <TableCell>{formatDateTimeWithZone(row.occurredAt, timeZone)}</TableCell>
                     <TableCell>{consumptionSourceLabel(row.source)}</TableCell>
                     {canReverse && (
                       <TableCell className="text-right">

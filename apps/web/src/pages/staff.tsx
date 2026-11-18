@@ -26,7 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Label, Select } from "@/components/ui/field";
 import { listMyStaffContexts } from "@/lib/assignments";
 import { listStaffAttendance, scanQr } from "@/lib/attendance";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTimeWithZone } from "@/lib/format";
 import { canUseManualEntry } from "@/lib/manual-entry";
 import {
   isScannerMuted,
@@ -644,7 +644,10 @@ export function StaffScanPage() {
 
       {cameraReady && (
         <>
-          <ScanFeedback feedback={scanner.feedback} />
+          <ScanFeedback
+            feedback={scanner.feedback}
+            timeZone={selected?.timezone ?? "Asia/Jakarta"}
+          />
 
           <QrScanner
             paused={locked || blocked !== null || !online}
@@ -737,7 +740,7 @@ export function StaffHistoryPage() {
       {error && <ErrorState message={error} onRetry={() => setRefresh((value) => value + 1)} />}
       {loading && <LoadingState label="Memuat riwayat…" />}
       {!loading && items.length === 0 && !error && <EmptyState>Belum ada hasil scan yang tercatat.</EmptyState>}
-      {items.length > 0 && <ul className="divide-y rounded-xl border">{items.map((item) => <li key={item.id} className="p-3"><p className="text-sm font-medium">{item.participantName}</p><p className="text-xs text-muted-foreground">{item.eventName} · {item.status} · {formatDateTime(item.checkedInAt, "Asia/Jakarta")}</p></li>)}</ul>}
+      {items.length > 0 && <ul className="divide-y rounded-xl border">{items.map((item) => <li key={item.id} className="p-3"><p className="text-sm font-medium">{item.participantName}</p><p className="text-xs text-muted-foreground">{item.eventName} · {item.status} · {formatDateTimeWithZone(item.checkedInAt, item.eventTimezone)}</p></li>)}</ul>}
       {cursor && <Button variant="outline" disabled={loading} onClick={() => void loadMore()}>Muat lagi</Button>}
       {refresh > 0 && <span className="sr-only">Riwayat diperbarui</span>}
     </AppShell>

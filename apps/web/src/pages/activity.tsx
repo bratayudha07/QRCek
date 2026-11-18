@@ -84,7 +84,7 @@ export function ActivityPage() {
 function AuditItem({ item }: { item: AuditRecord }) {
   return (
     <li className="space-y-2 p-4">
-      <div className="flex items-start gap-3"><Activity aria-hidden="true" className="mt-0.5 size-4 text-muted-foreground" /><div className="min-w-0 flex-1"><p className="font-medium">{item.action}</p><p className="text-xs text-muted-foreground">{item.actorName ?? "Sistem"} · {item.entityType}{item.entityId ? ` · ${item.entityId}` : ""} · {formatDateTime(item.createdAt, "Asia/Jakarta")}</p></div></div>
+      <div className="flex items-start gap-3"><Activity aria-hidden="true" className="mt-0.5 size-4 text-muted-foreground" /><div className="min-w-0 flex-1"><p className="font-medium">{item.action}</p><p className="text-xs text-muted-foreground">{item.actorName ?? "Sistem"} · {item.entityType}{item.entityId ? ` · ${item.entityId}` : ""} · {formatDateTime(item.createdAt, item.timezone ?? "Asia/Jakarta")}</p></div></div>
       {item.reason && <p className="text-sm">Alasan: {item.reason}</p>}
       {(item.before !== null || item.after !== null) && <details className="text-xs"><summary className="cursor-pointer text-muted-foreground">Rincian perubahan</summary><div className="mt-2 grid gap-2 sm:grid-cols-2"><pre className="overflow-x-auto rounded bg-muted/50 p-2">Sebelum: {JSON.stringify(item.before, null, 2)}</pre><pre className="overflow-x-auto rounded bg-muted/50 p-2">Sesudah: {JSON.stringify(item.after, null, 2)}</pre></div></details>}
     </li>

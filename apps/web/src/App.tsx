@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 
 import { AppLayout } from "@/components/app-layout";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useRoute } from "@/lib/use-route";
-import type { AppRoute } from "@/lib/router";
+import { routePath, type AppRoute } from "@/lib/router";
 import { ActivationPage } from "@/pages/activation";
 import { AccountPage } from "@/pages/account";
 import { ActivityPage } from "@/pages/activity";
@@ -27,6 +28,12 @@ import { StaffHistoryPage, StaffHomePage, StaffScanPage } from "@/pages/staff";
 export default function App() {
   const route = useRoute();
 
+  // Keyed on the canonical path so navigating away from a crashed screen
+  // remounts the boundary instead of leaving the fallback on every route.
+  return <ErrorBoundary key={routePath(route) ?? route.name}>{renderRoute(route)}</ErrorBoundary>;
+}
+
+function renderRoute(route: AppRoute): ReactNode {
   switch (route.name) {
     case "home":
       return <HomeRedirectPage />;

@@ -1134,6 +1134,7 @@ memetakannya ke bentuk `AttendanceRecord` lama (`id` = id transaksi, `checkedInA
 ```jsonc
 { "ok": true, "data": { "items": [
   { "id": "01J...", "eventId": "01J...", "eventName": "Wisuda",
+    "eventTimezone": "Asia/Jakarta",
     "participantId": "01J...", "participantName": "Budi",
     "participantExternalRef": "P-001", "category": "Kelas 5A",
     "status": "present", "checkedInAt": 1730000000123,
@@ -1141,6 +1142,10 @@ memetakannya ke bentuk `AttendanceRecord` lama (`id` = id transaksi, `checkedInA
     "method": "qr_scan", "note": null, "updatedAt": 1730000000123 }
 ], "nextCursor": null } }
 ```
+
+`participantName` dan `participantCategory` diambil dari `JOIN participants` pada query yang
+sudah ada, sehingga daftar transaksi tidak perlu permintaan kedua untuk menampilkan nama
+(aditif, 18 November 2026).
 
 ### `GET /api/events/:eventId/transactions`
 
@@ -1151,12 +1156,17 @@ Peran: `officer`, `event_admin`, `superadmin` (anggota Tema). Query: `activityId
 ```jsonc
 { "ok": true, "data": { "items": [
   { "id": "01J...", "themeId": "01J...", "activityId": "01J...", "sessionId": null,
-    "participantId": "01J...", "type": "attendance", "source": "qr_scan",
+    "participantId": "01J...", "participantName": "Budi",
+    "participantCategory": "Kelas 5A",
+    "type": "attendance", "source": "qr_scan",
     "status": "present", "occurredAt": 173..., "recordedBy": "01J...", "note": null,
     "slotNo": null, "adjustsTransactionId": null, "reversedAt": null,
     "supersededAt": null, "effective": true, "createdAt": 173..., "updatedAt": 173... }
 ], "nextCursor": null } }
 ```
+
+`eventTimezone` adalah zona IANA Tema. Klien memakainya untuk menampilkan waktu; Worker tetap
+menyimpan dan mengirim UTC epoch (aditif, 18 November 2026).
 
 ### Reversal dan Adjustment
 
@@ -1232,6 +1242,10 @@ Endpoint data rekap dipakai oleh dashboard dan halaman Laporan. Semua agregat ke
 menghitung transaksi Attendance efektif. Riwayat petugas hanya memuat transaksi yang dicatat
 oleh pengguna tersebut.
 
+Payload dashboard per acara memuat `event.timezone` dan payload global memuat `timezone` per
+baris acara; riwayat petugas memuat `eventTimezone` per baris. Ketiganya aditif (18 November
+2026) agar klien tidak lagi menebak zona waktu.
+
 ### Ekspor kehadiran CSV
 
 | Method | Path | Peran | Keterangan |
@@ -1255,7 +1269,8 @@ append-only dan dilindungi trigger database.
 
 Respons tidak menyertakan hash IP atau token. Endpoint selalu dibatasi ke acara yang diminta
 dan memerlukan akses baca audit. Aktivitas web menggabungkan daftar audit dari acara yang
-dapat diakses pengguna.
+dapat diakses pengguna. Setiap baris memuat `timezone` Tema (`null` untuk aksi di luar Tema)
+sehingga waktu audit dapat ditampilkan tanpa menebak zona (aditif, 18 November 2026).
 
 ---
 

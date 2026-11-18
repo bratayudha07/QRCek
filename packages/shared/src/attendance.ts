@@ -81,6 +81,8 @@ export interface AttendanceRecord {
   id: string;
   eventId: string;
   eventName: string;
+  /** IANA zone of the Tema; presentation converts UTC epoch with it. */
+  eventTimezone: string;
   participantId: string;
   participantName: string;
   participantExternalRef: string | null;
@@ -118,6 +120,9 @@ export interface TransactionRecord {
   activityId: string;
   sessionId: string | null;
   participantId: string;
+  /** Denormalised from the join so a list does not need a second request. */
+  participantName: string;
+  participantCategory: string | null;
   type: TransactionType;
   source: TransactionSource;
   status: AttendanceStatus | null;
@@ -147,6 +152,7 @@ export interface EventDashboardPayload {
     id: string;
     name: string;
     status: EventStatus;
+    timezone: string;
     startsAt: number | null;
     endsAt: number | null;
     allowManual: boolean;
@@ -168,6 +174,7 @@ export interface GlobalDashboardEvent {
   id: string;
   name: string;
   status: EventStatus;
+  timezone: string;
   startsAt: number | null;
   endsAt: number | null;
   accessRole: GlobalEventAccessRole;

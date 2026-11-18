@@ -9,8 +9,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
+import { formatDateTimeWithZone } from "@/lib/format";
 import type { ScanFeedback as ScanFeedbackModel, ScanFeedbackIcon, ScanTone } from "@/lib/scanner";
-import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /**
@@ -37,13 +37,14 @@ const TONE_CLASS: Record<ScanTone, string> = {
   error: "border-red-600/30 bg-red-600/10 text-red-900",
 };
 
-const TIMESTAMP_ZONE = "Asia/Jakarta";
-
 export function ScanFeedback({
   feedback,
+  timeZone,
   className,
 }: {
   feedback: ScanFeedbackModel | null;
+  /** IANA zone of the Tema being scanned, never the device's zone. */
+  timeZone: string;
   className?: string;
 }) {
   if (!feedback) return null;
@@ -74,7 +75,7 @@ export function ScanFeedback({
         {feedback.occurredAt !== undefined && (
           <p className="text-xs opacity-80">
             {feedback.occurredAtLabel ?? "Absen pertama"}:{" "}
-            {formatDateTime(feedback.occurredAt, TIMESTAMP_ZONE)} WIB
+            {formatDateTimeWithZone(feedback.occurredAt, timeZone)}
           </p>
         )}
       </div>

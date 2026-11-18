@@ -48,6 +48,7 @@ function context(overrides: Partial<StaffContext> = {}): StaffContext {
     activityStatus: "active",
     sessionStatus: null,
     canManualCheckIn: true,
+    timezone: "Asia/Jakarta",
     ...overrides,
   };
 }

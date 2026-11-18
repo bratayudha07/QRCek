@@ -10,6 +10,15 @@ import { ParticipantForm, type ParticipantFormValues } from "@/components/partic
 import { ParticipantStatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/field";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { categorySelectOptions, listCategories } from "@/lib/categories";
 import { getEvent } from "@/lib/events";
 import { formatCount } from "@/lib/format";
@@ -438,36 +447,54 @@ export function EventParticipantsPage({ eventId }: { eventId: string }) {
         )}
 
         {listState === "ready" && items.length > 0 && (
-          <ul className="divide-y rounded-lg border">
-            {items.map((participant) => (
-              <li key={participant.id}>
-                <AppLink
-                  href={participantPath(eventId, participant.id)}
-                  className="group flex items-center gap-3 px-4 py-3 transition-colors duration-150 hover:bg-muted/40 focus-visible:outline-2 focus-visible:outline-offset-2"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="truncate text-sm font-medium">{participant.fullName}</span>
-                      <ParticipantStatusBadge status={participant.status} />
-                    </div>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {[
-                        participant.externalRef,
-                        participant.category,
-                        participant.phone ?? participant.email,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ") || "Tanpa detail kontak"}
-                    </p>
-                  </div>
-                  <ChevronRight
-                    aria-hidden="true"
-                    className="size-4 shrink-0 text-muted-foreground transition-transform duration-150 group-hover:translate-x-0.5"
-                  />
-                </AppLink>
-              </li>
-            ))}
-          </ul>
+          <Table>
+            <TableCaption className="sr-only">Daftar peserta pada filter ini</TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead scope="col">Nama</TableHead>
+                <TableHead scope="col">Status</TableHead>
+                <TableHead scope="col" className="hidden md:table-cell">
+                  Referensi
+                </TableHead>
+                <TableHead scope="col" className="hidden lg:table-cell">
+                  Kategori
+                </TableHead>
+                <TableHead scope="col" className="hidden md:table-cell">
+                  Kontak
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map((participant) => (
+                <TableRow key={participant.id}>
+                  <TableCell className="font-medium">
+                    <AppLink
+                      href={participantPath(eventId, participant.id)}
+                      className="group inline-flex items-center gap-1 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2"
+                    >
+                      <span className="break-words">{participant.fullName}</span>
+                      <ChevronRight
+                        aria-hidden="true"
+                        className="size-4 shrink-0 text-muted-foreground transition-transform duration-150 group-hover:translate-x-0.5"
+                      />
+                    </AppLink>
+                  </TableCell>
+                  <TableCell>
+                    <ParticipantStatusBadge status={participant.status} />
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    {participant.externalRef ?? "—"}
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell">
+                    {participant.category ?? "—"}
+                  </TableCell>
+                  <TableCell className="hidden max-w-56 truncate md:table-cell">
+                    {participant.phone ?? participant.email ?? "—"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
 
         {nextCursor && listState === "ready" && (

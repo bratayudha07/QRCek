@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   formatDateTime,
+  formatDateTimeWithZone,
   formatSchedule,
   fromDateTimeLocalValue,
   toDateTimeLocalValue,
@@ -26,6 +27,22 @@ describe("formatSchedule", () => {
     const end = Date.UTC(2026, 9, 31, 5, 0);
 
     expect(formatSchedule(start, end, JAKARTA)).toContain("–");
+  });
+});
+
+describe("event timezone", () => {
+  const instant = Date.UTC(2026, 10, 18, 2, 0);
+
+  it("renders the same instant in the Tema's zone, not the device's", () => {
+    expect(formatDateTime(instant, "Asia/Jakarta")).toContain("09.00");
+    expect(formatDateTime(instant, "Asia/Makassar")).toContain("10.00");
+    expect(formatDateTime(instant, "Asia/Jayapura")).toContain("11.00");
+  });
+
+  it("labels the zone so a clock is never ambiguous", () => {
+    expect(formatDateTimeWithZone(instant, "Asia/Jakarta")).toContain("WIB");
+    expect(formatDateTimeWithZone(instant, "Asia/Makassar")).toContain("WITA");
+    expect(formatDateTimeWithZone(instant, "Asia/Jayapura")).toContain("WIT");
   });
 });
 

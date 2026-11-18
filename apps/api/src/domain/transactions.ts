@@ -161,6 +161,12 @@ export interface TransactionRecordSource extends TransactionLike {
   note: string | null;
   created_at: number;
   updated_at: number;
+  /**
+   * Joined participant columns. Every read path already joins `participants`, so
+   * a list response can name the participant without a second request.
+   */
+  participant_name: string;
+  category: string | null;
 }
 
 /**
@@ -175,6 +181,8 @@ export function toTransactionRecord(row: TransactionRecordSource): TransactionRe
     activityId: row.activity_id,
     sessionId: row.session_id,
     participantId: row.participant_id,
+    participantName: row.participant_name,
+    participantCategory: row.category,
     type: row.type,
     source: row.source,
     status: row.status,

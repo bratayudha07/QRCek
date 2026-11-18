@@ -34,6 +34,7 @@ export interface StaffContextSourceRow {
   can_manual_check_in: number;
   theme_id: string;
   theme_name: string;
+  theme_timezone: string;
   activity_id: string;
   activity_name: string;
   activity_transaction_type: string;
@@ -144,7 +145,7 @@ export async function listUserContexts(
     .prepare(
       `SELECT sa.id AS assignment_id,
               sa.can_manual_check_in,
-              e.id AS theme_id, e.name AS theme_name,
+              e.id AS theme_id, e.name AS theme_name, e.timezone AS theme_timezone,
               a.id AS activity_id, a.name AS activity_name,
               a.transaction_type AS activity_transaction_type,
               a.status AS activity_status, a.archived_at AS activity_archived_at,

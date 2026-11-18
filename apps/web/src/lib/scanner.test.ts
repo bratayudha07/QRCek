@@ -295,6 +295,7 @@ describe("deep link preselection", () => {
       activityStatus: "active",
       sessionStatus: null,
       canManualCheckIn: false,
+      timezone: "Asia/Jakarta",
       ...overrides,
     };
   }
@@ -371,6 +372,7 @@ describe("context refresh after an assignment change", () => {
       activityStatus: "active",
       sessionStatus: null,
       canManualCheckIn: false,
+      timezone: "Asia/Jakarta",
       ...overrides,
     };
   }

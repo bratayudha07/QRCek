@@ -6,6 +6,7 @@ export interface DashboardEventRow {
   id: string;
   name: string;
   status: EventStatus;
+  timezone: string;
   starts_at: number | null;
   ends_at: number | null;
   created_at: number;
@@ -27,7 +28,7 @@ export async function listDashboardEvents(
 
   const { results } = await db
     .prepare(
-      `SELECT e.id, e.name, e.status, e.starts_at, e.ends_at, e.created_at,
+      `SELECT e.id, e.name, e.status, e.timezone, e.starts_at, e.ends_at, e.created_at,
               CASE WHEN ? = 1 THEN 'superadmin' ELSE m.role END AS access_role,
               (SELECT COUNT(*) FROM participants p
                 WHERE p.event_id = e.id) AS participant_count,

@@ -23,6 +23,7 @@ function context(overrides: Partial<StaffContext> = {}): StaffContext {
     activityStatus: "active",
     sessionStatus: null,
     canManualCheckIn: true,
+    timezone: "Asia/Jakarta",
     ...overrides,
   };
 }
@@ -32,6 +33,7 @@ function record(overrides: Partial<AttendanceRecord> = {}): AttendanceRecord {
     id: "att1",
     eventId: "EVT",
     eventName: "Tema",
+    eventTimezone: "Asia/Jakarta",
     participantId: "p1",
     participantName: "Budi",
     participantExternalRef: null,

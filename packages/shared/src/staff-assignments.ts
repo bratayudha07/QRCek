@@ -61,6 +61,8 @@ export interface StaffContext {
   activityStatus: ActivityStatus;
   sessionStatus: SessionStatus | null;
   canManualCheckIn: boolean;
+  /** IANA zone of the Tema, so the scanner clock matches the Tema, not the device. */
+  timezone: string;
 }
 
 export interface StaffContextListPayload {

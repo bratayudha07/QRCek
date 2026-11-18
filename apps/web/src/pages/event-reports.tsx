@@ -137,7 +137,7 @@ export function EventReportsPage({ eventId }: { eventId: string }) {
           </section>
           <section className="space-y-3 rounded-xl border p-4">
             <div className="flex flex-wrap items-center gap-2"><h2 className="mr-auto font-semibold">Kehadiran terbaru</h2><Button variant="outline" disabled={busy} onClick={() => void exportReport()}><Download className="size-4" />Unduh CSV kehadiran</Button></div>
-            {dashboard.recent.length === 0 ? <EmptyState>Belum ada kehadiran tercatat.</EmptyState> : <ul className="divide-y">{dashboard.recent.map((item) => <li key={`${item.participantId}-${item.checkedInAt}`} className="flex items-center gap-2 py-2 text-sm"><span className="min-w-0 flex-1 truncate">{item.participantName}{item.category ? ` · ${item.category}` : ""}</span><span className="text-xs text-muted-foreground">{formatDateTime(item.checkedInAt, "Asia/Jakarta")}</span></li>)}</ul>}
+            {dashboard.recent.length === 0 ? <EmptyState>Belum ada kehadiran tercatat.</EmptyState> : <ul className="divide-y">{dashboard.recent.map((item) => <li key={`${item.participantId}-${item.checkedInAt}`} className="flex items-center gap-2 py-2 text-sm"><span className="min-w-0 flex-1 truncate">{item.participantName}{item.category ? ` · ${item.category}` : ""}</span><span className="text-xs text-muted-foreground">{formatDateTime(item.checkedInAt, dashboard.event.timezone)}</span></li>)}</ul>}
           </section>
         </>
       )}

@@ -12,6 +12,7 @@ function row(overrides: Partial<StaffContextSourceRow> = {}): StaffContextSource
     can_manual_check_in: 0,
     theme_id: "theme-1",
     theme_name: "Tema Satu",
+    theme_timezone: "Asia/Jakarta",
     activity_id: "activity-1",
     activity_name: "Absensi",
     activity_transaction_type: "attendance",
@@ -40,6 +41,7 @@ describe("expandStaffContexts", () => {
         activityStatus: "active",
         sessionStatus: null,
         canManualCheckIn: false,
+        timezone: "Asia/Jakarta",
       },
     ]);
   });
@@ -107,6 +109,7 @@ describe("staffContextReadiness", () => {
       activityStatus: "active",
       sessionStatus: null,
       canManualCheckIn: false,
+      timezone: "Asia/Jakarta",
       ...overrides,
     };
   }

@@ -11,6 +11,8 @@ export interface AuditRecord {
   after: unknown;
   reason: string | null;
   createdAt: number;
+  /** IANA zone of the row's Tema; `null` for actions outside a Tema. */
+  timezone: string | null;
 }
 
 export interface AuditListPayload {

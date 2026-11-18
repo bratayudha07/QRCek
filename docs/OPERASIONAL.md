@@ -1122,3 +1122,19 @@ satu peserta, dan satu Petugas berpenugasan. 16/16 pemeriksaan lulus: rotasi `ro
 dan merotasi; Tema arsip `BUSINESS_RULE`; `qr_identities.rotation_count = 1`; audit
 `qr.identity_rotated` berisi alasan tanpa token. Yang **belum** tercakup: tombol/dialog/panel
 satu-kali di browser, sesi produksi, dan cetak kartu fisik.
+
+### 12.6 Peran dan undangan (18 November 2026)
+
+Keputusan pemilik: **Admin Acara dinonaktifkan dari alur, bukan dihapus dari skema.** Yang
+berubah hanya UI; `D-006`/`D-024` [A] dan `CHECK` constraint tidak berubah, jadi tidak ada
+migrasi.
+
+1. Form undangan di tab **Petugas** hanya membuat undangan **Petugas**. Pilihan peran Admin
+   Acara tidak lagi dirender; Worker tetap menerima `role = event_admin` untuk akun lama.
+2. Tidak ada undangan Admin Acara baru. Tema baru dikelola Super Admin.
+3. Akun Admin Acara yang sudah ada tetap berlaku sampai dicabut. **Jangan mencabut akun Admin
+   Acara terakhir** sebelum ada keputusan pengganti: koreksi/Reversal hanya milik peran itu
+   (`D-006`, `D-024` [A]) sehingga mencabutnya membuat koreksi tidak bisa dilakukan siapa pun.
+4. Mencabut anggota tetap lewat tombol **Cabut akses**; semua sesi perangkat anggota tersebut
+   berakhir.
+

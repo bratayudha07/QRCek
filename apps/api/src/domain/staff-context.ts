@@ -51,6 +51,7 @@ export function expandStaffContexts(rows: readonly StaffContextSourceRow[]): Sta
       activityStatus: row.activity_status as ActivityStatus,
       sessionStatus: (row.session_status as SessionStatus | null) ?? null,
       canManualCheckIn: row.can_manual_check_in === 1,
+      timezone: row.theme_timezone,
     });
   }
 

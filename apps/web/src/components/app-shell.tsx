@@ -2,6 +2,7 @@ import { ArrowLeft } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useDocumentTitle } from "@/lib/document-title";
 import { navigate } from "@/lib/router";
 import { cn } from "@/lib/utils";
 
@@ -42,6 +43,8 @@ export type AppShellProps = AppShellCommon &
 export function AppShell(props: AppShellProps) {
   const { title, subtitle, actions, children, className, variant = "default" } = props;
   const backTo = props.variant === "embedded" ? undefined : props.backTo;
+
+  useDocumentTitle(title, subtitle);
 
   if (variant === "embedded") {
     return (

@@ -68,7 +68,6 @@ export function EventStaffPage({ eventId }: { eventId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState("");
-  const [role, setRole] = useState<"officer" | "event_admin">("officer");
   const [expiresInHours, setExpiresInHours] = useState(72);
   const [createdInvite, setCreatedInvite] = useState<InviteCreatedPayload | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -104,7 +103,9 @@ export function EventStaffPage({ eventId }: { eventId: string }) {
     setNotice(null);
     try {
       const result = await createEventInvite(eventId, {
-        role,
+        // Admin Acara is no longer invited from the UI (owner decision, 18 Nov
+        // 2026). The API still accepts the role for existing accounts.
+        role: "officer",
         expiresInHours,
         ...(name.trim() ? { invitedName: name.trim() } : {}),
       });
@@ -202,22 +203,20 @@ export function EventStaffPage({ eventId }: { eventId: string }) {
           <UserPlus aria-hidden="true" className="size-4" />
           <h2 className="font-semibold">Undang anggota</h2>
         </div>
-        <form className="grid gap-3 sm:grid-cols-3" onSubmit={invite}>
+        <p className="text-sm text-muted-foreground">
+          Undangan di sini hanya untuk Petugas. Peran Admin Acara tidak lagi diundang; Super Admin
+          yang mengelola Tema.
+        </p>
+        <form className="grid gap-3 sm:grid-cols-2" onSubmit={invite}>
           <Field label="Nama (opsional)" htmlFor="invite-name">
             <Input id="invite-name" value={name} onChange={(event) => setName(event.target.value)} maxLength={120} />
-          </Field>
-          <Field label="Peran" htmlFor="invite-role">
-            <Select id="invite-role" value={role} onChange={(event) => setRole(event.target.value as typeof role)}>
-              <option value="officer">Petugas</option>
-              <option value="event_admin">Admin acara</option>
-            </Select>
           </Field>
           <Field label="Masa berlaku" htmlFor="invite-expiry">
             <Select id="invite-expiry" value={expiresInHours} onChange={(event) => setExpiresInHours(Number(event.target.value))}>
               <option value={24}>24 jam</option><option value={72}>3 hari</option><option value={168}>7 hari</option>
             </Select>
           </Field>
-          <Button type="submit" className="sm:col-span-3" disabled={busy}>Buat tautan undangan</Button>
+          <Button type="submit" className="sm:col-span-2" disabled={busy}>Buat tautan undangan</Button>
         </form>
         {createdInvite && (
           <div className="grid gap-4 rounded-lg bg-muted/60 p-4 sm:grid-cols-[1fr_auto] sm:items-center">

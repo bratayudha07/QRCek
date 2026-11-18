@@ -21,6 +21,24 @@ export function formatDateTime(value: number | null, timeZone: string): string {
   return formatter(timeZone, true).format(new Date(value));
 }
 
+/**
+ * Short zone label for the instant ("WIB", "WITA", "WIT"), so a clock is never
+ * shown without saying which zone it is in. Falls back to the IANA name.
+ */
+export function timeZoneLabel(timeZone: string, at: number): string {
+  const parts = new Intl.DateTimeFormat("id-ID", {
+    timeZone,
+    timeZoneName: "short",
+  }).formatToParts(new Date(at));
+
+  return parts.find((part) => part.type === "timeZoneName")?.value ?? timeZone;
+}
+
+/** `18 Nov 2026, 14.30 WIB` — date, time, and the Tema's zone in one string. */
+export function formatDateTimeWithZone(value: number, timeZone: string): string {
+  return `${formatDateTime(value, timeZone)} ${timeZoneLabel(timeZone, value)}`;
+}
+
 export function formatDate(value: number | null, timeZone: string): string {
   if (value === null) return UNKNOWN_SCHEDULE;
   return formatter(timeZone, false).format(new Date(value));

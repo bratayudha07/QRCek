@@ -52,6 +52,7 @@ async function listEventAudit(ctx: RouteContext): Promise<RouteResult> {
         after: parseJson(row.after_json),
         reason: row.reason,
         createdAt: row.created_at,
+        timezone: row.timezone,
       })),
       nextCursor:
         hasMore && last ? encodeCursor({ createdAt: last.created_at, id: last.id }) : null,

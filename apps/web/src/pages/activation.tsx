@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
 import { activateAccount } from "@/lib/auth";
+import { useDocumentTitle } from "@/lib/document-title";
 import { readInviteToken } from "@/lib/invite-token";
 
 /**
@@ -27,6 +28,8 @@ export function ActivationPage() {
   const [token] = useState(() => readInviteToken(window.location.hash));
   const [label, setLabel] = useState("");
   const [status, setStatus] = useState<Status>({ kind: "idle" });
+
+  useDocumentTitle(token ? "Aktivasi akun" : "Aktivasi");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
