@@ -3,10 +3,16 @@ import { useState, type FormEvent } from "react";
 
 import type { EventSummary } from "@absensi/shared";
 
+import { FormErrorSummary } from "@/components/form-error-summary";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox, Field, Input, Label, Textarea } from "@/components/ui/field";
 import { fromDateTimeLocalValue, toDateTimeLocalValue } from "@/lib/format";
+import {
+  errorFor,
+  mergeFieldErrors,
+  summarizeFieldErrors,
+  type FieldErrorMap,
+} from "@/lib/form-errors";
 
 /**
  * Create/edit form for an event.
@@ -38,6 +44,7 @@ export function EventForm({
   initial,
   submitting,
   error,
+  fieldErrors,
   onSubmit,
   onCancel,
 }: {
@@ -45,6 +52,8 @@ export function EventForm({
   initial?: EventSummary;
   submitting: boolean;
   error: string | null;
+  /** Server-side `details.fieldErrors`, when the caller has them. */
+  fieldErrors?: FieldErrorMap;
   onSubmit: (values: EventFormValues) => void;
   onCancel?: () => void;
 }) {
@@ -56,33 +65,37 @@ export function EventForm({
   const [startsAt, setStartsAt] = useState(toDateTimeLocalValue(initial?.startsAt ?? null, timezone));
   const [endsAt, setEndsAt] = useState(toDateTimeLocalValue(initial?.endsAt ?? null, timezone));
   const [allowManual, setAllowManual] = useState(initial?.allowManual ?? false);
-  const [localError, setLocalError] = useState<string | null>(null);
+  const [localErrors, setLocalErrors] = useState<FieldErrorMap>({});
+
+  const shownErrors = mergeFieldErrors(fieldErrors, localErrors);
+  const summary = [...summarizeFieldErrors(fieldErrors), ...summarizeFieldErrors(localErrors)];
+  if (error) summary.push(error);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setLocalError(null);
+
+    const next: FieldErrorMap = {};
 
     const trimmedName = name.trim();
-    if (trimmedName === "") {
-      setLocalError("Nama acara wajib diisi");
-      return;
-    }
+    if (trimmedName === "") next.name = "Nama acara wajib diisi";
+
+    if (zone.trim() === "") next.timezone = "Zona waktu wajib diisi";
 
     const startValue = fromDateTimeLocalValue(startsAt, zone);
     const endValue = fromDateTimeLocalValue(endsAt, zone);
 
     if (startsAt.trim() !== "" && startValue === null) {
-      setLocalError("Waktu mulai tidak valid");
-      return;
+      next.startsAt = "Waktu mulai tidak valid";
     }
     if (endsAt.trim() !== "" && endValue === null) {
-      setLocalError("Waktu selesai tidak valid");
-      return;
+      next.endsAt = "Waktu selesai tidak valid";
     }
     if (startValue !== null && endValue !== null && endValue < startValue) {
-      setLocalError("Waktu selesai tidak boleh sebelum waktu mulai");
-      return;
+      next.endsAt = "Waktu selesai tidak boleh sebelum waktu mulai";
     }
+
+    setLocalErrors(next);
+    if (Object.keys(next).length > 0) return;
 
     onSubmit({
       name: trimmedName,
@@ -95,19 +108,34 @@ export function EventForm({
   }
 
   return (
-    <form className="space-y-4 rounded-lg border p-4" onSubmit={submit}>
-      <Field label="Nama acara" htmlFor="event-name" required>
+    <form className="space-y-4 rounded-lg border p-4" onSubmit={submit} noValidate>
+      <FormErrorSummary errors={summary} />
+
+      <Field
+        label="Nama acara"
+        htmlFor="event-name"
+        required
+        error={errorFor(shownErrors, "name")}
+      >
         <Input
           id="event-name"
           value={name}
-          onChange={(event) => setName(event.target.value)}
+          onChange={(event) => {
+            setName(event.target.value);
+            if (localErrors.name) setLocalErrors(({ name: _removed, ...rest }) => rest);
+          }}
           maxLength={120}
           placeholder="Contoh: Wisuda Santri 2026"
           required
         />
       </Field>
 
-      <Field label="Deskripsi" htmlFor="event-description" hint="Opsional, maksimal 1.000 karakter.">
+      <Field
+        label="Deskripsi"
+        htmlFor="event-description"
+        hint="Opsional, maksimal 1.000 karakter."
+        error={errorFor(shownErrors, "description")}
+      >
         <Textarea
           id="event-description"
           value={description}
@@ -121,6 +149,7 @@ export function EventForm({
         label="Zona waktu"
         htmlFor="event-timezone"
         hint="Dipakai untuk menampilkan jadwal dan menafsirkan waktu di bawah."
+        error={errorFor(shownErrors, "timezone")}
       >
         <Input
           id="event-timezone"
@@ -130,15 +159,19 @@ export function EventForm({
           maxLength={64}
           required
         />
-        <datalist id="event-timezone-options">
-          {COMMON_TIMEZONES.map((item) => (
-            <option key={item} value={item} />
-          ))}
-        </datalist>
       </Field>
+      <datalist id="event-timezone-options">
+        {COMMON_TIMEZONES.map((item) => (
+          <option key={item} value={item} />
+        ))}
+      </datalist>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Mulai" htmlFor="event-starts-at">
+        <Field
+          label="Mulai"
+          htmlFor="event-starts-at"
+          error={errorFor(shownErrors, "startsAt")}
+        >
           <Input
             id="event-starts-at"
             type="datetime-local"
@@ -147,7 +180,11 @@ export function EventForm({
           />
         </Field>
 
-        <Field label="Selesai" htmlFor="event-ends-at">
+        <Field
+          label="Selesai"
+          htmlFor="event-ends-at"
+          error={errorFor(shownErrors, "endsAt")}
+        >
           <Input
             id="event-ends-at"
             type="datetime-local"
@@ -170,12 +207,6 @@ export function EventForm({
           </span>
         </span>
       </Label>
-
-      {(localError ?? error) && (
-        <Alert variant="destructive">
-          <AlertDescription>{localError ?? error}</AlertDescription>
-        </Alert>
-      )}
 
       <div className="flex flex-wrap gap-2">
         <Button type="submit" disabled={submitting}>

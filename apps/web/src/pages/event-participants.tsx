@@ -1,6 +1,6 @@
 import type { CategorySummary, EventSummary, ParticipantSummary } from "@absensi/shared";
 import { ChevronRight, Download, FileDown, FileUp, LoaderCircle, Plus, QrCode as QrCodeIcon, Search, Tags } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { AppLink } from "@/components/app-link";
 import { AppShell } from "@/components/app-shell";
@@ -22,6 +22,7 @@ import {
 import { categorySelectOptions, listCategories } from "@/lib/categories";
 import { getEvent } from "@/lib/events";
 import { formatCount } from "@/lib/format";
+import { readFieldErrors, type FieldErrorMap } from "@/lib/form-errors";
 import {
   createParticipant,
   listParticipants,
@@ -63,6 +64,7 @@ export function EventParticipantsPage({ eventId }: { eventId: string }) {
   const [showAdd, setShowAdd] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [formFieldErrors, setFormFieldErrors] = useState<FieldErrorMap>({});
   const [actionNotice, setActionNotice] = useState<string | null>(null);
 
   const [categories, setCategories] = useState<CategorySummary[]>([]);
@@ -70,6 +72,7 @@ export function EventParticipantsPage({ eventId }: { eventId: string }) {
   const [categoriesError, setCategoriesError] = useState("");
   const [categoryKey, setCategoryKey] = useState(0);
   const [showCategories, setShowCategories] = useState(false);
+  const listTopRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -206,6 +209,7 @@ export function EventParticipantsPage({ eventId }: { eventId: string }) {
   async function submitAdd(values: ParticipantFormValues) {
     setSubmitting(true);
     setFormError(null);
+    setFormFieldErrors({});
 
     try {
       const body = await createParticipant(eventId, {
@@ -226,8 +230,10 @@ export function EventParticipantsPage({ eventId }: { eventId: string }) {
       }
 
       setFormError(body.error.message);
+      setFormFieldErrors(readFieldErrors(body.error.details));
     } catch {
       setFormError("Tidak bisa menghubungi server");
+      setFormFieldErrors({});
     } finally {
       setSubmitting(false);
     }
@@ -424,10 +430,12 @@ export function EventParticipantsPage({ eventId }: { eventId: string }) {
             categories={categories}
             submitting={submitting}
             error={formError}
+            fieldErrors={formFieldErrors}
             onSubmit={submitAdd}
             onCancel={() => {
               setShowAdd(false);
               setFormError(null);
+              setFormFieldErrors({});
             }}
           />
         )}
@@ -440,11 +448,34 @@ export function EventParticipantsPage({ eventId }: { eventId: string }) {
 
         {listState === "ready" && items.length === 0 && (
           <EmptyState>
-            {appliedQuery.trim() === ""
-              ? "Belum ada peserta pada filter ini."
-              : `Tidak ada peserta yang cocok dengan “${appliedQuery.trim()}”.`}
+            <span className="block">
+              {appliedQuery.trim() === ""
+                ? "Belum ada peserta pada filter ini."
+                : `Tidak ada peserta yang cocok dengan “${appliedQuery.trim()}”.`}
+            </span>
+            <span className="mt-2 flex flex-wrap justify-center gap-2">
+              {appliedQuery.trim() !== "" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setQueryInput("");
+                    setAppliedQuery("");
+                  }}
+                >
+                  Hapus pencarian
+                </Button>
+              )}
+              {statusFilter !== "all" && (
+                <Button size="sm" variant="outline" onClick={() => setStatusFilter("all")}>
+                  Tampilkan semua status
+                </Button>
+              )}
+            </span>
           </EmptyState>
         )}
+
+        <div ref={listTopRef} tabIndex={-1} className="outline-none" />
 
         {listState === "ready" && items.length > 0 && (
           <Table>
@@ -509,9 +540,24 @@ export function EventParticipantsPage({ eventId }: { eventId: string }) {
         {listError && listState === "ready" && <ErrorState message={listError} />}
 
         {items.length > 0 && (
-          <p className="text-center text-xs text-muted-foreground">
-            Menampilkan {formatCount(items.length)} peserta pada halaman ini.
-          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3 text-xs text-muted-foreground">
+            <span>
+              Menampilkan {formatCount(items.length)} peserta
+              {nextCursor ? " · masih ada lagi" : " · semua sudah tampil"}
+            </span>
+            {items.length > 10 && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  listTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  listTopRef.current?.focus({ preventScroll: true });
+                }}
+              >
+                Kembali ke atas
+              </Button>
+            )}
+          </div>
         )}
 
         {canManageCategories && (

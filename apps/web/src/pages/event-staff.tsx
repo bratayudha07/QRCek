@@ -31,6 +31,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Checkbox, Field, Input, Select } from "@/components/ui/field";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   Table,
   TableBody,
@@ -73,6 +74,7 @@ export function EventStaffPage({ eventId }: { eventId: string }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [refresh, setRefresh] = useState(0);
+  const confirm = useConfirm();
 
   useEffect(() => {
     let cancelled = false;
@@ -163,7 +165,13 @@ export function EventStaffPage({ eventId }: { eventId: string }) {
   }
 
   async function revoke(userId: string, displayName: string) {
-    if (!window.confirm(`Cabut akses ${displayName}? Semua sesi perangkatnya akan berakhir.`)) return;
+    const confirmed = await confirm({
+      title: `Cabut akses ${displayName}?`,
+      description: "Semua sesi perangkatnya akan berakhir dan ia harus menerima undangan baru.",
+      confirmLabel: "Cabut akses",
+      tone: "destructive",
+    });
+    if (!confirmed) return;
     setBusy(true);
     setError(null);
     try {
@@ -178,7 +186,13 @@ export function EventStaffPage({ eventId }: { eventId: string }) {
   }
 
   async function cancelInvite(invite: InviteSummary) {
-    if (!window.confirm("Batalkan undangan yang masih menunggu aktivasi?")) return;
+    const confirmed = await confirm({
+      title: "Batalkan undangan ini?",
+      description: "Undangan yang masih menunggu aktivasi tidak bisa dipakai lagi.",
+      confirmLabel: "Batalkan undangan",
+      tone: "destructive",
+    });
+    if (!confirmed) return;
     setBusy(true);
     try {
       const result = await deleteEventInvite(eventId, invite.id);

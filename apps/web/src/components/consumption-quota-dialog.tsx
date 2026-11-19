@@ -8,7 +8,8 @@ import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { ErrorState, LoadingState, Notice } from "@/components/page-state";
-import { Badge } from "@/components/ui/badge";
+import { FormErrorSummary } from "@/components/form-error-summary";
+import { ParticipantCombobox } from "@/components/participant-combobox";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -39,12 +40,10 @@ import {
 } from "@/lib/consumption";
 import { listParticipants } from "@/lib/participants";
 
-const SEARCH_LIMIT = 10;
 /** Names for existing overrides come from this bounded first page. */
 const NAME_LOOKUP_LIMIT = 100;
 
 type LoadState = "loading" | "ready" | "error";
-type SearchState = "idle" | "loading" | "ready" | "error";
 type Saving = "default" | "category" | "participant" | null;
 
 /**
@@ -82,11 +81,6 @@ export function ConsumptionQuotaDialog({
   const [categoryTarget, setCategoryTarget] = useState("");
   const [categoryQuotaInput, setCategoryQuotaInput] = useState("");
 
-  const [participantQuery, setParticipantQuery] = useState("");
-  const [appliedQuery, setAppliedQuery] = useState("");
-  const [searchSeq, setSearchSeq] = useState(0);
-  const [searchState, setSearchState] = useState<SearchState>("idle");
-  const [searchResults, setSearchResults] = useState<ParticipantSummary[]>([]);
   const [selectedParticipant, setSelectedParticipant] = useState<ParticipantSummary | null>(
     null,
   );
@@ -155,37 +149,6 @@ export function ConsumptionQuotaDialog({
       cancelled = true;
     };
   }, [open, eventId, activity.id, reloadKey]);
-
-  // Search runs on the applied term, so typing never fires a request per key.
-  useEffect(() => {
-    if (!open || appliedQuery === "") return;
-
-    let cancelled = false;
-    setSearchState("loading");
-
-    listParticipants(eventId, {
-      query: appliedQuery,
-      status: "active",
-      limit: SEARCH_LIMIT,
-    })
-      .then((body) => {
-        if (cancelled) return;
-        if (!body.ok) {
-          setSearchState("error");
-          return;
-        }
-        setSearchResults(body.data.items);
-        setSearchState("ready");
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setSearchState("error");
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open, eventId, appliedQuery, searchSeq]);
 
   function reload() {
     setReloadKey((value) => value + 1);
@@ -321,9 +284,11 @@ export function ConsumptionQuotaDialog({
     }
   }
 
-  function chooseParticipant(participant: ParticipantSummary) {
+  function chooseParticipant(participant: ParticipantSummary | null) {
     setSelectedParticipant(participant);
-    setKnownNames((current) => new Map(current).set(participant.id, participant.fullName));
+    if (participant) {
+      setKnownNames((current) => new Map(current).set(participant.id, participant.fullName));
+    }
   }
 
   const categoryRows = quota ? categoryQuotaRows(quota, categories) : [];
@@ -359,14 +324,10 @@ export function ConsumptionQuotaDialog({
 
       {notice && <Notice tone="success">{notice}</Notice>}
 
-      {formError && (
-        <p
-          role="alert"
-          className="mt-3 rounded-md border border-red-600/30 bg-red-600/5 p-2 text-sm text-red-700"
-        >
-          {formError}
-        </p>
-      )}
+      <FormErrorSummary
+        errors={formError ? [formError] : []}
+        title="Kuota belum tersimpan:"
+      />
 
       {state === "loading" ? (
         <LoadingState label="Memuat kuota…" />
@@ -541,68 +502,20 @@ export function ConsumptionQuotaDialog({
 
             {!readOnly && (
               <div className="space-y-2">
-                <form
-                  className="flex flex-wrap items-end gap-2"
-                  onSubmit={(formEvent) => {
-                    formEvent.preventDefault();
-                    const term = participantQuery.trim();
-                    if (term === "") return;
-                    setAppliedQuery(term);
-                    setSearchSeq((value) => value + 1);
-                  }}
+                <Field
+                  label="Peserta"
+                  htmlFor="quota-participant-search"
+                  className="min-w-40 flex-1"
+                  hint="Cari nama, NIK, atau email lalu pilih dari daftar."
                 >
-                  <Field label="Cari peserta" htmlFor="quota-participant-search" className="min-w-40 flex-1">
-                    <Input
-                      id="quota-participant-search"
-                      value={participantQuery}
-                      disabled={saving !== null}
-                      placeholder="Nama, NIK, atau email"
-                      onChange={(event) => setParticipantQuery(event.target.value)}
-                    />
-                  </Field>
-                  <Button type="submit" size="sm" variant="outline" disabled={saving !== null}>
-                    Cari
-                  </Button>
-                </form>
-
-                {searchState === "loading" && <LoadingState label="Mencari peserta…" />}
-                {searchState === "error" && (
-                  <Notice tone="warning">Pencarian gagal. Coba lagi.</Notice>
-                )}
-                {searchState === "ready" && searchResults.length === 0 && (
-                  <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
-                    Tidak ada peserta aktif yang cocok.
-                  </p>
-                )}
-                {searchResults.length > 0 && (
-                  <ul className="max-h-40 divide-y overflow-y-auto rounded-lg border">
-                    {searchResults.map((participant) => {
-                      const selected = selectedParticipant?.id === participant.id;
-                      return (
-                        <li key={participant.id}>
-                          <button
-                            type="button"
-                            aria-pressed={selected}
-                            onClick={() => chooseParticipant(participant)}
-                            className={`flex w-full items-center justify-between gap-3 p-2 text-left text-sm ${
-                              selected ? "bg-muted" : "hover:bg-muted/50"
-                            }`}
-                          >
-                            <span className="min-w-0">
-                              <span className="block truncate font-medium">
-                                {participant.fullName}
-                              </span>
-                              <span className="block truncate text-xs text-muted-foreground">
-                                {participant.externalRef || participant.category || "Tanpa kategori"}
-                              </span>
-                            </span>
-                            {selected && <Badge variant="outline">Dipilih</Badge>}
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
+                  <ParticipantCombobox
+                    id="quota-participant-search"
+                    themeId={eventId}
+                    value={selectedParticipant}
+                    onChange={chooseParticipant}
+                    disabled={saving !== null}
+                  />
+                </Field>
 
                 <div className="flex flex-wrap items-end gap-2">
                   <Field

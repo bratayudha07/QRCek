@@ -7,6 +7,7 @@ import { AppShell } from "@/components/app-shell";
 import { EventForm, type EventFormValues } from "@/components/event-form";
 import { ErrorState, LoadingState, Notice } from "@/components/page-state";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   changeEventStatus,
   deleteEvent,
@@ -16,6 +17,7 @@ import {
   updateEvent,
 } from "@/lib/events";
 import { formatCount, formatDateTime } from "@/lib/format";
+import { readFieldErrors, type FieldErrorMap } from "@/lib/form-errors";
 import {
   EVENT_STATUS_DESCRIPTION,
   EVENT_STATUS_LABEL,
@@ -40,9 +42,11 @@ export function EventOverviewPage({ eventId }: { eventId: string }) {
   const [showEdit, setShowEdit] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [formFieldErrors, setFormFieldErrors] = useState<FieldErrorMap>({});
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [statusBusy, setStatusBusy] = useState(false);
+  const confirm = useConfirm();
 
   useEffect(() => {
     let cancelled = false;
@@ -80,6 +84,7 @@ export function EventOverviewPage({ eventId }: { eventId: string }) {
   async function submitEdit(values: EventFormValues) {
     setSubmitting(true);
     setFormError(null);
+    setFormFieldErrors({});
 
     try {
       const body = await updateEvent(eventId, {
@@ -100,8 +105,10 @@ export function EventOverviewPage({ eventId }: { eventId: string }) {
       }
 
       setFormError(body.error.message);
+      setFormFieldErrors(readFieldErrors(body.error.details));
     } catch {
       setFormError("Tidak bisa menghubungi server");
+      setFormFieldErrors({});
     } finally {
       setSubmitting(false);
     }
@@ -130,9 +137,12 @@ export function EventOverviewPage({ eventId }: { eventId: string }) {
   }
 
   async function removeEvent() {
-    const confirmed = window.confirm(
-      "Hapus acara ini? Hanya draf tanpa peserta yang dapat dihapus permanen.",
-    );
+    const confirmed = await confirm({
+      title: "Hapus acara ini?",
+      description: "Hanya draf tanpa peserta yang dapat dihapus permanen.",
+      confirmLabel: "Hapus acara",
+      tone: "destructive",
+    });
     if (!confirmed) return;
 
     setStatusBusy(true);
@@ -233,10 +243,12 @@ export function EventOverviewPage({ eventId }: { eventId: string }) {
               initial={event}
               submitting={submitting}
               error={formError}
+              fieldErrors={formFieldErrors}
               onSubmit={submitEdit}
               onCancel={() => {
                 setShowEdit(false);
                 setFormError(null);
+                setFormFieldErrors({});
               }}
             />
           </div>

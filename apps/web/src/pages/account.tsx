@@ -6,6 +6,7 @@ import { AppLink } from "@/components/app-link";
 import { AppShell } from "@/components/app-shell";
 import { ErrorState, LoadingState, Notice } from "@/components/page-state";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { listSessions, logoutSession, revokeSession, rotateRecoveryCode } from "@/lib/auth";
 import { eventOverviewPath, navigate, paths } from "@/lib/router";
 import { useSession } from "@/lib/session";
@@ -28,6 +29,7 @@ export function AccountPage({
   const [error, setError] = useState<string | null>(null);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
+  const confirm = useConfirm();
 
   useEffect(() => {
     if (session.status !== "authenticated") return;
@@ -55,7 +57,13 @@ export function AccountPage({
   }
 
   async function revokeOtherSession(item: SessionSummary) {
-    if (!window.confirm(`Cabut sesi ${item.label || "perangkat tanpa nama"}?`)) return;
+    const confirmed = await confirm({
+      title: `Cabut sesi ${item.label || "perangkat tanpa nama"}?`,
+      description: "Perangkat itu harus masuk ulang untuk memakai akun ini.",
+      confirmLabel: "Cabut sesi",
+      tone: "destructive",
+    });
+    if (!confirmed) return;
     setBusy(true); setError(null);
     try {
       const body = await revokeSession(item.id);
@@ -66,7 +74,14 @@ export function AccountPage({
   }
 
   async function rotateCode() {
-    if (!window.confirm("Kode pemulihan lama langsung tidak berlaku. Simpan kode baru setelah dibuat. Lanjutkan?")) return;
+    const confirmed = await confirm({
+      title: "Buat kode pemulihan baru?",
+      description:
+        "Kode pemulihan lama langsung tidak berlaku. Simpan kode baru setelah dibuat.",
+      confirmLabel: "Buat kode baru",
+      tone: "destructive",
+    });
+    if (!confirmed) return;
     setBusy(true); setError(null);
     try {
       const body = await rotateRecoveryCode();

@@ -1,5 +1,5 @@
 import type { Activity, EventAccessRole, TransactionRecord } from "@absensi/shared";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { EmptyState, ErrorState, LoadingState, Notice } from "@/components/page-state";
 import { Button } from "@/components/ui/button";
@@ -69,6 +69,7 @@ export function ConsumptionTransactionsDialog({
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const listTopRef = useRef<HTMLDivElement>(null);
 
   // Reopening starts clean: no stale success message or half-filled reason.
   useEffect(() => {
@@ -249,6 +250,8 @@ export function ConsumptionTransactionsDialog({
             </p>
           )}
 
+          <div ref={listTopRef} tabIndex={-1} className="outline-none" />
+
           {state === "loading" && <LoadingState label="Memuat transaksi konsumsi…" />}
           {state === "error" && (
             <ErrorState message={error} onRetry={() => setReloadKey((value) => value + 1)} />
@@ -309,6 +312,28 @@ export function ConsumptionTransactionsDialog({
               className="rounded-md border border-red-600/30 bg-red-600/5 p-2 text-sm text-red-700"
             >
               {error}
+            </p>
+          )}
+
+          {state === "ready" && rows.length > 0 && (
+            <p className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span>
+                Menampilkan {rows.length} transaksi
+                {cursor !== null ? " · masih ada lagi" : " · semua sudah tampil"}
+              </span>
+              {rows.length > 20 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    listTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    listTopRef.current?.focus({ preventScroll: true });
+                  }}
+                >
+                  Kembali ke atas
+                </Button>
+              )}
             </p>
           )}
 

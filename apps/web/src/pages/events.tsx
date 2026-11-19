@@ -10,6 +10,7 @@ import { EventStatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { createEvent, listEvents } from "@/lib/events";
 import { formatCount, formatSchedule } from "@/lib/format";
+import { readFieldErrors, type FieldErrorMap } from "@/lib/form-errors";
 import { eventOverviewPath, navigate } from "@/lib/router";
 import { useSession } from "@/lib/session";
 
@@ -31,6 +32,7 @@ export function EventsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [formFieldErrors, setFormFieldErrors] = useState<FieldErrorMap>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -58,6 +60,7 @@ export function EventsPage() {
   async function submitCreate(values: EventFormValues) {
     setSubmitting(true);
     setFormError(null);
+    setFormFieldErrors({});
 
     try {
       const body = await createEvent({
@@ -76,8 +79,10 @@ export function EventsPage() {
       }
 
       setFormError(body.error.message);
+      setFormFieldErrors(readFieldErrors(body.error.details));
     } catch {
       setFormError("Tidak bisa menghubungi server");
+      setFormFieldErrors({});
     } finally {
       setSubmitting(false);
     }
@@ -119,10 +124,12 @@ export function EventsPage() {
             mode="create"
             submitting={submitting}
             error={formError}
+            fieldErrors={formFieldErrors}
             onSubmit={submitCreate}
             onCancel={() => {
               setShowCreate(false);
               setFormError(null);
+              setFormFieldErrors({});
             }}
           />
         </section>

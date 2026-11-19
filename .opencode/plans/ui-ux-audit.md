@@ -1,8 +1,7 @@
 # Audit UI/UX QRCek — stabilitas & konsistensi
 
-Tanggal: 18 November 2026. **Status: UI-1, UI-2, dan UI-5 sudah dieksekusi; UI-3/UI-4/UI-6
-belum.** Dokumen ini bukan rencana tahap roadmap; Q9 (design system) tetap belum dibuka dan
-tidak boleh menambah fitur.
+Tanggal: 18 November 2026. **Status: UI-1 … UI-6 sudah dieksekusi.** Dokumen ini bukan rencana
+tahap roadmap; Q9 (design system) tetap belum dibuka dan tidak boleh menambah fitur.
 
 **Hasil eksekusi 18 November 2026** (commit `a1609a0`, sudah di-push ke `main`):
 
@@ -14,6 +13,21 @@ tidak boleh menambah fitur.
 | UI-3 | Belum | 12 `window.confirm` masih ada |
 | UI-4 | Belum | `Field` belum punya slot error |
 | UI-6 | Belum | menunggu Q8 |
+
+**Hasil eksekusi 19 November 2026** (UI-3, UI-4, UI-6):
+
+| Paket | Status | Bukti |
+|---|---|---|
+| UI-3 | Selesai | `components/ui/alert-dialog.tsx` + `components/ui/confirm-dialog.tsx` (`useConfirm()`), `lib/confirm.ts` (+ 6 tes); 12 `window.confirm` diganti, tidak ada lagi di `apps/web/src` |
+| UI-4 | Selesai | `Field` menerima `error` dan menulis `aria-invalid`/`aria-describedby`; `components/form-error-summary.tsx` (`tabIndex={-1}`, fokus otomatis); `lib/form-errors.ts` (+ 11 tes); dipakai di `event-form`, `participant-form` (dipakai detail + tambah peserta), `manual-entry-dialog`, `consumption-quota-dialog`, dan form Aktivitas/Sesi |
+| UI-6 | Selesai | `components/participant-combobox.tsx` (Base UI, pencarian server + debounce) menggantikan input + daftar manual di Manual Entry dan kuota; indikator posisi + **Kembali ke atas** pada daftar peserta dan dialog Transaksi; empty state daftar peserta punya aksi hapus pencarian/status; `lib/participant-picker.ts` (+ 7 tes) |
+
+Catatan UI-4: pesan `details.fieldErrors` dari Worker sekarang tampil di bawah field yang salah,
+bukan hanya sebagai satu paragraf. Kontrak API tidak berubah.
+
+Catatan UI-6: combobox memakai `@base-ui/react/combobox` yang sudah terpasang (tanpa dependensi
+baru), mem-portal popup ke `<dialog>` induk agar tetap di top layer, dan mengirim satu request
+kecil per jeda ketikan (250 ms, 20 hasil). Tidak ada perubahan skema atau endpoint.
 
 Tambahan di luar paket (permintaan pemilik): tab **Peserta** memakai `Table` responsif, dan
 pilihan peran Admin Acara dihapus dari form undangan (lihat §5).
@@ -104,7 +118,7 @@ Semua paket di bawah: tanpa dependensi baru, memakai `components/ui/` yang ada a
 
 - `components/ui/alert-dialog.tsx` di atas `@base-ui/react/alert-dialog` (sudah terpasang),
   mengikuti gaya `ui/dialog.tsx`.
-- API: `confirm({ title, description, confirmLabel, tone: "default" | "destructive", reason? })`
+- API: `confirm({ title, description, confirmLabel, tone: "default" | "destructive" })`
   mengembalikan Promise. Untuk aksi yang butuh alasan (Reversal) tetap memakai dialog form yang
   sudah ada.
 - Ganti 12 pemanggilan satu per satu; tiap penggantian kecil dan bisa direview terpisah.
@@ -129,12 +143,12 @@ Semua paket di bawah: tanpa dependensi baru, memakai `components/ui/` yang ada a
   dan dihitung ulang statement-nya (target tetap < 50).
 - Tes: route mengembalikan nama; dialog tidak lagi butuh lookup.
 
-### UI-6 — P2, opsional, dikerjakan hanya bila diminta
+### UI-6 — P2, selesai 19 November 2026 (diminta pemilik)
 
 - Pagination + indikator posisi pada daftar panjang.
 - Combobox peserta (Base UI) untuk Manual Entry dan kuota.
 - Empty state dengan aksi.
-- Perbaikan ini tidak mengubah perilaku; cocok digabung dengan Q8 saat filter laporan dibangun.
+- Tidak mengubah perilaku API; tetap tidak menambah dependensi.
 
 ## 5. Keputusan yang dibutuhkan: peran Admin Acara
 

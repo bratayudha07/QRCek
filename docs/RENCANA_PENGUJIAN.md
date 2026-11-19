@@ -162,6 +162,9 @@ Target: setiap fungsi murni punya tes tanpa I/O. Daftar minimum:
 | `web/lib/navigation.ts` | Navigasi admin vs petugas, label sidebar/bottom, item aktif per route, route → tab acara, id acara hanya di dalam workspace |
 | `web/lib/participants.ts` | Query list/ekspor: trim, encoding, cursor, `query=` kosong tidak dikirim |
 | `web/lib/qr-labels.ts` | Toggle field menjaga minimal 1/maksimal 4; reorder tidak memutasi input; nilai kosong dibuang; paginasi A4 24/halaman; CSS cetak A4 vs stiker 50 × 30 mm |
+| `web/lib/confirm.ts` | Label default per tone; label eksplisit menang; deskripsi opsional |
+| `web/lib/form-errors.ts` | `details.fieldErrors` longgar (array/string) → satu pesan per field; ringkasan dide-duplikasi; error lokal menimpa error server |
+| `web/lib/participant-picker.ts` | Peserta terpilih tetap tampil walau hasil pencarian baru tidak memuatnya; tidak menduplikasi; tidak memutasi input |
 | `shared/schemas/*` | Batas atas/bawah setiap field; field tak dikenal; tipe salah |
 
 Contoh bentuk tes yang baik:
@@ -836,3 +839,18 @@ diverifikasi `EXPLAIN QUERY PLAN` di `consumption.db.test.ts`.
 ### 9.9 Keamanan lintas tahap
 
 Tes baseline berikut tetap wajib dan diperluas ke route baru: `authz.unauthenticated` (semua route non-publik → 401), `csrf.header-required`, `csrf.origin-mismatch`, `invite.replay`, `invite.expired`, `authz.cross-event-member` (menjadi lintas Tema), rate limit D1, `error.no-stack-trace`, dan `security.headers`.
+
+### 9.10 Stabilitas UI (audit 18–19 November 2026)
+
+Bukan aturan integritas data, tetapi wajib tetap lulus karena menyangkut keselamatan aksi dan
+keterbacaan error.
+
+| ID | Tes | Bukti |
+|---|---|---|
+| T-150 | Dialog konfirmasi: label default per tone, label eksplisit menang, deskripsi opsional | `apps/web/src/lib/confirm.test.ts` |
+| T-151 | Error validasi Worker dipetakan ke field; ringkasan dide-duplikasi; error lokal menimpa error server | `apps/web/src/lib/form-errors.test.ts` |
+| T-152 | Peserta terpilih tetap ada di daftar walau hasil pencarian baru tidak memuatnya; tidak ada duplikat atau mutasi input | `apps/web/src/lib/participant-picker.test.ts` |
+
+Perilaku dialog (fokus awal di tombol Batal, Escape membatalkan, klik backdrop tidak menutup) dan
+combobox (navigasi panah, `aria-activedescendant`) diserahkan ke `@base-ui/react`. Proyek belum
+punya DOM testing, jadi keduanya tidak diuji lewat komponen — batasan yang sama dengan UI-1.

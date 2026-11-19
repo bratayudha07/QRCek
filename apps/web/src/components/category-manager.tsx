@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   Table,
   TableBody,
@@ -59,6 +60,7 @@ export function CategoryManager({
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [rowBusy, setRowBusy] = useState<string | null>(null);
+  const confirm = useConfirm();
 
   useEffect(() => {
     if (!open) return;
@@ -164,13 +166,14 @@ export function CategoryManager({
   }
 
   async function setStatus(category: CategorySummary, status: "active" | "archived") {
-    if (
-      status === "archived" &&
-      !window.confirm(
-        `Arsipkan kategori “${category.name}”? Peserta tetap memakai kategori ini, tetapi kategori arsip tidak bisa dipilih untuk peserta baru.`,
-      )
-    ) {
-      return;
+    if (status === "archived") {
+      const confirmed = await confirm({
+        title: `Arsipkan kategori “${category.name}”?`,
+        description:
+          "Peserta tetap memakai kategori ini, tetapi kategori arsip tidak bisa dipilih untuk peserta baru.",
+        confirmLabel: "Arsipkan",
+      });
+      if (!confirmed) return;
     }
 
     setRowBusy(category.id);

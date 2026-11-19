@@ -23,6 +23,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { FormErrorSummary } from "@/components/form-error-summary";
 import {
   Table,
   TableBody,
@@ -42,6 +44,12 @@ import {
   transactionTypeLabel,
   updateActivity,
 } from "@/lib/activities";
+import {
+  errorFor,
+  readFieldErrors,
+  summarizeFieldErrors,
+  type FieldErrorMap,
+} from "@/lib/form-errors";
 import {
   archiveActivitySession,
   canArchiveActivitySession,
@@ -156,13 +164,14 @@ export function EventActivitiesPage({ eventId }: { eventId: string }) {
   const [busy, setBusy] = useState<string | null>(null);
 
   const [activityDialog, setActivityDialog] = useState<ActivityDialogState | null>(null);
+  const confirm = useConfirm();
   const [activityForm, setActivityForm] = useState<ActivityFormValues>(EMPTY_ACTIVITY_FORM);
-  const [activityFormError, setActivityFormError] = useState<string | null>(null);
+  const [activityErrors, setActivityErrors] = useState<FieldErrorMap>({});
   const [savingActivity, setSavingActivity] = useState(false);
 
   const [sessionDialog, setSessionDialog] = useState<SessionDialogState | null>(null);
   const [sessionForm, setSessionForm] = useState<SessionFormValues>(EMPTY_SESSION_FORM);
-  const [sessionFormError, setSessionFormError] = useState<string | null>(null);
+  const [sessionErrors, setSessionErrors] = useState<FieldErrorMap>({});
   const [savingSession, setSavingSession] = useState(false);
 
   // Consumption quota configuration (Q7). Kept as the whole Aktivitas so the
@@ -297,7 +306,7 @@ export function EventActivitiesPage({ eventId }: { eventId: string }) {
   // ── Aktivitas mutations ─────────────────────────────────────────────────
   function openActivityCreate() {
     setActivityForm(EMPTY_ACTIVITY_FORM);
-    setActivityFormError(null);
+    setActivityErrors({});
     setActivityDialog({ mode: "create" });
   }
 
@@ -309,7 +318,7 @@ export function EventActivitiesPage({ eventId }: { eventId: string }) {
       location: activity.location ?? "",
       sortOrder: String(activity.sortOrder),
     });
-    setActivityFormError(null);
+    setActivityErrors({});
     setActivityDialog({ mode: "edit", activity });
   }
 
@@ -317,20 +326,21 @@ export function EventActivitiesPage({ eventId }: { eventId: string }) {
     formEvent.preventDefault();
     if (!activityDialog) return;
 
+    const next: FieldErrorMap = {};
+
     const name = activityForm.name.trim();
-    if (!name) {
-      setActivityFormError("Nama Aktivitas wajib diisi");
-      return;
-    }
+    if (!name) next.name = "Nama Aktivitas wajib diisi";
 
     const sortOrder = Number(activityForm.sortOrder);
     if (!Number.isInteger(sortOrder) || sortOrder < 0 || sortOrder > SORT_ORDER_MAX) {
-      setActivityFormError(`Urutan harus bilangan bulat antara 0 dan ${SORT_ORDER_MAX}`);
-      return;
+      next.sortOrder = `Urutan harus bilangan bulat antara 0 dan ${SORT_ORDER_MAX}`;
     }
 
+    setActivityErrors(next);
+    if (Object.keys(next).length > 0) return;
+
     setSavingActivity(true);
-    setActivityFormError(null);
+    setActivityErrors({});
 
     try {
       const description = activityForm.description.trim() || null;
@@ -352,7 +362,10 @@ export function EventActivitiesPage({ eventId }: { eventId: string }) {
             });
 
       if (!result.ok) {
-        setActivityFormError(result.error.message);
+        setActivityErrors({
+          ...readFieldErrors(result.error.details),
+          form: result.error.message,
+        });
         return;
       }
 
@@ -361,20 +374,21 @@ export function EventActivitiesPage({ eventId }: { eventId: string }) {
       setNotice(activityDialog.mode === "create" ? "Aktivitas dibuat." : "Aktivitas disimpan.");
       reloadActivities();
     } catch {
-      setActivityFormError("Tidak bisa menghubungi server");
+      setActivityErrors({ form: "Tidak bisa menghubungi server" });
     } finally {
       setSavingActivity(false);
     }
   }
 
   async function changeStatus(activity: Activity, status: ActivityStatus) {
-    if (
-      status === "archived" &&
-      !window.confirm(
-        `Arsipkan Aktivitas “${activity.name}”? Aktivitas arsip tetap tampil, tetapi tidak bisa dipakai untuk transaksi baru.`,
-      )
-    ) {
-      return;
+    if (status === "archived") {
+      const confirmed = await confirm({
+        title: `Arsipkan Aktivitas “${activity.name}”?`,
+        description:
+          "Aktivitas arsip tetap tampil, tetapi tidak bisa dipakai untuk transaksi baru.",
+        confirmLabel: "Arsipkan",
+      });
+      if (!confirmed) return;
     }
 
     setBusy(`activity:${activity.id}`);
@@ -404,7 +418,7 @@ export function EventActivitiesPage({ eventId }: { eventId: string }) {
 
   function openSessionCreate() {
     setSessionForm(EMPTY_SESSION_FORM);
-    setSessionFormError(null);
+    setSessionErrors({});
     setSessionDialog({ mode: "create" });
   }
 
@@ -415,7 +429,7 @@ export function EventActivitiesPage({ eventId }: { eventId: string }) {
       startsAt: localValue(session.startsAt),
       endsAt: localValue(session.endsAt),
     });
-    setSessionFormError(null);
+    setSessionErrors({});
     setSessionDialog({ mode: "edit", session });
   }
 
@@ -423,36 +437,33 @@ export function EventActivitiesPage({ eventId }: { eventId: string }) {
     formEvent.preventDefault();
     if (!sessionDialog || !selectedActivity) return;
 
+    const next: FieldErrorMap = {};
+
     const name = sessionForm.name.trim();
-    if (!name) {
-      setSessionFormError("Nama Sesi wajib diisi");
-      return;
-    }
+    if (!name) next.name = "Nama Sesi wajib diisi";
 
     const startsAt =
       sessionForm.startsAt.trim() === ""
         ? null
         : localInputToEpoch(sessionForm.startsAt, timeZone);
     if (sessionForm.startsAt.trim() !== "" && startsAt === null) {
-      setSessionFormError("Waktu mulai tidak dikenali");
-      return;
+      next.startsAt = "Waktu mulai tidak dikenali";
     }
 
     const endsAt =
       sessionForm.endsAt.trim() === "" ? null : localInputToEpoch(sessionForm.endsAt, timeZone);
     if (sessionForm.endsAt.trim() !== "" && endsAt === null) {
-      setSessionFormError("Waktu selesai tidak dikenali");
-      return;
+      next.endsAt = "Waktu selesai tidak dikenali";
     }
 
     const rangeError = sessionTimeRangeError(startsAt, endsAt);
-    if (rangeError) {
-      setSessionFormError(rangeError);
-      return;
-    }
+    if (rangeError) next.endsAt = rangeError;
+
+    setSessionErrors(next);
+    if (Object.keys(next).length > 0) return;
 
     setSavingSession(true);
-    setSessionFormError(null);
+    setSessionErrors({});
 
     try {
       const input = {
@@ -472,7 +483,10 @@ export function EventActivitiesPage({ eventId }: { eventId: string }) {
             );
 
       if (!result.ok) {
-        setSessionFormError(result.error.message);
+        setSessionErrors({
+          ...readFieldErrors(result.error.details),
+          form: result.error.message,
+        });
         return;
       }
 
@@ -480,7 +494,7 @@ export function EventActivitiesPage({ eventId }: { eventId: string }) {
       setNotice(sessionDialog.mode === "create" ? "Sesi dibuat." : "Sesi disimpan.");
       reloadSessions();
     } catch {
-      setSessionFormError("Tidak bisa menghubungi server");
+      setSessionErrors({ form: "Tidak bisa menghubungi server" });
     } finally {
       setSavingSession(false);
     }
@@ -543,9 +557,12 @@ export function EventActivitiesPage({ eventId }: { eventId: string }) {
 
   async function archiveSession(session: ActivitySession) {
     if (!selectedActivity) return;
-    if (!window.confirm(`Arsipkan Sesi “${session.name}”? Riwayat transaksi tetap tersimpan.`)) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: `Arsipkan Sesi “${session.name}”?`,
+      description: "Riwayat transaksi tetap tersimpan.",
+      confirmLabel: "Arsipkan",
+    });
+    if (!confirmed) return;
 
     setBusy(`session:${session.id}`);
     setNotice(null);
@@ -888,7 +905,14 @@ export function EventActivitiesPage({ eventId }: { eventId: string }) {
             </DialogDescription>
           </DialogHeader>
 
-          <Field label="Nama" htmlFor="activity-name" required>
+          <FormErrorSummary errors={summarizeFieldErrors(activityErrors)} />
+
+          <Field
+            label="Nama"
+            htmlFor="activity-name"
+            required
+            error={errorFor(activityErrors, "name")}
+          >
             <Input
               id="activity-name"
               value={activityForm.name}
@@ -950,7 +974,12 @@ export function EventActivitiesPage({ eventId }: { eventId: string }) {
             />
           </Field>
 
-          <Field label="Urutan" htmlFor="activity-sort-order" hint="Angka lebih kecil tampil lebih dulu.">
+          <Field
+            label="Urutan"
+            htmlFor="activity-sort-order"
+            hint="Angka lebih kecil tampil lebih dulu."
+            error={errorFor(activityErrors, "sortOrder")}
+          >
             <Input
               id="activity-sort-order"
               type="number"
@@ -966,15 +995,6 @@ export function EventActivitiesPage({ eventId }: { eventId: string }) {
               }
             />
           </Field>
-
-          {activityFormError && (
-            <p
-              role="alert"
-              className="rounded-md border border-red-600/30 bg-red-600/5 p-2 text-sm text-red-700"
-            >
-              {activityFormError}
-            </p>
-          )}
 
           <DialogFooter>
             <Button
@@ -1008,7 +1028,14 @@ export function EventActivitiesPage({ eventId }: { eventId: string }) {
             </DialogDescription>
           </DialogHeader>
 
-          <Field label="Nama" htmlFor="session-name" required>
+          <FormErrorSummary errors={summarizeFieldErrors(sessionErrors)} />
+
+          <Field
+            label="Nama"
+            htmlFor="session-name"
+            required
+            error={errorFor(sessionErrors, "name")}
+          >
             <Input
               id="session-name"
               value={sessionForm.name}
@@ -1031,7 +1058,11 @@ export function EventActivitiesPage({ eventId }: { eventId: string }) {
             />
           </Field>
 
-          <Field label="Mulai (opsional)" htmlFor="session-starts-at">
+          <Field
+            label="Mulai (opsional)"
+            htmlFor="session-starts-at"
+            error={errorFor(sessionErrors, "startsAt")}
+          >
             <Input
               id="session-starts-at"
               type="datetime-local"
@@ -1042,7 +1073,11 @@ export function EventActivitiesPage({ eventId }: { eventId: string }) {
             />
           </Field>
 
-          <Field label="Selesai (opsional)" htmlFor="session-ends-at">
+          <Field
+            label="Selesai (opsional)"
+            htmlFor="session-ends-at"
+            error={errorFor(sessionErrors, "endsAt")}
+          >
             <Input
               id="session-ends-at"
               type="datetime-local"
@@ -1052,15 +1087,6 @@ export function EventActivitiesPage({ eventId }: { eventId: string }) {
               }
             />
           </Field>
-
-          {sessionFormError && (
-            <p
-              role="alert"
-              className="rounded-md border border-red-600/30 bg-red-600/5 p-2 text-sm text-red-700"
-            >
-              {sessionFormError}
-            </p>
-          )}
 
           <DialogFooter>
             <Button

@@ -1,8 +1,8 @@
 import type { AttendanceStatus, ParticipantSummary, StaffContext } from "@absensi/shared";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 
-import { EmptyState, ErrorState, LoadingState } from "@/components/page-state";
-import { Badge } from "@/components/ui/badge";
+import { FormErrorSummary } from "@/components/form-error-summary";
+import { ParticipantCombobox } from "@/components/participant-combobox";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Field, Input, Select, Textarea } from "@/components/ui/field";
+import { Field, Select, Textarea } from "@/components/ui/field";
 import { createManualAttendance } from "@/lib/attendance";
 import {
   consumptionManualRequest,
@@ -23,13 +23,9 @@ import {
   manualEntryStatuses,
   manualEntrySuccessMessage,
 } from "@/lib/manual-entry";
-import { listParticipants } from "@/lib/participants";
 import { staffContextLabel } from "@/lib/scanner";
 
-const SEARCH_LIMIT = 20;
 const NOTE_MAX_LENGTH = 500;
-
-type SearchState = "loading" | "ready" | "error";
 
 /**
  * Manual Entry dialog for `/staff/scan` (Q5 delta, Q7 consumption).
@@ -52,81 +48,29 @@ export function ManualEntryDialog({
   onRecorded: (message: string) => void;
 }) {
   const consumption = context.transactionType === "consumption";
-  const [searchQuery, setSearchQuery] = useState("");
-  const [appliedSearch, setAppliedSearch] = useState("");
-  // Bumped on every submit so retrying the same term still sends a request.
-  const [searchSeq, setSearchSeq] = useState(0);
-  const [searchState, setSearchState] = useState<SearchState>("loading");
-  const [searchError, setSearchError] = useState("");
-  const [results, setResults] = useState<ParticipantSummary[]>([]);
   const [selectedParticipant, setSelectedParticipant] = useState<ParticipantSummary | null>(null);
   const [status, setStatus] = useState<AttendanceStatus>("present");
   const [note, setNote] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  const [selectionError, setSelectionError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Closing resets the form, so reopening starts clean and a stale applied
-  // search term never triggers a request of its own.
+  // Closing resets the form, so reopening starts clean.
   useEffect(() => {
     if (open) return;
-    setSearchQuery("");
-    setAppliedSearch("");
     setSelectedParticipant(null);
     setStatus("present");
     setNote("");
     setFormError(null);
+    setSelectionError(null);
     setSaving(false);
   }, [open]);
 
-  // The applied term drives the request, so typing never fires a search per key.
-  useEffect(() => {
-    if (!open) return;
-
-    let cancelled = false;
-    setSearchState("loading");
-    setSearchError("");
-
-    listParticipants(context.themeId, {
-      query: appliedSearch,
-      status: "active",
-      limit: SEARCH_LIMIT,
-    })
-      .then((body) => {
-        if (cancelled) return;
-        if (!body.ok) {
-          setSearchState("error");
-          setSearchError(body.error.message);
-          return;
-        }
-        setResults(body.data.items);
-        setSearchState("ready");
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setSearchState("error");
-        setSearchError("Tidak bisa menghubungi server");
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open, context.themeId, appliedSearch, searchSeq]);
-
-  function runSearch(term: string) {
-    // A new result set invalidates the previous pick: the recorded participant
-    // must always be one the operator can see in the list.
-    setSelectedParticipant(null);
-    setAppliedSearch(term);
-    setSearchSeq((value) => value + 1);
-  }
-
-  function submitSearch(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    runSearch(searchQuery.trim());
-  }
-
   async function submitManualEntry() {
-    if (!selectedParticipant) return;
+    if (!selectedParticipant) {
+      setSelectionError("Pilih peserta terlebih dahulu.");
+      return;
+    }
 
     setSaving(true);
     setFormError(null);
@@ -163,9 +107,7 @@ export function ManualEntryDialog({
         return;
       }
 
-      onRecorded(
-        manualEntrySuccessMessage(body.data.attendance),
-      );
+      onRecorded(manualEntrySuccessMessage(body.data.attendance));
       onClose();
     } catch {
       setFormError("Tidak bisa menghubungi server");
@@ -187,57 +129,24 @@ export function ManualEntryDialog({
         </DialogDescription>
       </DialogHeader>
 
-      <form className="space-y-3" onSubmit={submitSearch}>
-        <Field label="Cari peserta" htmlFor="manual-entry-search">
-          <div className="flex gap-2">
-            <Input
-              id="manual-entry-search"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Nama, NIK, atau email"
-              autoFocus
-            />
-            <Button type="submit" variant="outline" disabled={searchState === "loading"}>
-              Cari
-            </Button>
-          </div>
-        </Field>
-      </form>
-
-      {searchState === "loading" ? (
-        <LoadingState label="Mencari peserta…" />
-      ) : searchState === "error" ? (
-        <ErrorState message={searchError} onRetry={() => runSearch(appliedSearch)} />
-      ) : results.length === 0 ? (
-        <EmptyState>Tidak ada peserta aktif yang cocok.</EmptyState>
-      ) : (
-        <ul className="max-h-56 divide-y overflow-y-auto rounded-lg border">
-          {results.map((participant) => {
-            const selected = selectedParticipant?.id === participant.id;
-
-            return (
-              <li key={participant.id}>
-                <button
-                  type="button"
-                  onClick={() => setSelectedParticipant(participant)}
-                  aria-pressed={selected}
-                  className={`flex w-full items-center justify-between gap-3 p-3 text-left text-sm transition-colors ${
-                    selected ? "bg-muted" : "hover:bg-muted/50"
-                  }`}
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate font-medium">{participant.fullName}</span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {participant.externalRef || participant.category || "Tanpa kategori"}
-                    </span>
-                  </span>
-                  {selected && <Badge variant="outline">Dipilih</Badge>}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      <Field
+        label="Peserta"
+        htmlFor="manual-entry-participant"
+        required
+        error={selectionError ?? undefined}
+      >
+        <ParticipantCombobox
+          id="manual-entry-participant"
+          themeId={context.themeId}
+          value={selectedParticipant}
+          onChange={(participant) => {
+            setSelectedParticipant(participant);
+            setSelectionError(null);
+          }}
+          disabled={saving}
+          autoFocus
+        />
+      </Field>
 
       <div className="mt-4 space-y-3">
         {!consumption && (
@@ -275,24 +184,16 @@ export function ManualEntryDialog({
         </Field>
       </div>
 
-      {formError && (
-        <p
-          role="alert"
-          className="mt-3 rounded-md border border-red-600/30 bg-red-600/5 p-2 text-sm text-red-700"
-        >
-          {formError}
-        </p>
-      )}
+      <FormErrorSummary
+        errors={formError ? [formError] : []}
+        title="Catatan manual belum tersimpan:"
+      />
 
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
           Batal
         </Button>
-        <Button
-          type="button"
-          disabled={saving || selectedParticipant === null}
-          onClick={() => void submitManualEntry()}
-        >
+        <Button type="button" disabled={saving} onClick={() => void submitManualEntry()}>
           {saving ? "Menyimpan…" : consumption ? "Simpan konsumsi" : "Simpan kehadiran"}
         </Button>
       </DialogFooter>

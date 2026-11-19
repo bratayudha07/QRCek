@@ -23,6 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Field, Input, Select } from "@/components/ui/field";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   Table,
   TableBody,
@@ -107,6 +108,7 @@ export function EventEntitlementsPage({ eventId }: { eventId: string }) {
   const [busy, setBusy] = useState<string | null>(null);
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const confirm = useConfirm();
   const [searchQuery, setSearchQuery] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
   const [searchState, setSearchState] = useState<LoadState>("ready");
@@ -353,7 +355,13 @@ export function EventEntitlementsPage({ eventId }: { eventId: string }) {
 
   async function removeOverride(row: EntitlementOverrideRow) {
     if (!canEdit || !activityId) return;
-    if (!window.confirm(`Hapus override untuk ${row.name}?`)) return;
+    const confirmed = await confirm({
+      title: `Hapus override untuk ${row.name}?`,
+      description: "Peserta kembali memakai aturan kategori atau default Aktivitas.",
+      confirmLabel: "Hapus override",
+      tone: "destructive",
+    });
+    if (!confirmed) return;
 
     setBusy(`override:${row.participantId}`);
     setNotice(null);

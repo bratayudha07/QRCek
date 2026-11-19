@@ -11,9 +11,11 @@ import {
 import { QrIdentityCard } from "@/components/qr-identity-card";
 import { ParticipantStatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { listCategories } from "@/lib/categories";
 import { getEvent } from "@/lib/events";
 import { formatDateTime } from "@/lib/format";
+import { readFieldErrors, type FieldErrorMap } from "@/lib/form-errors";
 import { PARTICIPANT_STATUS_LABEL } from "@/lib/labels";
 import {
   deactivateParticipant,
@@ -40,9 +42,11 @@ export function ParticipantDetailPage({
   const [showEdit, setShowEdit] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [formFieldErrors, setFormFieldErrors] = useState<FieldErrorMap>({});
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const confirm = useConfirm();
 
   const [categories, setCategories] = useState<CategorySummary[]>([]);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
@@ -138,6 +142,7 @@ export function ParticipantDetailPage({
   async function submitEdit(values: ParticipantFormValues) {
     setSubmitting(true);
     setFormError(null);
+    setFormFieldErrors({});
 
     try {
       const body = await updateParticipant(eventId, participantId, {
@@ -157,8 +162,10 @@ export function ParticipantDetailPage({
       }
 
       setFormError(body.error.message);
+      setFormFieldErrors(readFieldErrors(body.error.details));
     } catch {
       setFormError("Tidak bisa menghubungi server");
+      setFormFieldErrors({});
     } finally {
       setSubmitting(false);
     }
@@ -166,9 +173,11 @@ export function ParticipantDetailPage({
 
   async function setStatus(status: "active" | "inactive") {
     if (status === "inactive") {
-      const confirmed = window.confirm(
-        "Nonaktifkan peserta ini? Data tetap tersimpan dan bisa diaktifkan kembali.",
-      );
+      const confirmed = await confirm({
+        title: "Nonaktifkan peserta ini?",
+        description: "Data tetap tersimpan dan bisa diaktifkan kembali.",
+        confirmLabel: "Nonaktifkan",
+      });
       if (!confirmed) return;
     }
 
@@ -243,10 +252,12 @@ export function ParticipantDetailPage({
             categories={categories}
             submitting={submitting}
             error={formError}
+            fieldErrors={formFieldErrors}
             onSubmit={submitEdit}
             onCancel={() => {
               setShowEdit(false);
               setFormError(null);
+              setFormFieldErrors({});
             }}
           />
         </>

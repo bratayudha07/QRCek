@@ -7,6 +7,7 @@ import { AppShell } from "@/components/app-shell";
 import { EmptyState, ErrorState, LoadingState, Notice } from "@/components/page-state";
 import { Button } from "@/components/ui/button";
 import { Field, Checkbox, Input, Label } from "@/components/ui/field";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   downloadAttendanceCsv,
   fullSync,
@@ -39,6 +40,7 @@ export function EventReportsPage({ eventId }: { eventId: string }) {
   const [sheetTab, setSheetTab] = useState("Kehadiran");
   const [syncEnabled, setSyncEnabled] = useState(true);
   const [busy, setBusy] = useState(false);
+  const confirm = useConfirm();
 
   useEffect(() => {
     let cancelled = false;
@@ -72,7 +74,12 @@ export function EventReportsPage({ eventId }: { eventId: string }) {
   }
 
   async function testConnection() {
-    if (!window.confirm("Uji akses akan menulis satu sel metadata ke spreadsheet. Lanjutkan?")) return;
+    const confirmed = await confirm({
+      title: "Uji akses spreadsheet?",
+      description: "Pengujian menulis satu sel metadata ke spreadsheet tujuan.",
+      confirmLabel: "Uji akses",
+    });
+    if (!confirmed) return;
     setBusy(true); setSyncError(null); setNotice(null);
     try {
       const body = await testSync(eventId);
@@ -83,7 +90,16 @@ export function EventReportsPage({ eventId }: { eventId: string }) {
   }
 
   async function performSync(action: "run" | "full") {
-    if (action === "full" && !window.confirm("Masukkan ulang seluruh data peserta acara ke antrean sinkronisasi?")) return;
+    if (action === "full") {
+      const confirmed = await confirm({
+        title: "Masukkan ulang seluruh data peserta?",
+        description:
+          "Semua data peserta acara dimasukkan lagi ke antrean sinkronisasi. Baris yang sudah ada bisa tertimpa.",
+        confirmLabel: "Masukkan ulang",
+        tone: "destructive",
+      });
+      if (!confirmed) return;
+    }
     setBusy(true); setSyncError(null); setNotice(null);
     try {
       if (action === "full") {

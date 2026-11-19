@@ -2,10 +2,16 @@ import type { CategorySummary, ParticipantSummary } from "@absensi/shared";
 import { LoaderCircle } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
+import { FormErrorSummary } from "@/components/form-error-summary";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { categorySelectOptions } from "@/lib/categories";
+import {
+  errorFor,
+  mergeFieldErrors,
+  summarizeFieldErrors,
+  type FieldErrorMap,
+} from "@/lib/form-errors";
 
 /**
  * Create/edit form for one participant. Validation stays server-side.
@@ -29,6 +35,7 @@ export function ParticipantForm({
   categories,
   submitting,
   error,
+  fieldErrors,
   onSubmit,
   onCancel,
 }: {
@@ -37,6 +44,8 @@ export function ParticipantForm({
   categories: readonly CategorySummary[];
   submitting: boolean;
   error: string | null;
+  /** Server-side `details.fieldErrors`, when the caller has them. */
+  fieldErrors?: FieldErrorMap;
   onSubmit: (values: ParticipantFormValues) => void;
   onCancel?: () => void;
 }) {
@@ -46,25 +55,25 @@ export function ParticipantForm({
   const [email, setEmail] = useState(initial?.email ?? "");
   const [categoryId, setCategoryId] = useState(initial?.categoryId ?? "");
   const [note, setNote] = useState(initial?.note ?? "");
-  const [localError, setLocalError] = useState<string | null>(null);
+  const [localErrors, setLocalErrors] = useState<FieldErrorMap>({});
 
   // Active categories only, plus the participant's own archived one so an edit
   // never forces a move to another category.
   const categoryOptions = categorySelectOptions(categories, initial?.categoryId);
 
+  const shownErrors = mergeFieldErrors(fieldErrors, localErrors);
+  const summary = [...summarizeFieldErrors(fieldErrors), ...summarizeFieldErrors(localErrors)];
+  if (error) summary.push(error);
+
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setLocalError(null);
 
-    if (fullName.trim() === "") {
-      setLocalError("Nama peserta wajib diisi");
-      return;
-    }
+    const next: FieldErrorMap = {};
+    if (fullName.trim() === "") next.fullName = "Nama peserta wajib diisi";
+    if (categoryId.trim() === "") next.categoryId = "Kategori wajib diisi";
 
-    if (categoryId.trim() === "") {
-      setLocalError("Kategori wajib diisi");
-      return;
-    }
+    setLocalErrors(next);
+    if (Object.keys(next).length > 0) return;
 
     onSubmit({
       externalRef: externalRef.trim(),
@@ -77,17 +86,25 @@ export function ParticipantForm({
   }
 
   return (
-    <form className="space-y-4 rounded-lg border p-4" onSubmit={submit}>
+    <form className="space-y-4 rounded-lg border p-4" onSubmit={submit} noValidate>
+      <FormErrorSummary errors={summary} />
+
       <div className="grid gap-4 sm:grid-cols-2">
         <Field
           label="Nama lengkap"
           htmlFor="participant-name"
           required
+          error={errorFor(shownErrors, "fullName")}
         >
           <Input
             id="participant-name"
             value={fullName}
-            onChange={(event) => setFullName(event.target.value)}
+            onChange={(event) => {
+              setFullName(event.target.value);
+              if (localErrors.fullName) {
+                setLocalErrors(({ fullName: _removed, ...rest }) => rest);
+              }
+            }}
             maxLength={120}
             required
           />
@@ -97,6 +114,7 @@ export function ParticipantForm({
           label="Nomor referensi"
           htmlFor="participant-ref"
           hint="Opsional. Kunci idempoten saat impor CSV."
+          error={errorFor(shownErrors, "externalRef")}
         >
           <Input
             id="participant-ref"
@@ -107,7 +125,12 @@ export function ParticipantForm({
           />
         </Field>
 
-        <Field label="Nomor telepon" htmlFor="participant-phone" hint="08… otomatis menjadi +62….">
+        <Field
+          label="Nomor telepon"
+          htmlFor="participant-phone"
+          hint="08… otomatis menjadi +62…."
+          error={errorFor(shownErrors, "phone")}
+        >
           <Input
             id="participant-phone"
             value={phone}
@@ -117,7 +140,11 @@ export function ParticipantForm({
           />
         </Field>
 
-        <Field label="Email" htmlFor="participant-email">
+        <Field
+          label="Email"
+          htmlFor="participant-email"
+          error={errorFor(shownErrors, "email")}
+        >
           <Input
             id="participant-email"
             type="email"
@@ -136,11 +163,17 @@ export function ParticipantForm({
               : undefined
           }
           required
+          error={errorFor(shownErrors, "categoryId")}
         >
           <Select
             id="participant-category"
             value={categoryId}
-            onChange={(event) => setCategoryId(event.target.value)}
+            onChange={(event) => {
+              setCategoryId(event.target.value);
+              if (localErrors.categoryId) {
+                setLocalErrors(({ categoryId: _removed, ...rest }) => rest);
+              }
+            }}
             disabled={categoryOptions.length === 0}
             required
           >
@@ -154,7 +187,12 @@ export function ParticipantForm({
         </Field>
       </div>
 
-      <Field label="Catatan" htmlFor="participant-note" hint="Opsional, maksimal 500 karakter.">
+      <Field
+        label="Catatan"
+        htmlFor="participant-note"
+        hint="Opsional, maksimal 500 karakter."
+        error={errorFor(shownErrors, "note")}
+      >
         <Textarea
           id="participant-note"
           value={note}
@@ -162,12 +200,6 @@ export function ParticipantForm({
           maxLength={500}
         />
       </Field>
-
-      {(localError ?? error) && (
-        <Alert variant="destructive">
-          <AlertDescription>{localError ?? error}</AlertDescription>
-        </Alert>
-      )}
 
       <div className="flex flex-wrap gap-2">
         <Button type="submit" disabled={submitting || categoryOptions.length === 0}>
